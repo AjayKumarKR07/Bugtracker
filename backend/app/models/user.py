@@ -47,7 +47,8 @@ class User(Base):
         Enum(UserRole, name="userrole", create_type=True),
         nullable=False,
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # ------------------------------------------------------------------ #
     # Timestamps                                                           #
