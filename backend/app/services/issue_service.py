@@ -1,0 +1,409 @@
+"""
+Issue service — business logic for defect management.
+
+Keeps all DB queries, key generation, and workflow enforcement
+out of route handlers. All functions are async + AsyncSession.
+"""
+
+import math
+from datetime import UTC, datetime
+
+from fastapi import HTTPException, status
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models.issue import (
+    DEVELOPER_TRANSITIONS,
+    REOPENABLE_STATUSES,
+    Issue,
+    IssueStatus,
+    IssueType,
+    Priority,
+    Severity,
+)
+from app.models.project import Project, ProjectStatus
+from app.models.user import User, UserRole
+from app.schemas.issue import (
+    IssueAssign,
+    IssueCreate,
+    IssueDetailResponse,
+    IssueListResponse,
+    IssueReopen,
+    IssueResolve,
+    IssueResponse,
+    IssueStatusUpdate,
+    IssueUpdate,
+)
+
+
+# --------------------------------------------------------------------------- #
+# Internal helpers                                                             #
+# --------------------------------------------------------------------------- #
+
+async def _get_issue_or_404(issue_id: int, db: AsyncSession) -> Issue:
+    """Fetch an Issue with relationships eagerly loaded, or raise 404."""
+    result = await db.execute(
+        select(Issue)
+        .options(
+            selectinload(Issue.project),
+            selectinload(Issue.reporter),
+            selectinload(Issue.assignee),
+        )
+        .where(Issue.id == issue_id)
+    )
+    issue = result.scalar_one_or_none()
+    if issue is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Issue {issue_id} not found.",
+        )
+    return issue
+
+
+async def _get_project_active_or_error(project_id: int, db: AsyncSession) -> Project:
+    """Fetch a Project, raising 404 if missing and 400 if inactive."""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found.",
+        )
+    if project.status != ProjectStatus.ACTIVE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot report issues on an inactive project.",
+        )
+    return project
+
+
+async def _generate_issue_key(project_key: str, db: AsyncSession) -> str:
+    """Generate the next sequential issue key for a project.
+
+    Format: <PROJECT_KEY>-<zero-padded-number>  e.g. DM-0001, DM-0042
+    """
+    # Count existing issues for this project
+    result = await db.execute(
+        select(func.count())
+        .select_from(Issue)
+        .join(Project, Issue.project_id == Project.id)
+        .where(Project.project_key == project_key)
+    )
+    count = result.scalar_one()
+    return f"{project_key}-{count + 1:04d}"
+
+
+# --------------------------------------------------------------------------- #
+# CRUD                                                                         #
+# --------------------------------------------------------------------------- #
+
+async def create_issue(body: IssueCreate, reporter: User, db: AsyncSession) -> IssueDetailResponse:
+    """Create a new defect. Reporter is always the authenticated TESTER."""
+    project = await _get_project_active_or_error(body.project_id, db)
+    issue_key = await _generate_issue_key(project.project_key, db)
+
+    issue = Issue(
+        issue_key=issue_key,
+        title=body.title,
+        description=body.description,
+        issue_type=body.issue_type,
+        severity=body.severity,
+        priority=body.priority,
+        status=IssueStatus.REPORTED,
+        environment=body.environment,
+        steps_to_reproduce=body.steps_to_reproduce,
+        expected_result=body.expected_result,
+        actual_result=body.actual_result,
+        project_id=body.project_id,
+        reporter_id=reporter.id,
+        assignee_id=None,
+    )
+    db.add(issue)
+    await db.flush()
+
+    # Re-fetch with relationships
+    return await get_issue_detail(issue.id, db)
+
+
+async def get_issue_detail(issue_id: int, db: AsyncSession) -> IssueDetailResponse:
+    """Fetch full issue detail with related project, reporter, assignee."""
+    issue = await _get_issue_or_404(issue_id, db)
+    return IssueDetailResponse.model_validate(issue)
+
+
+async def list_issues(
+    db: AsyncSession,
+    current_user: User,
+    page: int = 1,
+    page_size: int = 20,
+    status_filter: IssueStatus | None = None,
+    severity_filter: Severity | None = None,
+    priority_filter: Priority | None = None,
+    issue_type_filter: IssueType | None = None,
+    project_id: int | None = None,
+    reporter_id: int | None = None,
+    assignee_id: int | None = None,
+    search: str | None = None,
+) -> IssueListResponse:
+    """Return paginated issues with role-based visibility enforcement.
+
+    Role filters:
+      ADMIN   — sees all issues
+      DEVELOPER — only issues assigned to them
+      TESTER  — only issues they reported
+    """
+    query = select(Issue)
+
+    # ---- Role-based base filter ------------------------------------------- #
+    if current_user.role == UserRole.DEVELOPER:
+        query = query.where(Issue.assignee_id == current_user.id)
+    elif current_user.role == UserRole.TESTER:
+        query = query.where(Issue.reporter_id == current_user.id)
+    # ADMIN sees all — no base filter
+
+    # ---- Optional filters ------------------------------------------------- #
+    if status_filter is not None:
+        query = query.where(Issue.status == status_filter)
+    if severity_filter is not None:
+        query = query.where(Issue.severity == severity_filter)
+    if priority_filter is not None:
+        query = query.where(Issue.priority == priority_filter)
+    if issue_type_filter is not None:
+        query = query.where(Issue.issue_type == issue_type_filter)
+    if project_id is not None:
+        query = query.where(Issue.project_id == project_id)
+
+    # Reporter / assignee filters are ADMIN-only (to prevent enumeration)
+    if current_user.role == UserRole.ADMIN:
+        if reporter_id is not None:
+            query = query.where(Issue.reporter_id == reporter_id)
+        if assignee_id is not None:
+            query = query.where(Issue.assignee_id == assignee_id)
+
+    # ---- Search ----------------------------------------------------------- #
+    if search:
+        term = f"%{search}%"
+        query = query.where(
+            or_(
+                Issue.issue_key.ilike(term),
+                Issue.title.ilike(term),
+                Issue.description.ilike(term),
+            )
+        )
+
+    # ---- Pagination ------------------------------------------------------- #
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar_one()
+
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        query.order_by(Issue.created_at.desc()).offset(offset).limit(page_size)
+    )
+    issues = result.scalars().all()
+
+    return IssueListResponse(
+        items=[IssueResponse.model_validate(i) for i in issues],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=math.ceil(total / page_size) if total else 0,
+    )
+
+
+async def update_issue(
+    issue_id: int, body: IssueUpdate, current_user: User, db: AsyncSession
+) -> IssueDetailResponse:
+    """TESTER: update their own reported issue's metadata fields."""
+    issue = await _get_issue_or_404(issue_id, db)
+
+    # Ownership check
+    if current_user.role == UserRole.TESTER and issue.reporter_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update issues you reported.",
+        )
+
+    # Protected statuses — cannot update resolved/closed issues
+    if issue.status in (IssueStatus.RESOLVED, IssueStatus.CLOSED):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot update a resolved or closed issue. Reopen it first.",
+        )
+
+    if body.title is not None:
+        issue.title = body.title
+    if body.description is not None:
+        issue.description = body.description
+    if body.severity is not None:
+        issue.severity = body.severity
+    if body.priority is not None:
+        issue.priority = body.priority
+    if body.environment is not None:
+        issue.environment = body.environment
+    if body.steps_to_reproduce is not None:
+        issue.steps_to_reproduce = body.steps_to_reproduce
+    if body.expected_result is not None:
+        issue.expected_result = body.expected_result
+    if body.actual_result is not None:
+        issue.actual_result = body.actual_result
+
+    await db.flush()
+    await db.refresh(issue)
+    return await get_issue_detail(issue_id, db)
+
+
+# --------------------------------------------------------------------------- #
+# Assignment                                                                   #
+# --------------------------------------------------------------------------- #
+
+async def assign_issue(
+    issue_id: int, body: IssueAssign, db: AsyncSession
+) -> IssueDetailResponse:
+    """ADMIN: assign/reassign an issue to a developer."""
+    issue = await _get_issue_or_404(issue_id, db)
+
+    # Validate developer exists and has DEVELOPER role
+    dev_result = await db.execute(select(User).where(User.id == body.developer_id))
+    developer: User | None = dev_result.scalar_one_or_none()
+    if developer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {body.developer_id} not found.",
+        )
+    if developer.role != UserRole.DEVELOPER:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The target user is not a DEVELOPER.",
+        )
+    if not developer.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot assign issue to an inactive user.",
+        )
+
+    issue.assignee_id = body.developer_id
+    if issue.status == IssueStatus.REPORTED:
+        issue.status = IssueStatus.ASSIGNED
+
+    await db.flush()
+    await db.refresh(issue)  # expire cached attributes so next query re-loads relationships
+    return await get_issue_detail(issue_id, db)
+
+
+# --------------------------------------------------------------------------- #
+# Status transitions                                                           #
+# --------------------------------------------------------------------------- #
+
+async def update_issue_status(
+    issue_id: int, body: IssueStatusUpdate, current_user: User, db: AsyncSession
+) -> IssueDetailResponse:
+    """DEVELOPER: transition their assigned issue through allowed statuses."""
+    issue = await _get_issue_or_404(issue_id, db)
+
+    # Must be assigned to the requesting developer
+    if issue.assignee_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update status on issues assigned to you.",
+        )
+
+    allowed = DEVELOPER_TRANSITIONS.get(issue.status, set())
+    if body.status not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Cannot transition from {issue.status.value} to {body.status.value}. "
+                f"Allowed targets: {[s.value for s in allowed] or 'none'}."
+            ),
+        )
+
+    issue.status = body.status
+    await db.flush()
+    await db.refresh(issue)
+    return await get_issue_detail(issue_id, db)
+
+
+# --------------------------------------------------------------------------- #
+# Resolution                                                                   #
+# --------------------------------------------------------------------------- #
+
+async def resolve_issue(
+    issue_id: int, body: IssueResolve, current_user: User, db: AsyncSession
+) -> IssueDetailResponse:
+    """DEVELOPER: mark their assigned issue as resolved."""
+    issue = await _get_issue_or_404(issue_id, db)
+
+    if issue.assignee_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only resolve issues assigned to you.",
+        )
+
+    if issue.status == IssueStatus.RESOLVED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Issue is already resolved.",
+        )
+
+    # Resolution is allowed from IN_REVIEW or IN_TESTING
+    resolvable = {IssueStatus.IN_REVIEW, IssueStatus.IN_TESTING, IssueStatus.IN_DEVELOPMENT, IssueStatus.ASSIGNED}
+    if issue.status not in resolvable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot resolve issue in status {issue.status.value}.",
+        )
+
+    summary = body.resolution_summary
+    if body.resolution_notes:
+        summary = f"{body.resolution_summary}\n\nNotes: {body.resolution_notes}"
+
+    issue.status = IssueStatus.RESOLVED
+    issue.resolution_summary = summary
+    issue.resolved_at = datetime.now(UTC)
+    await db.flush()
+    await db.refresh(issue)
+    return await get_issue_detail(issue_id, db)
+
+
+# --------------------------------------------------------------------------- #
+# Reopen                                                                       #
+# --------------------------------------------------------------------------- #
+
+async def reopen_issue(
+    issue_id: int, body: IssueReopen, current_user: User, db: AsyncSession
+) -> IssueDetailResponse:
+    """TESTER (own issues) or ADMIN: reopen a resolved/closed issue."""
+    issue = await _get_issue_or_404(issue_id, db)
+
+    if issue.status not in REOPENABLE_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Cannot reopen issue in status {issue.status.value}. "
+                f"Reopenable statuses: {[s.value for s in REOPENABLE_STATUSES]}."
+            ),
+        )
+
+    # Tester can only reopen their own issues
+    if current_user.role == UserRole.TESTER and issue.reporter_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Testers can only reopen issues they reported.",
+        )
+
+    reopen_note = f"[REOPENED by {current_user.full_name}]"
+    if body.reason:
+        reopen_note += f" Reason: {body.reason}"
+
+    issue.status = IssueStatus.REOPENED
+    issue.resolution_summary = None  # clear resolution
+    issue.resolved_at = None
+
+    # Append reopen note to description for traceability
+    if body.reason:
+        issue.description = f"{issue.description}\n\n{reopen_note}"
+
+    await db.flush()
+    await db.refresh(issue)
+    return await get_issue_detail(issue_id, db)

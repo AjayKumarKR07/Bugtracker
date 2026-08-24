@@ -3,9 +3,18 @@ Application configuration using pydantic-settings.
 Loads settings from environment variables and .env file.
 All secrets (JWT key, SMTP password, DB password) live ONLY in backend/.env
 which is git-ignored.
+
+DATABASE_URL construction note:
+  The password contains @ which must NOT be URL-encoded in .env when read
+  as a plain string (pydantic-settings would decode %40→@ and then
+  SQLAlchemy re-parses it incorrectly). Instead we store credentials
+  individually and build the SQLAlchemy URL via URL.create().
 """
 
+from functools import cached_property
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 
 class Settings(BaseSettings):
@@ -13,9 +22,9 @@ class Settings(BaseSettings):
 
     Phase roadmap:
       Phase 1 — APP_NAME, APP_ENV, DEBUG, API_V1_PREFIX
-      Phase 2 — DATABASE_URL
-      Phase 3 — JWT_*, OTP_*, SMTP_*          ← current
-      Phase 4 — AI API keys
+      Phase 2 — DATABASE_URL or individual DB_* settings
+      Phase 3 — JWT_*, OTP_*, SMTP_*
+      Phase 4 — (no new config needed)
     """
 
     # ------------------------------------------------------------------ #
@@ -27,9 +36,18 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api"
 
     # ------------------------------------------------------------------ #
-    # Database (Phase 2)                                                   #
-    # Format: postgresql+psycopg://user:password@host:port/dbname         #
+    # Database credentials — stored individually to avoid URL             #
+    # percent-encoding issues with passwords containing @ characters.     #
     # ------------------------------------------------------------------ #
+    DB_DRIVER: str = "postgresql+psycopg"
+    DB_USER: str = "postgres"
+    DB_PASSWORD: str = ""          # plain text — no URL encoding needed
+    DB_HOST: str = "127.0.0.1"
+    DB_PORT: int = 5432
+    DB_NAME: str = "bugtracker_db"
+
+    # Legacy fallback — kept for backwards compat but NOT used by the engine.
+    # If only DATABASE_URL is set, the individual DB_* vars take precedence.
     DATABASE_URL: str = ""
 
     # ------------------------------------------------------------------ #
@@ -63,7 +81,22 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
+    @cached_property
+    def sqlalchemy_url(self) -> URL:
+        """Build a SQLAlchemy URL safely, without parsing raw URL strings.
+
+        Using URL.create() sidesteps all percent-encoding issues because
+        credentials are passed as plain Python strings, not embedded in a URI.
+        """
+        return URL.create(
+            drivername=self.DB_DRIVER,
+            username=self.DB_USER,
+            password=self.DB_PASSWORD,
+            host=self.DB_HOST,
+            port=self.DB_PORT,
+            database=self.DB_NAME,
+        )
+
 
 # Single shared settings instance for the entire application
 settings = Settings()
-

@@ -1,11 +1,10 @@
 """
 DefectMind FastAPI application entry point.
 
-Phase 1: Structural foundation only.
-- No authentication
-- No database models
-- No AI features
-- No CORS (added when frontend integration begins)
+Phase 1: Structural foundation
+Phase 2: PostgreSQL + SQLAlchemy
+Phase 3: Authentication + OTP + JWT + RBAC
+Phase 4: Defect Management APIs (Projects + Issues)
 """
 
 from fastapi import FastAPI
@@ -14,6 +13,8 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.routes.auth import router as auth_router
 from app.routes.health import router as health_router
+from app.routes.issues import router as issues_router
+from app.routes.projects import router as projects_router
 
 
 class RootResponse(BaseModel):
@@ -26,7 +27,7 @@ app = FastAPI(
         "Intelligent Software Defect Tracking System with Resolution Assistance. "
         "Built for the Infosys Batch 3 internship project."
     ),
-    version="0.1.0",
+    version="0.4.0",
     docs_url="/docs",
     redoc_url="/redoc",
     debug=settings.DEBUG,
@@ -37,6 +38,8 @@ app = FastAPI(
 # -----------------------------------------------------------------
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(projects_router)
+app.include_router(issues_router)
 
 
 # -----------------------------------------------------------------

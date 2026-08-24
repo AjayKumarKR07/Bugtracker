@@ -4,6 +4,9 @@ Issue model.
 The central entity of the defect tracking system.
 An Issue belongs to a Project and is reported by a User.
 It may optionally be assigned to a Developer.
+
+Phase 4: Added defect detail columns (environment, steps_to_reproduce,
+expected_result, actual_result, resolution_summary, resolved_at).
 """
 
 import enum
@@ -54,6 +57,27 @@ class IssueStatus(str, enum.Enum):
 
 
 # ------------------------------------------------------------------ #
+# Valid status transitions                                             #
+# Enforced by the issue service — not a DB constraint.                #
+# ------------------------------------------------------------------ #
+
+# Developer-driven transitions (from → set of allowed targets)
+DEVELOPER_TRANSITIONS: dict[IssueStatus, set[IssueStatus]] = {
+    IssueStatus.ASSIGNED:       {IssueStatus.IN_DEVELOPMENT},
+    IssueStatus.IN_DEVELOPMENT: {IssueStatus.IN_REVIEW},
+    IssueStatus.IN_REVIEW:      {IssueStatus.IN_TESTING, IssueStatus.IN_DEVELOPMENT},
+    IssueStatus.REOPENED:       {IssueStatus.IN_DEVELOPMENT},
+}
+
+# Tester / Admin can reopen
+REOPENABLE_STATUSES: set[IssueStatus] = {
+    IssueStatus.RESOLVED,
+    IssueStatus.CLOSED,
+    IssueStatus.IN_TESTING,
+}
+
+
+# ------------------------------------------------------------------ #
 # Issue model                                                          #
 # ------------------------------------------------------------------ #
 
@@ -98,6 +122,22 @@ class Issue(Base):
         Enum(IssueStatus, name="issuestatus", create_type=True),
         nullable=False,
         default=IssueStatus.REPORTED,
+    )
+
+    # ------------------------------------------------------------------ #
+    # Defect details (Phase 4)                                             #
+    # ------------------------------------------------------------------ #
+    environment: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    steps_to_reproduce: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actual_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ------------------------------------------------------------------ #
+    # Resolution (Phase 4)                                                 #
+    # ------------------------------------------------------------------ #
+    resolution_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     # ------------------------------------------------------------------ #

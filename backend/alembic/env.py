@@ -14,7 +14,7 @@ import sys
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa: F401 — kept for reference
 
 # ---------------------------------------------------------------------------
 # Load application settings (DATABASE_URL lives here)
@@ -56,7 +56,7 @@ def run_migrations_offline() -> None:
     SQL scripts without a live database connection.
     """
     context.configure(
-        url=settings.DATABASE_URL,   # passed directly — avoids configparser % issue
+        url=str(settings.sqlalchemy_url),   # safe URL via URL.create()
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -81,13 +81,13 @@ def do_run_migrations(connection):  # type: ignore[no-untyped-def]
 
 
 async def run_async_migrations() -> None:
-    """Create a psycopg async engine and run migrations within a connection."""
-    connectable = create_async_engine(settings.DATABASE_URL)
+    """Use the shared async engine (already constructed with a valid URL)."""
+    from app.database.connection import engine as connectable
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
-    await connectable.dispose()
+    # Do NOT dispose the shared engine — it is reused by the application.
 
 
 def run_migrations_online() -> None:
