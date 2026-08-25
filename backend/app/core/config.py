@@ -75,11 +75,35 @@ class Settings(BaseSettings):
     SMTP_FROM_NAME: str = "DefectMind"
     SMTP_USE_TLS: bool = True
 
+    # ------------------------------------------------------------------ #
+    # File attachments (Phase 7)                                           #
+    # ------------------------------------------------------------------ #
+    ATTACHMENT_STORAGE_PATH: str = "storage/attachments"
+    ATTACHMENT_MAX_SIZE_MB: int = 10
+    ATTACHMENT_ALLOWED_MIME_TYPES: str = (
+        "image/png,image/jpeg,image/webp,"
+        "application/pdf,"
+        "text/plain,text/csv"
+    )
+
+    @property
+    def attachment_max_size_bytes(self) -> int:
+        """Return maximum allowed attachment size in bytes."""
+        return self.ATTACHMENT_MAX_SIZE_MB * 1024 * 1024
+
+    @property
+    def attachment_allowed_mime_set(self) -> frozenset[str]:
+        """Return the set of allowed MIME types."""
+        return frozenset(
+            m.strip() for m in self.ATTACHMENT_ALLOWED_MIME_TYPES.split(",") if m.strip()
+        )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
     )
+
 
     @cached_property
     def sqlalchemy_url(self) -> URL:

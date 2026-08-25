@@ -209,9 +209,13 @@ class TestAuditModel:
             "AUTH_LOGIN", "AUTH_LOGOUT",
             # Phase 6 user-management actions
             "USER_UPDATED", "USER_ACTIVATED", "USER_DEACTIVATED", "USER_ROLE_CHANGED",
+            # Phase 7 comment + attachment actions
+            "COMMENT_CREATED", "COMMENT_UPDATED", "COMMENT_DELETED",
+            "ATTACHMENT_UPLOADED", "ATTACHMENT_DELETED",
         }
         actual = {a.value for a in AuditAction}
         assert expected == actual
+
 
 
 # --------------------------------------------------------------------------- #

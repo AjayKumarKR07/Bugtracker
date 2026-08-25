@@ -47,6 +47,16 @@ class AuditAction(str, enum.Enum):
     USER_DEACTIVATED     = "USER_DEACTIVATED"
     USER_ROLE_CHANGED    = "USER_ROLE_CHANGED"
 
+    # Comments (Phase 7)
+    COMMENT_CREATED      = "COMMENT_CREATED"
+    COMMENT_UPDATED      = "COMMENT_UPDATED"
+    COMMENT_DELETED      = "COMMENT_DELETED"
+
+    # Attachments (Phase 7)
+    ATTACHMENT_UPLOADED  = "ATTACHMENT_UPLOADED"
+    ATTACHMENT_DELETED   = "ATTACHMENT_DELETED"
+
+
 
 # --------------------------------------------------------------------------- #
 # AuditLog ORM model                                                           #

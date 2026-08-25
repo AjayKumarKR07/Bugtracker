@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Phase 7 — File attachment storage (never commit uploaded files)
+backend/storage/
+
+# Test attachment temp files
+backend/tests/tmp_attachments/
+

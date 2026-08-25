@@ -185,9 +185,25 @@ class Issue(Base):
         back_populates="assigned_issues",
         foreign_keys=[assignee_id],
     )
+    # Phase 7 — back-references
+    comments: Mapped[list["IssueComment"]] = relationship(  # type: ignore[name-defined]
+        "IssueComment",
+        back_populates="issue",
+        foreign_keys="IssueComment.issue_id",
+        cascade="all, delete-orphan",
+        lazy="select",
+    )
+    attachments: Mapped[list["IssueAttachment"]] = relationship(  # type: ignore[name-defined]
+        "IssueAttachment",
+        back_populates="issue",
+        foreign_keys="IssueAttachment.issue_id",
+        cascade="all, delete-orphan",
+        lazy="select",
+    )
 
     def __repr__(self) -> str:
         return (
             f"<Issue id={self.id} key={self.issue_key!r} "
             f"status={self.status} severity={self.severity}>"
         )
+

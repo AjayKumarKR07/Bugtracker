@@ -14,6 +14,8 @@ from app.models.issue import (
     Priority,
     Severity,
 )
+from app.models.issue_attachment import IssueAttachment
+from app.models.issue_comment import IssueComment
 from app.models.project import Project, ProjectStatus
 from app.models.user import User, UserRole
 
@@ -24,6 +26,8 @@ __all__ = [
     "Issue",
     "EmailOTP",
     "AuditLog",
+    "IssueComment",
+    "IssueAttachment",
     # Enums
     "UserRole",
     "ProjectStatus",

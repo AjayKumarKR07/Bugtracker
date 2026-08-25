@@ -7,6 +7,7 @@ Phase 3: Authentication + OTP + JWT + RBAC
 Phase 4: Defect Management APIs (Projects + Issues)
 Phase 5: Audit Logs & Activity Tracking
 Phase 6: Admin Management & Dashboard APIs
+Phase 7: Issue Comments & File Attachments
 """
 
 from fastapi import FastAPI
@@ -14,8 +15,10 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.routes.admin import router as admin_router
+from app.routes.attachments import router as attachments_router
 from app.routes.audit import router as audit_router
 from app.routes.auth import router as auth_router
+from app.routes.comments import router as comments_router
 from app.routes.health import router as health_router
 from app.routes.issues import router as issues_router
 from app.routes.projects import router as projects_router
@@ -32,7 +35,7 @@ app = FastAPI(
         "Intelligent Software Defect Tracking System with Resolution Assistance. "
         "Built for the Infosys Batch 3 internship project."
     ),
-    version="0.6.0",
+    version="0.7.0",
     docs_url="/docs",
     redoc_url="/redoc",
     debug=settings.DEBUG,
@@ -48,6 +51,8 @@ app.include_router(issues_router)
 app.include_router(audit_router)
 app.include_router(users_router)
 app.include_router(admin_router)
+app.include_router(comments_router)
+app.include_router(attachments_router)
 
 
 # -----------------------------------------------------------------
@@ -57,3 +62,4 @@ app.include_router(admin_router)
 async def root() -> RootResponse:
     """Confirm the API is reachable."""
     return RootResponse(message="DefectMind API is running")
+
