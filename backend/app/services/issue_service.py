@@ -3,6 +3,10 @@ Issue service — business logic for defect management.
 
 Keeps all DB queries, key generation, and workflow enforcement
 out of route handlers. All functions are async + AsyncSession.
+
+Phase 5: Audit logging integrated into all mutating operations.
+         Audit records are written via db.flush() inside the same
+         transaction as the mutating operation.
 """
 
 import math
@@ -13,6 +17,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.audit_log import AuditAction
 from app.models.issue import (
     DEVELOPER_TRANSITIONS,
     REOPENABLE_STATUSES,
@@ -35,6 +40,7 @@ from app.schemas.issue import (
     IssueStatusUpdate,
     IssueUpdate,
 )
+from app.services.audit_service import compute_diff, create_audit_log
 
 
 # --------------------------------------------------------------------------- #
@@ -121,6 +127,29 @@ async def create_issue(body: IssueCreate, reporter: User, db: AsyncSession) -> I
     )
     db.add(issue)
     await db.flush()
+
+    await create_audit_log(
+        db=db,
+        actor=reporter,
+        action=AuditAction.ISSUE_CREATED,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue_key,
+        description=(
+            f"Tester {reporter.full_name!r} reported issue {issue_key} "
+            f"in project {project.project_key}"
+        ),
+        new_values={
+            "issue_key": issue_key,
+            "title": body.title,
+            "issue_type": body.issue_type,
+            "severity": body.severity,
+            "priority": body.priority,
+            "status": IssueStatus.REPORTED,
+            "project_key": project.project_key,
+            "reporter": reporter.full_name,
+        },
+    )
 
     # Re-fetch with relationships
     return await get_issue_detail(issue.id, db)
@@ -231,6 +260,18 @@ async def update_issue(
             detail="Cannot update a resolved or closed issue. Reopen it first.",
         )
 
+    # Snapshot before state for change tracking
+    before = {
+        "title": issue.title,
+        "description": issue.description,
+        "severity": issue.severity,
+        "priority": issue.priority,
+        "environment": issue.environment,
+        "steps_to_reproduce": issue.steps_to_reproduce,
+        "expected_result": issue.expected_result,
+        "actual_result": issue.actual_result,
+    }
+
     if body.title is not None:
         issue.title = body.title
     if body.description is not None:
@@ -250,6 +291,36 @@ async def update_issue(
 
     await db.flush()
     await db.refresh(issue)
+
+    # Only emit audit record if something actually changed
+    after = {
+        "title": issue.title,
+        "description": issue.description,
+        "severity": issue.severity,
+        "priority": issue.priority,
+        "environment": issue.environment,
+        "steps_to_reproduce": issue.steps_to_reproduce,
+        "expected_result": issue.expected_result,
+        "actual_result": issue.actual_result,
+    }
+    old_diff, new_diff = compute_diff(before, after)
+
+    if old_diff or new_diff:
+        await create_audit_log(
+            db=db,
+            actor=current_user,
+            action=AuditAction.ISSUE_UPDATED,
+            entity_type="ISSUE",
+            entity_id=issue.id,
+            entity_key=issue.issue_key,
+            description=(
+                f"{current_user.role.value.capitalize()} {current_user.full_name!r} "
+                f"updated issue {issue.issue_key}"
+            ),
+            old_values=old_diff,
+            new_values=new_diff,
+        )
+
     return await get_issue_detail(issue_id, db)
 
 
@@ -258,7 +329,7 @@ async def update_issue(
 # --------------------------------------------------------------------------- #
 
 async def assign_issue(
-    issue_id: int, body: IssueAssign, db: AsyncSession
+    issue_id: int, body: IssueAssign, current_user: User, db: AsyncSession
 ) -> IssueDetailResponse:
     """ADMIN: assign/reassign an issue to a developer."""
     issue = await _get_issue_or_404(issue_id, db)
@@ -282,12 +353,38 @@ async def assign_issue(
             detail="Cannot assign issue to an inactive user.",
         )
 
+    old_assignee_id = issue.assignee_id
+    old_status = issue.status
+
     issue.assignee_id = body.developer_id
     if issue.status == IssueStatus.REPORTED:
         issue.status = IssueStatus.ASSIGNED
 
     await db.flush()
     await db.refresh(issue)  # expire cached attributes so next query re-loads relationships
+
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.ISSUE_ASSIGNED,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+        description=(
+            f"Admin {current_user.full_name!r} assigned issue {issue.issue_key} "
+            f"to {developer.full_name!r}"
+        ),
+        old_values={
+            "assignee_id": old_assignee_id,
+            "status": old_status,
+        },
+        new_values={
+            "assignee_id": body.developer_id,
+            "assignee_name": developer.full_name,
+            "status": issue.status,
+        },
+    )
+
     return await get_issue_detail(issue_id, db)
 
 
@@ -318,9 +415,26 @@ async def update_issue_status(
             ),
         )
 
+    old_status = issue.status
     issue.status = body.status
     await db.flush()
     await db.refresh(issue)
+
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.ISSUE_STATUS_CHANGED,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+        description=(
+            f"Developer {current_user.full_name!r} changed status of "
+            f"{issue.issue_key} from {old_status.value} to {body.status.value}"
+        ),
+        old_values={"status": old_status},
+        new_values={"status": body.status},
+    )
+
     return await get_issue_detail(issue_id, db)
 
 
@@ -354,6 +468,8 @@ async def resolve_issue(
             detail=f"Cannot resolve issue in status {issue.status.value}.",
         )
 
+    old_status = issue.status
+
     summary = body.resolution_summary
     if body.resolution_notes:
         summary = f"{body.resolution_summary}\n\nNotes: {body.resolution_notes}"
@@ -363,6 +479,25 @@ async def resolve_issue(
     issue.resolved_at = datetime.now(UTC)
     await db.flush()
     await db.refresh(issue)
+
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.ISSUE_RESOLVED,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+        description=(
+            f"Developer {current_user.full_name!r} resolved issue {issue.issue_key}"
+        ),
+        old_values={"status": old_status},
+        new_values={
+            "status": IssueStatus.RESOLVED,
+            "resolution_summary": body.resolution_summary,
+            "resolved_at": issue.resolved_at,
+        },
+    )
+
     return await get_issue_detail(issue_id, db)
 
 
@@ -392,6 +527,8 @@ async def reopen_issue(
             detail="Testers can only reopen issues they reported.",
         )
 
+    old_status = issue.status
+
     reopen_note = f"[REOPENED by {current_user.full_name}]"
     if body.reason:
         reopen_note += f" Reason: {body.reason}"
@@ -406,4 +543,20 @@ async def reopen_issue(
 
     await db.flush()
     await db.refresh(issue)
+
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.ISSUE_REOPENED,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+        description=(
+            f"{current_user.role.value.capitalize()} {current_user.full_name!r} "
+            f"reopened issue {issue.issue_key}"
+        ),
+        old_values={"status": old_status},
+        new_values={"status": IssueStatus.REOPENED, "reason": body.reason},
+    )
+
     return await get_issue_detail(issue_id, db)

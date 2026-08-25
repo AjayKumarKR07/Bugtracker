@@ -5,6 +5,7 @@ Imports all ORM models so that Base.metadata is fully
 populated when Alembic inspects it for autogeneration.
 """
 
+from app.models.audit_log import AuditAction, AuditLog
 from app.models.email_otp import EmailOTP
 from app.models.issue import (
     Issue,
@@ -22,6 +23,7 @@ __all__ = [
     "Project",
     "Issue",
     "EmailOTP",
+    "AuditLog",
     # Enums
     "UserRole",
     "ProjectStatus",
@@ -29,4 +31,5 @@ __all__ = [
     "Severity",
     "Priority",
     "IssueStatus",
+    "AuditAction",
 ]

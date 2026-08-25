@@ -20,4 +20,4 @@ class Base(DeclarativeBase):
 # Model imports — keep in dependency order (no circular imports).
 # These imports register models against Base.metadata.
 # ---------------------------------------------------------------------------
-from app.models import user, project, issue  # noqa: E402, F401
+from app.models import user, project, issue, audit_log  # noqa: E402, F401

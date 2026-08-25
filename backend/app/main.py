@@ -5,12 +5,14 @@ Phase 1: Structural foundation
 Phase 2: PostgreSQL + SQLAlchemy
 Phase 3: Authentication + OTP + JWT + RBAC
 Phase 4: Defect Management APIs (Projects + Issues)
+Phase 5: Audit Logs & Activity Tracking
 """
 
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.routes.audit import router as audit_router
 from app.routes.auth import router as auth_router
 from app.routes.health import router as health_router
 from app.routes.issues import router as issues_router
@@ -27,7 +29,7 @@ app = FastAPI(
         "Intelligent Software Defect Tracking System with Resolution Assistance. "
         "Built for the Infosys Batch 3 internship project."
     ),
-    version="0.4.0",
+    version="0.5.0",
     docs_url="/docs",
     redoc_url="/redoc",
     debug=settings.DEBUG,
@@ -40,6 +42,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(issues_router)
+app.include_router(audit_router)
 
 
 # -----------------------------------------------------------------

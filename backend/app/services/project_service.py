@@ -3,6 +3,10 @@ Project service — business logic for project management.
 
 Keeps all database queries and business rules out of route handlers.
 All functions are async and accept an AsyncSession.
+
+Phase 5: Audit logging added to create_project, update_project,
+         and deactivate_project. All audit records are written inside
+         the same database transaction as the mutating operation.
 """
 
 import math
@@ -11,8 +15,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audit_log import AuditAction
 from app.models.project import Project, ProjectStatus
+from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectListResponse, ProjectResponse, ProjectUpdate
+from app.services.audit_service import compute_diff, create_audit_log
 
 
 # --------------------------------------------------------------------------- #
@@ -35,7 +42,7 @@ async def _get_project_or_404(project_id: int, db: AsyncSession) -> Project:
 # CRUD                                                                         #
 # --------------------------------------------------------------------------- #
 
-async def create_project(body: ProjectCreate, db: AsyncSession) -> ProjectResponse:
+async def create_project(body: ProjectCreate, db: AsyncSession, actor: User) -> ProjectResponse:
     """Create a new project. Raises 409 if project_key already exists."""
     # Duplicate key check
     exists = await db.execute(
@@ -56,6 +63,26 @@ async def create_project(body: ProjectCreate, db: AsyncSession) -> ProjectRespon
     db.add(project)
     await db.flush()
     await db.refresh(project)
+
+    await create_audit_log(
+        db=db,
+        actor=actor,
+        action=AuditAction.PROJECT_CREATED,
+        entity_type="PROJECT",
+        entity_id=project.id,
+        entity_key=project.project_key,
+        description=(
+            f"{actor.role.value.capitalize()} {actor.full_name!r} "
+            f"created project {project.project_key}"
+        ),
+        new_values={
+            "project_key": project.project_key,
+            "name": project.name,
+            "description": project.description,
+            "status": project.status,
+        },
+    )
+
     return ProjectResponse.model_validate(project)
 
 
@@ -97,10 +124,17 @@ async def list_projects(
 
 
 async def update_project(
-    project_id: int, body: ProjectUpdate, db: AsyncSession
+    project_id: int, body: ProjectUpdate, db: AsyncSession, actor: User
 ) -> ProjectResponse:
     """Partially update a project. ADMIN only."""
     project = await _get_project_or_404(project_id, db)
+
+    # Snapshot before state (only updatable fields)
+    before = {
+        "name": project.name,
+        "description": project.description,
+        "status": project.status,
+    }
 
     if body.name is not None:
         project.name = body.name
@@ -111,10 +145,35 @@ async def update_project(
 
     await db.flush()
     await db.refresh(project)
+
+    # Compute diff — only store changed fields
+    after = {
+        "name": project.name,
+        "description": project.description,
+        "status": project.status,
+    }
+    old_diff, new_diff = compute_diff(before, after)
+
+    if old_diff or new_diff:
+        await create_audit_log(
+            db=db,
+            actor=actor,
+            action=AuditAction.PROJECT_UPDATED,
+            entity_type="PROJECT",
+            entity_id=project.id,
+            entity_key=project.project_key,
+            description=(
+                f"{actor.role.value.capitalize()} {actor.full_name!r} "
+                f"updated project {project.project_key}"
+            ),
+            old_values=old_diff,
+            new_values=new_diff,
+        )
+
     return ProjectResponse.model_validate(project)
 
 
-async def deactivate_project(project_id: int, db: AsyncSession) -> ProjectResponse:
+async def deactivate_project(project_id: int, db: AsyncSession, actor: User) -> ProjectResponse:
     """Set project status to INACTIVE. ADMIN only."""
     project = await _get_project_or_404(project_id, db)
 
@@ -124,7 +183,23 @@ async def deactivate_project(project_id: int, db: AsyncSession) -> ProjectRespon
             detail="Project is already inactive.",
         )
 
+    old_status = project.status
     project.status = ProjectStatus.INACTIVE
     await db.flush()
     await db.refresh(project)
+
+    await create_audit_log(
+        db=db,
+        actor=actor,
+        action=AuditAction.PROJECT_DEACTIVATED,
+        entity_type="PROJECT",
+        entity_id=project.id,
+        entity_key=project.project_key,
+        description=(
+            f"Admin {actor.full_name!r} deactivated project {project.project_key}"
+        ),
+        old_values={"status": old_status},
+        new_values={"status": ProjectStatus.INACTIVE},
+    )
+
     return ProjectResponse.model_validate(project)

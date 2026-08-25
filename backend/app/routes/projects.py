@@ -39,7 +39,7 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
     """Create a new project. **ADMIN only.**"""
-    return await project_service.create_project(body, db)
+    return await project_service.create_project(body, db, actor=current_user)
 
 
 @router.get(
@@ -84,7 +84,7 @@ async def update_project(
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
     """Partially update project details. **ADMIN only.**"""
-    return await project_service.update_project(project_id, body, db)
+    return await project_service.update_project(project_id, body, db, actor=current_user)
 
 
 @router.patch(
@@ -98,4 +98,4 @@ async def deactivate_project(
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
     """Set a project to INACTIVE status. **ADMIN only.**"""
-    return await project_service.deactivate_project(project_id, db)
+    return await project_service.deactivate_project(project_id, db, actor=current_user)

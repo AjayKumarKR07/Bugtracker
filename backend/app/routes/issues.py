@@ -139,7 +139,7 @@ async def assign_issue(
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
     """Assign or reassign an issue to a developer. **ADMIN only.**"""
-    return await issue_service.assign_issue(issue_id, body, db)
+    return await issue_service.assign_issue(issue_id, body, current_user, db)
 
 
 @router.patch(

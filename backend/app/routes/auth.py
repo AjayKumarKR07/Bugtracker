@@ -39,6 +39,8 @@ from app.services.otp_service import (
     create_otp_record,
     verify_otp_for_email,
 )
+from app.services.audit_service import create_audit_log
+from app.models.audit_log import AuditAction
 from app.utils.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -228,6 +230,17 @@ async def login(
 
     token = create_access_token(user_id=user.id, role=user.role.value)
 
+    # Audit: record successful login — never store the token value itself
+    await create_audit_log(
+        db=db,
+        actor=user,
+        action=AuditAction.AUTH_LOGIN,
+        entity_type="AUTH",
+        entity_id=user.id,
+        entity_key=user.email,
+        description=f"User {user.full_name!r} ({user.role.value}) logged in",
+    )
+
     return TokenResponse(
         access_token=token,
         token_type="bearer",
@@ -264,11 +277,22 @@ async def me(
     summary="Logout — client should discard the JWT",
 )
 async def logout(
-    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> LogoutResponse:
     """Server-side logout acknowledgement.
 
     JWTs are stateless; the server cannot revoke them in this phase.
     The client is responsible for discarding the stored token.
     """
+    # Audit: record logout — never store the JWT token value
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.AUTH_LOGOUT,
+        entity_type="AUTH",
+        entity_id=current_user.id,
+        entity_key=current_user.email,
+        description=f"User {current_user.full_name!r} ({current_user.role.value}) logged out",
+    )
     return LogoutResponse(message="Logged out successfully.")
