@@ -22,12 +22,7 @@ from app.database.base import Base
 # --------------------------------------------------------------------------- #
 
 class AuditAction(str, enum.Enum):
-    """All auditable actions currently supported by the application.
-
-    Only actions for functionality that actually exists are listed here.
-    User-management actions are omitted because user-management APIs do not
-    exist yet (Phase 5 scope).
-    """
+    """All auditable actions currently supported by the application."""
 
     # Issue lifecycle
     ISSUE_CREATED        = "ISSUE_CREATED"
@@ -45,6 +40,12 @@ class AuditAction(str, enum.Enum):
     # Authentication events
     AUTH_LOGIN           = "AUTH_LOGIN"
     AUTH_LOGOUT          = "AUTH_LOGOUT"
+
+    # User management (Phase 6)
+    USER_UPDATED         = "USER_UPDATED"
+    USER_ACTIVATED       = "USER_ACTIVATED"
+    USER_DEACTIVATED     = "USER_DEACTIVATED"
+    USER_ROLE_CHANGED    = "USER_ROLE_CHANGED"
 
 
 # --------------------------------------------------------------------------- #

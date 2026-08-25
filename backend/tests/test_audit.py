@@ -207,6 +207,8 @@ class TestAuditModel:
             "ISSUE_STATUS_CHANGED", "ISSUE_RESOLVED", "ISSUE_REOPENED",
             "PROJECT_CREATED", "PROJECT_UPDATED", "PROJECT_DEACTIVATED",
             "AUTH_LOGIN", "AUTH_LOGOUT",
+            # Phase 6 user-management actions
+            "USER_UPDATED", "USER_ACTIVATED", "USER_DEACTIVATED", "USER_ROLE_CHANGED",
         }
         actual = {a.value for a in AuditAction}
         assert expected == actual
