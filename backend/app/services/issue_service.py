@@ -41,6 +41,8 @@ from app.schemas.issue import (
     IssueUpdate,
 )
 from app.services.audit_service import compute_diff, create_audit_log
+from app.services import notification_service
+from app.models.notification import NotificationType
 
 
 # --------------------------------------------------------------------------- #
@@ -330,8 +332,12 @@ async def update_issue(
 
 async def assign_issue(
     issue_id: int, body: IssueAssign, current_user: User, db: AsyncSession
-) -> IssueDetailResponse:
-    """ADMIN: assign/reassign an issue to a developer."""
+) -> tuple[IssueDetailResponse, list]:
+    """ADMIN: assign/reassign an issue to a developer.
+
+    Returns (IssueDetailResponse, list_of_notifications) so the route handler
+    can schedule WebSocket delivery as a BackgroundTask.
+    """
     issue = await _get_issue_or_404(issue_id, db)
 
     # Validate developer exists and has DEVELOPER role
@@ -385,7 +391,20 @@ async def assign_issue(
         },
     )
 
-    return await get_issue_detail(issue_id, db)
+    # Notify the assigned developer (actor = admin, never notified)
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=[developer.id],
+        notification_type=NotificationType.ISSUE_ASSIGNED,
+        title="Issue assigned to you",
+        message=f"Issue {issue.issue_key} has been assigned to you.",
+        actor_id=current_user.id,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+    )
+
+    return await get_issue_detail(issue_id, db), notifications
 
 
 # --------------------------------------------------------------------------- #
@@ -394,7 +413,7 @@ async def assign_issue(
 
 async def update_issue_status(
     issue_id: int, body: IssueStatusUpdate, current_user: User, db: AsyncSession
-) -> IssueDetailResponse:
+) -> tuple[IssueDetailResponse, list]:
     """DEVELOPER: transition their assigned issue through allowed statuses."""
     issue = await _get_issue_or_404(issue_id, db)
 
@@ -416,6 +435,7 @@ async def update_issue_status(
         )
 
     old_status = issue.status
+    reporter_id = issue.reporter_id
     issue.status = body.status
     await db.flush()
     await db.refresh(issue)
@@ -435,7 +455,23 @@ async def update_issue_status(
         new_values={"status": body.status},
     )
 
-    return await get_issue_detail(issue_id, db)
+    # Notify the reporter (not the developer who changed the status)
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=[reporter_id] if reporter_id else [],
+        notification_type=NotificationType.ISSUE_STATUS_CHANGED,
+        title="Issue status updated",
+        message=(
+            f"{issue.issue_key} status changed from "
+            f"{old_status.value} to {body.status.value}."
+        ),
+        actor_id=current_user.id,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+    )
+
+    return await get_issue_detail(issue_id, db), notifications
 
 
 # --------------------------------------------------------------------------- #
@@ -444,7 +480,7 @@ async def update_issue_status(
 
 async def resolve_issue(
     issue_id: int, body: IssueResolve, current_user: User, db: AsyncSession
-) -> IssueDetailResponse:
+) -> tuple[IssueDetailResponse, list]:
     """DEVELOPER: mark their assigned issue as resolved."""
     issue = await _get_issue_or_404(issue_id, db)
 
@@ -469,6 +505,7 @@ async def resolve_issue(
         )
 
     old_status = issue.status
+    reporter_id = issue.reporter_id
 
     summary = body.resolution_summary
     if body.resolution_notes:
@@ -498,7 +535,20 @@ async def resolve_issue(
         },
     )
 
-    return await get_issue_detail(issue_id, db)
+    # Notify the reporter (not the developer who resolved)
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=[reporter_id] if reporter_id else [],
+        notification_type=NotificationType.ISSUE_RESOLVED,
+        title="Issue resolved",
+        message=f"{issue.issue_key} has been resolved.",
+        actor_id=current_user.id,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+    )
+
+    return await get_issue_detail(issue_id, db), notifications
 
 
 # --------------------------------------------------------------------------- #
@@ -507,7 +557,7 @@ async def resolve_issue(
 
 async def reopen_issue(
     issue_id: int, body: IssueReopen, current_user: User, db: AsyncSession
-) -> IssueDetailResponse:
+) -> tuple[IssueDetailResponse, list]:
     """TESTER (own issues) or ADMIN: reopen a resolved/closed issue."""
     issue = await _get_issue_or_404(issue_id, db)
 
@@ -528,6 +578,7 @@ async def reopen_issue(
         )
 
     old_status = issue.status
+    assignee_id = issue.assignee_id
 
     reopen_note = f"[REOPENED by {current_user.full_name}]"
     if body.reason:
@@ -559,4 +610,18 @@ async def reopen_issue(
         new_values={"status": IssueStatus.REOPENED, "reason": body.reason},
     )
 
-    return await get_issue_detail(issue_id, db)
+    # Notify the assignee if present (not the actor)
+    notify_ids = [assignee_id] if assignee_id else []
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=notify_ids,
+        notification_type=NotificationType.ISSUE_REOPENED,
+        title="Issue reopened",
+        message=f"{issue.issue_key} has been reopened and requires attention.",
+        actor_id=current_user.id,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+    )
+
+    return await get_issue_detail(issue_id, db), notifications

@@ -11,7 +11,7 @@ RBAC summary:
 All ownership and issue-visibility checks are in comment_service.py.
 """
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.session import get_db
@@ -47,6 +47,7 @@ router = APIRouter(tags=["Comments"])
 async def create_comment(
     issue_id: int,
     body: CommentCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CommentResponse:
@@ -59,7 +60,24 @@ async def create_comment(
     - **DEVELOPER**: can comment on issues assigned to them
     - **TESTER**: can comment on issues they reported
     """
-    return await comment_service.create_comment(issue_id, body, current_user, db)
+    from app.services.websocket_manager import ws_manager
+    comment, notifications = await comment_service.create_comment(issue_id, body, current_user, db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return comment
 
 
 # --------------------------------------------------------------------------- #

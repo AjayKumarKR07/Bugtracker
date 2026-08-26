@@ -25,7 +25,7 @@ Security:
     not from the JWT claim, for the target user.
 """
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.session import get_db
@@ -157,11 +157,29 @@ async def update_user(
 )
 async def activate_user(
     user_id: int,
+    background_tasks: BackgroundTasks,
     current_user: User = _ADMIN,
     db: AsyncSession = Depends(get_db),
 ) -> UserDetailResponse:
     """Set is_active = True for a user. **ADMIN only.**"""
-    return await user_service.activate_user(user_id, actor=current_user, db=db)
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await user_service.activate_user(user_id, actor=current_user, db=db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail
 
 
 # --------------------------------------------------------------------------- #
@@ -181,6 +199,7 @@ async def activate_user(
 )
 async def deactivate_user(
     user_id: int,
+    background_tasks: BackgroundTasks,
     current_user: User = _ADMIN,
     db: AsyncSession = Depends(get_db),
 ) -> UserDetailResponse:
@@ -189,7 +208,24 @@ async def deactivate_user(
     Will refuse if the target is the last active ADMIN (last-admin protection).
     Deactivated users receive 403 on next login attempt.
     """
-    return await user_service.deactivate_user(user_id, actor=current_user, db=db)
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await user_service.deactivate_user(user_id, actor=current_user, db=db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail
 
 
 # --------------------------------------------------------------------------- #
@@ -210,6 +246,7 @@ async def deactivate_user(
 async def change_user_role(
     user_id: int,
     body: UserRoleUpdateRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = _ADMIN,
     db: AsyncSession = Depends(get_db),
 ) -> UserDetailResponse:
@@ -223,4 +260,21 @@ async def change_user_role(
     Role for the authenticated admin comes from the verified JWT — not from
     the request body.
     """
-    return await user_service.change_user_role(user_id, body, actor=current_user, db=db)
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await user_service.change_user_role(user_id, body, actor=current_user, db=db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail

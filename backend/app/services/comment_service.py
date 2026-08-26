@@ -37,6 +37,9 @@ from app.schemas.comment import (
     CommentUpdate,
 )
 from app.services.audit_service import compute_diff, create_audit_log
+from app.services import notification_service
+from app.models.notification import NotificationType
+
 
 
 # --------------------------------------------------------------------------- #
@@ -116,11 +119,13 @@ async def create_comment(
     body: CommentCreate,
     current_user: User,
     db: AsyncSession,
-) -> CommentResponse:
+) -> tuple[CommentResponse, list]:
     """Create a new comment on an issue.
 
     The author is always set from the authenticated JWT user — never from
     request body input.
+
+    Returns (CommentResponse, list_of_notifications) for WebSocket dispatch.
     """
     issue = await _get_issue_or_404(issue_id, db)
     _check_issue_access(issue, current_user)
@@ -156,7 +161,21 @@ async def create_comment(
         new_values={"comment_id": comment.id, "body_preview": comment.body[:200]},
     )
 
-    return CommentResponse.model_validate(comment)
+    # Notify reporter + assignee (deduped, author excluded)
+    recipient_ids = [issue.reporter_id, issue.assignee_id]
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=[uid for uid in recipient_ids if uid],
+        notification_type=NotificationType.ISSUE_COMMENTED,
+        title="New comment on your issue",
+        message=f"A new comment was added to {issue.issue_key}.",
+        actor_id=current_user.id,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+    )
+
+    return CommentResponse.model_validate(comment), notifications
 
 
 async def list_comments(

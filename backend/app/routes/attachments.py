@@ -19,7 +19,7 @@ NEVER:
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,6 +53,7 @@ router = APIRouter(tags=["Attachments"])
 async def upload_attachment(
     issue_id: int,
     file: UploadFile = File(..., description="File to attach (multipart/form-data)"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AttachmentResponse:
@@ -71,12 +72,29 @@ async def upload_attachment(
     - DEVELOPER: assigned issues only
     - TESTER: own reported issues only
     """
-    return await attachment_service.save_attachment(
+    from app.services.websocket_manager import ws_manager
+    attachment, notifications = await attachment_service.save_attachment(
         issue_id=issue_id,
         file=file,
         current_user=current_user,
         db=db,
     )
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return attachment
 
 
 # --------------------------------------------------------------------------- #

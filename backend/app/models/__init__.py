@@ -16,6 +16,8 @@ from app.models.issue import (
 )
 from app.models.issue_attachment import IssueAttachment
 from app.models.issue_comment import IssueComment
+from app.models.notification import Notification, NotificationType
+from app.models.notification_preference import NotificationPreference
 from app.models.project import Project, ProjectStatus
 from app.models.user import User, UserRole
 
@@ -28,6 +30,8 @@ __all__ = [
     "AuditLog",
     "IssueComment",
     "IssueAttachment",
+    "Notification",
+    "NotificationPreference",
     # Enums
     "UserRole",
     "ProjectStatus",
@@ -36,4 +40,5 @@ __all__ = [
     "Priority",
     "IssueStatus",
     "AuditAction",
+    "NotificationType",
 ]

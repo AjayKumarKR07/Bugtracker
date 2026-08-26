@@ -12,7 +12,7 @@ RBAC summary:
   PATCH  /issues/{id}/reopen            → TESTER (own) | ADMIN
 """
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.session import get_db
@@ -135,11 +135,29 @@ async def update_issue(
 async def assign_issue(
     issue_id: int,
     body: IssueAssign,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role(UserRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
     """Assign or reassign an issue to a developer. **ADMIN only.**"""
-    return await issue_service.assign_issue(issue_id, body, current_user, db)
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await issue_service.assign_issue(issue_id, body, current_user, db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail
 
 
 @router.patch(
@@ -150,6 +168,7 @@ async def assign_issue(
 async def update_issue_status(
     issue_id: int,
     body: IssueStatusUpdate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role(UserRole.DEVELOPER)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
@@ -162,7 +181,24 @@ async def update_issue_status(
     - IN_REVIEW → IN_TESTING or IN_DEVELOPMENT
     - REOPENED → IN_DEVELOPMENT
     """
-    return await issue_service.update_issue_status(issue_id, body, current_user, db)
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await issue_service.update_issue_status(issue_id, body, current_user, db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail
 
 
 @router.patch(
@@ -173,11 +209,29 @@ async def update_issue_status(
 async def resolve_issue(
     issue_id: int,
     body: IssueResolve,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role(UserRole.DEVELOPER)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
     """Mark an assigned issue as RESOLVED. **DEVELOPER only** — must be assigned."""
-    return await issue_service.resolve_issue(issue_id, body, current_user, db)
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await issue_service.resolve_issue(issue_id, body, current_user, db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail
 
 
 @router.patch(
@@ -188,6 +242,7 @@ async def resolve_issue(
 async def reopen_issue(
     issue_id: int,
     body: IssueReopen,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
@@ -201,4 +256,21 @@ async def reopen_issue(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only TESTER or ADMIN can reopen issues.",
         )
-    return await issue_service.reopen_issue(issue_id, body, current_user, db)
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await issue_service.reopen_issue(issue_id, body, current_user, db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail

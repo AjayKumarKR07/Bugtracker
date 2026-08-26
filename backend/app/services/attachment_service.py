@@ -48,6 +48,8 @@ from app.models.issue_attachment import IssueAttachment
 from app.models.user import User, UserRole
 from app.schemas.attachment import AttachmentListResponse, AttachmentResponse
 from app.services.audit_service import create_audit_log
+from app.services import notification_service
+from app.models.notification import NotificationType
 
 
 # --------------------------------------------------------------------------- #
@@ -362,7 +364,21 @@ async def save_attachment(
             pass  # best-effort cleanup
         raise
 
-    return AttachmentResponse.model_validate(attachment)
+    # Notify reporter + assignee (deduped, uploader excluded)
+    recipient_ids = [issue.reporter_id, issue.assignee_id]
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=[uid for uid in recipient_ids if uid],
+        notification_type=NotificationType.ATTACHMENT_ADDED,
+        title="Attachment added to your issue",
+        message=f"A new attachment was uploaded to {issue.issue_key}.",
+        actor_id=current_user.id,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+    )
+
+    return AttachmentResponse.model_validate(attachment), notifications
 
 
 async def list_attachments(

@@ -108,3 +108,68 @@ async def send_otp_email(to_email: str, otp: str) -> None:
         )
         # Re-raise so the caller can decide whether to surface the error.
         raise
+
+
+async def send_notification_email(
+    to_email: str,
+    title: str,
+    message: str,
+) -> None:
+    """Send an in-app notification as an email.
+
+    Called from BackgroundTasks — runs AFTER the HTTP response is sent.
+    Email failure is logged but does NOT propagate (callers never raise).
+
+    Never logs: OTP, password, JWT, SMTP credentials.
+    """
+    if not settings.SMTP_USERNAME:
+        logger.debug(
+            "SMTP not configured — notification email to %s skipped.", to_email
+        )
+        return
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"[DefectMind] {title}"
+    msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
+    msg["To"] = to_email
+
+    plain_body = f"{title}\n\n{message}\n\n— The DefectMind Team"
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; max-width: 520px; margin: auto;">
+        <h2 style="color: #1a56db;">DefectMind Notification</h2>
+        <h3 style="color: #111827;">{title}</h3>
+        <p style="color: #374151;">{message}</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+        <p style="color: #9ca3af; font-size: 12px;">
+          DefectMind — Intelligent Defect Tracking System.<br>
+          You are receiving this because you have notifications enabled.
+          Update your preferences in the DefectMind app.
+        </p>
+      </body>
+    </html>
+    """
+
+    msg.attach(MIMEText(plain_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USERNAME,
+            password=settings.SMTP_PASSWORD,
+            start_tls=settings.SMTP_USE_TLS,
+        )
+        logger.info("Notification email sent to %s: %s", to_email, title)
+    except Exception as exc:
+        # Log error safely — no credentials, no user secrets
+        logger.error(
+            "Failed to send notification email to %s (%s): %s",
+            to_email,
+            title,
+            type(exc).__name__,
+        )
+        # Do NOT re-raise — email failure must not affect the business operation
+

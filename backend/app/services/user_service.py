@@ -31,6 +31,9 @@ from app.schemas.user import (
     UserUpdateRequest,
 )
 from app.services.audit_service import compute_diff, create_audit_log
+from app.services import notification_service
+from app.models.notification import NotificationType
+
 
 
 # --------------------------------------------------------------------------- #
@@ -197,7 +200,7 @@ async def activate_user(
     user_id: int,
     actor: User,
     db: AsyncSession,
-) -> UserDetailResponse:
+) -> tuple[UserDetailResponse, list]:
     """Set user.is_active = True."""
     user = await _get_user_or_404(user_id, db)
 
@@ -225,14 +228,27 @@ async def activate_user(
         new_values={"is_active": True},
     )
 
-    return UserDetailResponse.model_validate(user)
+    # Notify the target user (not the admin actor)
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=[user.id],
+        notification_type=NotificationType.USER_ACTIVATED,
+        title="Your account has been activated",
+        message="Your DefectMind account has been activated by an administrator.",
+        actor_id=actor.id,
+        entity_type="USER",
+        entity_id=user.id,
+        entity_key=user.email,
+    )
+
+    return UserDetailResponse.model_validate(user), notifications
 
 
 async def deactivate_user(
     user_id: int,
     actor: User,
     db: AsyncSession,
-) -> UserDetailResponse:
+) -> tuple[UserDetailResponse, list]:
     """Set user.is_active = False.
 
     Last-admin protection: refuses to deactivate if this is the only
@@ -276,7 +292,20 @@ async def deactivate_user(
         new_values={"is_active": False},
     )
 
-    return UserDetailResponse.model_validate(user)
+    # Notify the target user (not the admin actor)
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=[user.id],
+        notification_type=NotificationType.USER_DEACTIVATED,
+        title="Your account has been deactivated",
+        message="Your DefectMind account has been deactivated by an administrator.",
+        actor_id=actor.id,
+        entity_type="USER",
+        entity_id=user.id,
+        entity_key=user.email,
+    )
+
+    return UserDetailResponse.model_validate(user), notifications
 
 
 # --------------------------------------------------------------------------- #
@@ -288,7 +317,7 @@ async def change_user_role(
     body: UserRoleUpdateRequest,
     actor: User,
     db: AsyncSession,
-) -> UserDetailResponse:
+) -> tuple[UserDetailResponse, list]:
     """Change a user's role.
 
     Last-admin protection: refuses to change the role of the last active
@@ -337,4 +366,20 @@ async def change_user_role(
         new_values={"role": body.role},
     )
 
-    return UserDetailResponse.model_validate(user)
+    # Notify the target user (not the admin actor)
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=[user.id],
+        notification_type=NotificationType.USER_ROLE_CHANGED,
+        title="Your role has been updated",
+        message=(
+            f"Your DefectMind role has been changed from "
+            f"{old_role.value} to {body.role.value}."
+        ),
+        actor_id=actor.id,
+        entity_type="USER",
+        entity_id=user.id,
+        entity_key=user.email,
+    )
+
+    return UserDetailResponse.model_validate(user), notifications

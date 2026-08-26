@@ -146,8 +146,14 @@ def tester_token() -> str:
     return get_token("tester")
 
 
+tester_token.__test__ = False  # type: ignore[attr-defined]
+
+
 def tester2_token() -> str:
     return get_token("tester2")
+
+
+tester2_token.__test__ = False  # type: ignore[attr-defined]
 
 
 def auth_header(token: str) -> dict:

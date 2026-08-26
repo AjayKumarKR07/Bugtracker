@@ -95,7 +95,9 @@ def _create_issue(project_id: int, token: str, title_suffix: str = "") -> int:
 
 def _assign_issue(issue_id: int, developer_email: str) -> None:
     """Get developer ID and assign the issue."""
-    users_r = client.get("/users?page_size=100", headers=auth_header(_admin_tok()))
+    users_r = client.get(
+        f"/users?search={developer_email}", headers=auth_header(_admin_tok())
+    )
     dev_id = None
     for u in users_r.json()["items"]:
         if u["email"] == developer_email:
