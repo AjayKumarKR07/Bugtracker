@@ -15,13 +15,18 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.issue import Issue, IssueStatus, Priority, Severity
+from app.models.issue_attachment import IssueAttachment
+from app.models.issue_comment import IssueComment
+from app.models.notification import Notification
 from app.models.project import Project, ProjectStatus
 from app.models.user import User, UserRole
 from app.schemas.admin import (
+    ContentStats,
     DashboardResponse,
     IssuePriorityStats,
     IssueSeverityStats,
     IssueStatusStats,
+    NotificationStats,
     ProjectStats,
     RecentActivity,
     UserStats,
@@ -31,8 +36,8 @@ from app.schemas.admin import (
 async def get_dashboard_stats(db: AsyncSession) -> DashboardResponse:
     """Return a complete statistics snapshot for the Admin dashboard.
 
-    Uses three efficient aggregation queries — one each for users,
-    projects, and issues. No ORM objects are instantiated.
+    Uses efficient aggregation queries across users, projects, issues,
+    notifications, comments, and attachments. No ORM objects are instantiated.
     """
     users = await _user_stats(db)
     projects = await _project_stats(db)
@@ -40,6 +45,8 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardResponse:
     issue_severity = await _issue_severity_stats(db)
     issue_priority = await _issue_priority_stats(db)
     recent = await _recent_activity(db)
+    notifications = await _notification_stats(db)
+    content = await _content_stats(db)
 
     return DashboardResponse(
         users=users,
@@ -48,6 +55,8 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardResponse:
         severity=issue_severity,
         priority=issue_priority,
         recent=recent,
+        notifications=notifications,
+        content=content,
     )
 
 
@@ -191,3 +200,42 @@ async def _recent_activity(db: AsyncSession) -> RecentActivity:
         recently_created=created_result.scalar_one(),
         recently_resolved=resolved_result.scalar_one(),
     )
+
+
+async def _notification_stats(db: AsyncSession) -> NotificationStats:
+    """Compute live notification counts."""
+    result = await db.execute(
+        select(
+            func.count().label("total"),
+            func.count(case((Notification.is_read == False, 1))).label("unread"),  # noqa: E712
+        ).select_from(Notification)
+    )
+    row = result.one()
+    return NotificationStats(
+        total=row.total,
+        unread=row.unread,
+    )
+
+
+async def _content_stats(db: AsyncSession) -> ContentStats:
+    """Compute live counts for comments, attachments, and notifications."""
+    comments_result = await db.execute(
+        select(func.count()).select_from(IssueComment)
+    )
+    attachments_result = await db.execute(
+        select(func.count()).select_from(IssueAttachment)
+    )
+    notif_result = await db.execute(
+        select(
+            func.count().label("total"),
+            func.count(case((Notification.is_read == False, 1))).label("unread"),  # noqa: E712
+        ).select_from(Notification)
+    )
+    notif_row = notif_result.one()
+    return ContentStats(
+        total_comments=comments_result.scalar_one(),
+        total_attachments=attachments_result.scalar_one(),
+        total_notifications=notif_row.total,
+        unread_notifications=notif_row.unread,
+    )
+

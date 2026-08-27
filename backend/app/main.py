@@ -1,5 +1,5 @@
 """
-DefectMind FastAPI application entry point.
+BugTracker FastAPI application entry point.
 
 Phase 1: Structural foundation
 Phase 2: PostgreSQL + SQLAlchemy
@@ -9,6 +9,7 @@ Phase 5: Audit Logs & Activity Tracking
 Phase 6: Admin Management & Dashboard APIs
 Phase 7: Issue Comments & File Attachments
 Phase 8: Real-Time Notifications & WebSocket
+Phase 9: Advanced Analytics, Reporting & Dashboard
 """
 
 from fastapi import FastAPI
@@ -16,6 +17,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.routes.admin import router as admin_router
+from app.routes.analytics import router as analytics_router
 from app.routes.attachments import router as attachments_router
 from app.routes.audit import router as audit_router
 from app.routes.auth import router as auth_router
@@ -38,7 +40,7 @@ app = FastAPI(
         "Intelligent Software Defect Tracking System with Resolution Assistance. "
         "Built for the Infosys Batch 3 internship project."
     ),
-    version="0.8.0",
+    version="0.9.0",
     docs_url="/docs",
     redoc_url="/redoc",
     debug=settings.DEBUG,
@@ -58,6 +60,7 @@ app.include_router(comments_router)
 app.include_router(attachments_router)
 app.include_router(notifications_router)
 app.include_router(ws_router)
+app.include_router(analytics_router)
 
 
 # -----------------------------------------------------------------
@@ -66,5 +69,4 @@ app.include_router(ws_router)
 @app.get("/", response_model=RootResponse, summary="Root", tags=["Root"])
 async def root() -> RootResponse:
     """Confirm the API is reachable."""
-    return RootResponse(message="DefectMind API is running")
-
+    return RootResponse(message="BugTracker API is running")

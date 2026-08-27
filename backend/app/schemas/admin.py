@@ -59,6 +59,20 @@ class RecentActivity(BaseModel):
     recently_resolved: int
 
 
+class NotificationStats(BaseModel):
+    """Notification metrics."""
+    total: int
+    unread: int
+
+
+class ContentStats(BaseModel):
+    """System content and activity metrics."""
+    total_comments: int
+    total_attachments: int
+    total_notifications: int
+    unread_notifications: int
+
+
 class DashboardResponse(BaseModel):
     """Complete admin dashboard statistics snapshot.
 
@@ -70,3 +84,5 @@ class DashboardResponse(BaseModel):
     severity: IssueSeverityStats
     priority: IssuePriorityStats
     recent: RecentActivity
+    notifications: NotificationStats
+    content: ContentStats

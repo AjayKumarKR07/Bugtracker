@@ -1,1 +1,1 @@
-# DefectMind Backend Application
+# BugTracker Backend Application

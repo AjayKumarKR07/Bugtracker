@@ -20,4 +20,4 @@ router = APIRouter(tags=["Health"])
 @router.get("/health", response_model=HealthResponse, summary="Health check")
 async def health_check() -> HealthResponse:
     """Return the current health status of the API."""
-    return HealthResponse(status="healthy", service="DefectMind API")
+    return HealthResponse(status="healthy", service="BugTracker API")

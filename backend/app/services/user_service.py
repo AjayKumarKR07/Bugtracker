@@ -234,7 +234,7 @@ async def activate_user(
         user_ids=[user.id],
         notification_type=NotificationType.USER_ACTIVATED,
         title="Your account has been activated",
-        message="Your DefectMind account has been activated by an administrator.",
+        message="Your BugTracker account has been activated by an administrator.",
         actor_id=actor.id,
         entity_type="USER",
         entity_id=user.id,
@@ -298,7 +298,7 @@ async def deactivate_user(
         user_ids=[user.id],
         notification_type=NotificationType.USER_DEACTIVATED,
         title="Your account has been deactivated",
-        message="Your DefectMind account has been deactivated by an administrator.",
+        message="Your BugTracker account has been deactivated by an administrator.",
         actor_id=actor.id,
         entity_type="USER",
         entity_id=user.id,
@@ -373,7 +373,7 @@ async def change_user_role(
         notification_type=NotificationType.USER_ROLE_CHANGED,
         title="Your role has been updated",
         message=(
-            f"Your DefectMind role has been changed from "
+            f"Your BugTracker role has been changed from "
             f"{old_role.value} to {body.role.value}."
         ),
         actor_id=actor.id,
