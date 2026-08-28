@@ -15,8 +15,34 @@ BugTracker is a full-stack intelligent defect tracking and management platform b
 - **CSV Reporting**: RFC 4180 compliant filtered defect data export with custom headers and proper CSV escaping.
 - **Admin Dashboard Enhancement**: Live metrics for notifications (total, unread) and system content (comments, attachments).
 
+## Frontend Application (Phase 10)
+- **Tech Stack**: React 19, TypeScript, Vite, React Router v7, Axios, Lucide React.
+- **Authentication**: JWT auth, OTP email verification flow, session restoration (`/auth/me`), protected routes.
+- **Role-Based Access Control (RBAC)**: Dedicated UI views and permissions for `ADMIN`, `DEVELOPER`, and `TESTER`.
+- **Defect Lifecycle Management**: Full defect reporting, assignments, status transitions, resolution summaries, comments, and file attachments.
+- **Real-Time Notifications**: Resilient WebSocket stream (`/ws/notifications?token=<JWT>`) with live badges and toast alerts.
+- **Analytics & Reporting**: Live metrics, status and severity distributions, creation vs resolution trends, and CSV report export.
+- **Admin Management**: Live dashboard stats, user directory, role provisioning, and account activations.
+
+## Quick Start
+
+### 1. Backend Startup
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+API docs available at: `http://127.0.0.1:8000/docs`
+
+### 2. Frontend Startup
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+Frontend application available at: `http://localhost:5173`
+
 ## Roadmap
 - [x] Phase 7: Issue comments and file attachments
 - [x] Phase 8: Real-time notifications and WebSocket
 - [x] Phase 9: Advanced analytics and reporting
-- [ ] Phase 10: Frontend Integration & Dashboard UI
+- [x] Phase 10: Frontend Integration & Dashboard UI

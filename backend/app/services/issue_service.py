@@ -181,8 +181,8 @@ async def list_issues(
 
     Role filters:
       ADMIN   — sees all issues
-      DEVELOPER — only issues assigned to them
-      TESTER  — only issues they reported
+      DEVELOPER — only issues assigned to them (legacy role)
+      TESTER  — issues they reported OR are assigned to investigate
     """
     query = select(Issue)
 
@@ -190,7 +190,10 @@ async def list_issues(
     if current_user.role == UserRole.DEVELOPER:
         query = query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(Issue.reporter_id == current_user.id)
+        # Testers can both report issues and be assigned to investigate them
+        query = query.where(
+            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
+        )
     # ADMIN sees all — no base filter
 
     # ---- Optional filters ------------------------------------------------- #
@@ -333,14 +336,17 @@ async def update_issue(
 async def assign_issue(
     issue_id: int, body: IssueAssign, current_user: User, db: AsyncSession
 ) -> tuple[IssueDetailResponse, list]:
-    """ADMIN: assign/reassign an issue to a developer.
+    """ADMIN: assign/reassign an issue to a tester.
+
+    Accepts users with the TESTER role (the role responsible for investigating
+    and resolving assigned issues in the current workflow).
 
     Returns (IssueDetailResponse, list_of_notifications) so the route handler
     can schedule WebSocket delivery as a BackgroundTask.
     """
     issue = await _get_issue_or_404(issue_id, db)
 
-    # Validate developer exists and has DEVELOPER role
+    # Validate target user exists and has TESTER role
     dev_result = await db.execute(select(User).where(User.id == body.developer_id))
     developer: User | None = dev_result.scalar_one_or_none()
     if developer is None:
@@ -348,10 +354,10 @@ async def assign_issue(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User {body.developer_id} not found.",
         )
-    if developer.role != UserRole.DEVELOPER:
+    if developer.role != UserRole.TESTER:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The target user is not a DEVELOPER.",
+            detail="The target user is not a TESTER.",
         )
     if not developer.is_active:
         raise HTTPException(
@@ -391,7 +397,7 @@ async def assign_issue(
         },
     )
 
-    # Notify the assigned developer (actor = admin, never notified)
+    # Notify the assigned tester (actor = admin, never notified)
     notifications = await notification_service.notify_users(
         db=db,
         user_ids=[developer.id],

@@ -36,6 +36,12 @@ class RegisterRequest(BaseModel):
         return v
 
 
+class RequestOTPRequest(BaseModel):
+    """Body for POST /auth/request-otp."""
+
+    email: EmailStr = Field(..., examples=["jane@example.com"])
+
+
 class VerifyOTPRequest(BaseModel):
     """Body for POST /auth/verify-otp."""
 
@@ -81,11 +87,12 @@ class UserResponse(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Response for POST /auth/login."""
+    """Response for POST /auth/login and POST /auth/verify-otp."""
 
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+    message: str | None = None
 
 
 class MessageResponse(BaseModel):

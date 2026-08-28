@@ -142,7 +142,7 @@ async def get_status_distribution(
     if current_user.role == UserRole.DEVELOPER:
         query = query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(Issue.reporter_id == current_user.id)
+        query = query.where(Issue.assignee_id == current_user.id)
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)
@@ -190,7 +190,7 @@ async def get_severity_distribution(
     if current_user.role == UserRole.DEVELOPER:
         query = query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(Issue.reporter_id == current_user.id)
+        query = query.where(Issue.assignee_id == current_user.id)
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)
@@ -250,8 +250,8 @@ async def get_issue_trends(
         created_query = created_query.where(Issue.assignee_id == current_user.id)
         resolved_query = resolved_query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        created_query = created_query.where(Issue.reporter_id == current_user.id)
-        resolved_query = resolved_query.where(Issue.reporter_id == current_user.id)
+        created_query = created_query.where(Issue.assignee_id == current_user.id)
+        resolved_query = resolved_query.where(Issue.assignee_id == current_user.id)
 
     if project_id is not None:
         created_query = created_query.where(Issue.project_id == project_id)
@@ -347,7 +347,7 @@ async def get_all_projects_analytics(
     if current_user.role == UserRole.DEVELOPER:
         issue_query = issue_query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        issue_query = issue_query.where(Issue.reporter_id == current_user.id)
+        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
 
     issue_res = await db.execute(issue_query)
     stats_by_project = {row.project_id: row for row in issue_res.all()}
@@ -443,7 +443,7 @@ async def get_project_analytics(
     if current_user.role == UserRole.DEVELOPER:
         issue_query = issue_query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        issue_query = issue_query.where(Issue.reporter_id == current_user.id)
+        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
 
     if start_date is not None:
         issue_query = issue_query.where(Issue.created_at >= start_date)
@@ -474,10 +474,10 @@ async def get_project_analytics(
 # --------------------------------------------------------------------------- #
 
 async def get_developer_performance(db: AsyncSession) -> DeveloperAnalyticsResponse:
-    """Return assignment, resolution, and time metrics for all developers."""
+    """Return assignment, resolution, and time metrics for all testers."""
     dev_res = await db.execute(
         select(User)
-        .where(User.role == UserRole.DEVELOPER)
+        .where(User.role == UserRole.TESTER)
         .order_by(User.id)
     )
     developers = dev_res.scalars().all()
@@ -568,7 +568,7 @@ async def export_issues_csv(
     if current_user.role == UserRole.DEVELOPER:
         query = query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(Issue.reporter_id == current_user.id)
+        query = query.where(Issue.assignee_id == current_user.id)
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)

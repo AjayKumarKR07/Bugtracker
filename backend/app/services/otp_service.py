@@ -129,8 +129,9 @@ async def verify_otp_for_email(email: str, otp: str, db: AsyncSession) -> None:
     # Expiry check
     expires_at = record.expires_at
     if expires_at.tzinfo is None:
-        from datetime import timezone
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
+    else:
+        expires_at = expires_at.astimezone(UTC)
 
     if now > expires_at:
         record.is_used = True
@@ -185,7 +186,6 @@ async def verify_otp_for_email(email: str, otp: str, db: AsyncSession) -> None:
     record.is_used = True
 
 
-
 async def check_resend_cooldown(email: str, db: AsyncSession) -> None:
     """Raise HTTP 429 if a new OTP was issued within the cooldown window."""
     result = await db.execute(
@@ -195,12 +195,20 @@ async def check_resend_cooldown(email: str, db: AsyncSession) -> None:
         .limit(1)
     )
     last: EmailOTP | None = result.scalar_one_or_none()
-    if last is None:
+    if last is None or last.created_at is None:
         return
 
-    elapsed = (datetime.now(UTC) - last.created_at.replace(tzinfo=UTC)).total_seconds()
-    if elapsed < settings.OTP_RESEND_COOLDOWN_SECONDS:
-        remaining = int(settings.OTP_RESEND_COOLDOWN_SECONDS - elapsed)
+    now = datetime.now(UTC)
+    created_at = last.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    else:
+        created_at = created_at.astimezone(UTC)
+
+    elapsed = (now - created_at).total_seconds()
+    # Guard against clock skew or timezone mismatch (must be positive and within cooldown)
+    if 0 <= elapsed < settings.OTP_RESEND_COOLDOWN_SECONDS:
+        remaining = max(1, int(settings.OTP_RESEND_COOLDOWN_SECONDS - elapsed))
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Please wait {remaining} seconds before requesting a new OTP.",

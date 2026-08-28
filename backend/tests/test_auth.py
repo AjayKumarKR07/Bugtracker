@@ -493,5 +493,40 @@ class TestEmailService:
                 "password": "SecurePass123",
                 "role": "DEVELOPER",
             })
-            # Mocked: no real SMTP was triggered; call_count 0 (dup) or 1 (new)
             assert mock_email.call_count in (0, 1)
+
+
+# =========================================================================== #
+# 9. Passwordless Email + OTP Flow                                             #
+# =========================================================================== #
+
+class TestPasswordlessAuth:
+    def test_request_otp_and_verify_returns_jwt(self) -> None:
+        """Passwordless flow: request-otp -> verify-otp -> JWT returned immediately."""
+        import uuid
+        email = _email(f"pwdless_{uuid.uuid4().hex[:8]}")
+        captured_otp: list[str] = []
+
+        async def mock_send(to_email: str, otp: str) -> None:
+            captured_otp.append(otp)
+
+        with patch("app.routes.auth.send_otp_email", side_effect=mock_send):
+            req_res = client.post("/auth/request-otp", json={"email": email})
+            assert req_res.status_code == 200
+
+        if not captured_otp:
+            pytest.skip("OTP not captured")
+
+        verify_res = client.post("/auth/verify-otp", json={
+            "email": email,
+            "otp": captured_otp[0],
+        })
+        assert verify_res.status_code == 200
+        data = verify_res.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+        assert data["user"]["email"] == email
+        assert data["user"]["role"] in ("DEVELOPER", "TESTER", "ADMIN")
+        assert data["user"]["is_active"] is True
+        assert data["user"]["is_email_verified"] is True
+

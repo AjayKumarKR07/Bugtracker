@@ -1,0 +1,72 @@
+import { apiClient } from './client';
+import type {
+  IssueAssign,
+  IssueCreate,
+  IssueDetail,
+  IssueListResponse,
+  IssueReopen,
+  IssueResolve,
+  IssueStatus,
+  IssueStatusUpdate,
+  IssueType,
+  IssueUpdate,
+  Priority,
+  Severity,
+} from '../types/issue';
+
+export interface IssueListParams {
+  page?: number;
+  page_size?: number;
+  status?: IssueStatus;
+  severity?: Severity;
+  priority?: Priority;
+  issue_type?: IssueType;
+  project_id?: number;
+  reporter_id?: number;
+  assignee_id?: number;
+  search?: string;
+}
+
+export const issuesApi = {
+  list: async (params?: IssueListParams): Promise<IssueListResponse> => {
+    const response = await apiClient.get<IssueListResponse>('/issues', {
+      params,
+    });
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<IssueDetail> => {
+    const response = await apiClient.get<IssueDetail>(`/issues/${id}`);
+    return response.data;
+  },
+
+  create: async (data: IssueCreate): Promise<IssueDetail> => {
+    const response = await apiClient.post<IssueDetail>('/issues', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: IssueUpdate): Promise<IssueDetail> => {
+    const response = await apiClient.patch<IssueDetail>(`/issues/${id}`, data);
+    return response.data;
+  },
+
+  assign: async (id: number, data: IssueAssign): Promise<IssueDetail> => {
+    const response = await apiClient.patch<IssueDetail>(`/issues/${id}/assign`, data);
+    return response.data;
+  },
+
+  updateStatus: async (id: number, data: IssueStatusUpdate): Promise<IssueDetail> => {
+    const response = await apiClient.patch<IssueDetail>(`/issues/${id}/status`, data);
+    return response.data;
+  },
+
+  resolve: async (id: number, data: IssueResolve): Promise<IssueDetail> => {
+    const response = await apiClient.patch<IssueDetail>(`/issues/${id}/resolve`, data);
+    return response.data;
+  },
+
+  reopen: async (id: number, data: IssueReopen): Promise<IssueDetail> => {
+    const response = await apiClient.patch<IssueDetail>(`/issues/${id}/reopen`, data);
+    return response.data;
+  },
+};

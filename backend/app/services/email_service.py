@@ -88,6 +88,7 @@ async def send_otp_email(to_email: str, otp: str) -> None:
         return
 
     msg = _build_otp_email(to_email, otp)
+    smtp_pass = settings.SMTP_PASSWORD.replace(" ", "") if settings.SMTP_PASSWORD else ""
 
     try:
         await aiosmtplib.send(
@@ -95,16 +96,17 @@ async def send_otp_email(to_email: str, otp: str) -> None:
             hostname=settings.SMTP_HOST,
             port=settings.SMTP_PORT,
             username=settings.SMTP_USERNAME,
-            password=settings.SMTP_PASSWORD,
+            password=smtp_pass,
             start_tls=settings.SMTP_USE_TLS,
         )
-        logger.info("OTP email sent to %s", to_email)
+        logger.info("OTP email successfully sent to %s", to_email)
     except Exception as exc:
         # Log the error but DO NOT include the OTP in the log message.
         logger.error(
-            "Failed to send OTP email to %s: %s",
+            "Failed to send OTP email to %s: %s (%s)",
             to_email,
             type(exc).__name__,
+            exc,
         )
         # Re-raise so the caller can decide whether to surface the error.
         raise
@@ -153,13 +155,15 @@ async def send_notification_email(
     msg.attach(MIMEText(plain_body, "plain"))
     msg.attach(MIMEText(html_body, "html"))
 
+    smtp_pass = settings.SMTP_PASSWORD.replace(" ", "") if settings.SMTP_PASSWORD else ""
+
     try:
         await aiosmtplib.send(
             msg,
             hostname=settings.SMTP_HOST,
             port=settings.SMTP_PORT,
             username=settings.SMTP_USERNAME,
-            password=settings.SMTP_PASSWORD,
+            password=smtp_pass,
             start_tls=settings.SMTP_USE_TLS,
         )
         logger.info("Notification email sent to %s: %s", to_email, title)

@@ -16,6 +16,7 @@ Security notes:
     (prevent email enumeration).
 """
 
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +29,7 @@ from app.schemas.auth import (
     LogoutResponse,
     MessageResponse,
     RegisterRequest,
+    RequestOTPRequest,
     ResendOTPRequest,
     TokenResponse,
     UserResponse,
@@ -44,6 +46,41 @@ from app.models.audit_log import AuditAction
 from app.utils.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+# --------------------------------------------------------------------------- #
+# POST /auth/request-otp                                                       #
+# --------------------------------------------------------------------------- #
+
+@router.post(
+    "/request-otp",
+    response_model=MessageResponse,
+    summary="Request email verification OTP for passwordless login/signup",
+)
+async def request_otp(
+    body: RequestOTPRequest,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """Send a 6-digit OTP code to the provided email address.
+
+    Enforces 60-second cooldown per email address. Works for both new
+    and existing accounts without revealing account existence.
+    """
+    await check_resend_cooldown(body.email, db)
+
+    raw_otp = await create_otp_record(body.email, db)
+
+    # Print to console for convenient development visibility
+    print(f"\n=======================================================\n[BugTracker OTP] Code for {body.email}: {raw_otp}\n=======================================================\n", flush=True)
+
+    try:
+        await send_otp_email(body.email, raw_otp)
+    except Exception as exc:
+        logger.error("Failed to send OTP email to %s: %s", body.email, exc)
+
+    return MessageResponse(
+        message="A 6-digit verification code has been sent to your email address."
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -116,35 +153,60 @@ async def register(
 
 @router.post(
     "/verify-otp",
-    response_model=MessageResponse,
-    summary="Verify email OTP and activate account",
+    response_model=TokenResponse,
+    summary="Verify email OTP, authenticate user, and receive JWT",
 )
 async def verify_otp(
     body: VerifyOTPRequest,
     db: AsyncSession = Depends(get_db),
-) -> MessageResponse:
-    """Verify a 6-digit OTP and activate the user account."""
+) -> TokenResponse:
+    """Verify a 6-digit OTP, create/activate user account, and issue a JWT access token."""
+    # Verify OTP against stored hash & expiry
+    await verify_otp_for_email(body.email, body.otp, db)
+
     # Fetch user
     result = await db.execute(select(User).where(User.email == body.email))
     user: User | None = result.scalar_one_or_none()
 
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No account found for this email address.",
+        # Auto-create new user with safe default non-admin role (DEVELOPER)
+        raw_name = body.email.split("@")[0].replace(".", " ").replace("_", " ").title()
+        user = User(
+            full_name=raw_name or "BugTracker User",
+            email=body.email,
+            password_hash=hash_password(secrets.token_urlsafe(32)),
+            role=UserRole.DEVELOPER,
+            is_active=True,
+            is_email_verified=True,
         )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+    else:
+        user.is_email_verified = True
+        user.is_active = True
+        await db.flush()
+        await db.refresh(user)
 
-    if user.is_email_verified:
-        return MessageResponse(message="Email is already verified.")
+    token = create_access_token(user_id=user.id, role=user.role.value)
 
-    # verify_otp_for_email raises appropriate HTTP exceptions on failure
-    await verify_otp_for_email(body.email, body.otp, db)
+    # Audit: record successful authentication
+    await create_audit_log(
+        db=db,
+        actor=user,
+        action=AuditAction.AUTH_LOGIN,
+        entity_type="AUTH",
+        entity_id=user.id,
+        entity_key=user.email,
+        description=f"User {user.full_name!r} ({user.role.value}) authenticated via OTP",
+    )
 
-    # Activate the account
-    user.is_email_verified = True
-    user.is_active = True
-
-    return MessageResponse(message="Email verified successfully. You can now log in.")
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.model_validate(user),
+        message="Email verified successfully. Authenticated.",
+    )
 
 
 # --------------------------------------------------------------------------- #

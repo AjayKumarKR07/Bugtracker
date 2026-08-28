@@ -169,11 +169,11 @@ async def update_issue_status(
     issue_id: int,
     body: IssueStatusUpdate,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_role(UserRole.DEVELOPER)),
+    current_user: User = Depends(require_role(UserRole.TESTER)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Transition an assigned issue through the development workflow.
-    **DEVELOPER only** — must be assigned to the issue.
+    """Transition an assigned issue through the investigation workflow.
+    **TESTER only** — must be assigned to the issue.
 
     Valid transitions:
     - ASSIGNED → IN_DEVELOPMENT
@@ -210,10 +210,10 @@ async def resolve_issue(
     issue_id: int,
     body: IssueResolve,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_role(UserRole.DEVELOPER)),
+    current_user: User = Depends(require_role(UserRole.TESTER)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Mark an assigned issue as RESOLVED. **DEVELOPER only** — must be assigned."""
+    """Mark an assigned issue as RESOLVED. **TESTER only** — must be assigned."""
     from app.services.websocket_manager import ws_manager
     detail, notifications = await issue_service.resolve_issue(issue_id, body, current_user, db)
     for notif in notifications:
