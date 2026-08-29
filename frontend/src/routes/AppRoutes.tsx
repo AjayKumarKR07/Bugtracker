@@ -4,6 +4,7 @@ import { ProtectedRoute } from '../components/common/ProtectedRoute';
 import { RoleProtectedRoute } from '../components/common/RoleProtectedRoute';
 import { Layout } from '../components/layout/Layout';
 import { LoginPage } from '../pages/auth/LoginPage';
+import { RegisterPage } from '../pages/auth/RegisterPage';
 import { VerifyOtpPage } from '../pages/auth/VerifyOtpPage';
 import { AdminPage } from '../pages/AdminPage';
 import { AnalyticsPage } from '../pages/AnalyticsPage';
@@ -22,7 +23,7 @@ export const AppRoutes: React.FC = () => {
         {/* Public Landing & Authentication Routes */}
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<Navigate to="/login" replace />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-otp" element={<VerifyOtpPage />} />
 
         {/* Authenticated Protected Application Routes */}

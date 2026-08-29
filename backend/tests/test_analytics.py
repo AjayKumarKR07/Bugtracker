@@ -29,9 +29,10 @@ from tests.conftest import (
     _run_sync,
     admin_token,
     auth_header,
-    dev2_token,
     dev_token,
+    dev2_token,
     tester2_token,
+    tester3_token,
     tester_token,
 )
 
@@ -184,7 +185,7 @@ class TestStatusDistribution:
         # Tester 1 creates issue
         iss = _create_test_issue(proj["id"], token=tester_token())
 
-        # Tester 1 sees it
+        # Tester 1 sees it (they are the reporter)
         r1 = _CLIENT.get(
             f"/analytics/issues/status-distribution?project_id={proj['id']}",
             headers=auth_header(tester_token()),
@@ -192,13 +193,15 @@ class TestStatusDistribution:
         assert r1.status_code == 200
         assert r1.json()["REPORTED"] >= 1
 
-        # Tester 2 does NOT see Tester 1's issue
+        # Tester 2 does NOT see Tester 1's issue (not reporter or assignee)
         r2 = _CLIENT.get(
             f"/analytics/issues/status-distribution?project_id={proj['id']}",
             headers=auth_header(tester2_token()),
         )
         assert r2.status_code == 200
+        # tester2 has no reported or assigned issues in this project
         assert r2.json()["REPORTED"] == 0
+        assert r2.json()["ASSIGNED"] == 0
 
     def test_date_validation_error(self):
         r = _CLIENT.get(
@@ -393,46 +396,47 @@ class TestDeveloperAnalytics:
             assert "average_resolution_time_hours" in dev_item
 
     def test_developer_assignment_and_resolution_tracking(self):
+        """Test that tester3 (TESTER role, new worker) is tracked in /analytics/developers."""
         proj = _create_test_project()
         iss = _create_test_issue(proj["id"])
-        dev_id = _get_user_id(dev_token())
+        tester3_id = _get_user_id(tester3_token())
 
-        # Assign issue to dev
-        _assign_issue(iss["id"], dev_id)
+        # Assign issue to tester3 (TESTER role — new assignee role)
+        _assign_issue(iss["id"], tester3_id)
 
         r = _CLIENT.get("/analytics/developers", headers=auth_header(admin_token()))
         assert r.status_code == 200
         items = r.json()["items"]
-        dev_match = next((d for d in items if d["developer_id"] == dev_id), None)
-        assert dev_match is not None
-        assert dev_match["assigned_issues"] >= 1
-        assert dev_match["open_issues"] >= 1
+        tester3_match = next((d for d in items if d["developer_id"] == tester3_id), None)
+        assert tester3_match is not None
+        assert tester3_match["assigned_issues"] >= 1
+        assert tester3_match["open_issues"] >= 1
 
-        # Developer resolves issue
+        # Tester3 resolves the issue
         # Transition: ASSIGNED -> IN_DEVELOPMENT -> IN_REVIEW -> RESOLVED
         _CLIENT.patch(
             f"/issues/{iss['id']}/status",
             json={"status": IssueStatus.IN_DEVELOPMENT.value},
-            headers=auth_header(dev_token()),
+            headers=auth_header(tester3_token()),
         )
         _CLIENT.patch(
             f"/issues/{iss['id']}/status",
             json={"status": IssueStatus.IN_REVIEW.value},
-            headers=auth_header(dev_token()),
+            headers=auth_header(tester3_token()),
         )
-        _CLIENT.post(
+        _CLIENT.patch(
             f"/issues/{iss['id']}/resolve",
             json={"resolution_summary": "Fixed the bug in code repository."},
-            headers=auth_header(dev_token()),
+            headers=auth_header(tester3_token()),
         )
 
         r_after = _CLIENT.get("/analytics/developers", headers=auth_header(admin_token()))
         items_after = r_after.json()["items"]
-        dev_after = next((d for d in items_after if d["developer_id"] == dev_id), None)
-        assert dev_after is not None
-        assert dev_after["resolved_issues"] >= 1
-        assert dev_after["resolution_rate"] > 0.0
-        assert dev_after["average_resolution_time_hours"] is not None
+        tester3_after = next((d for d in items_after if d["developer_id"] == tester3_id), None)
+        assert tester3_after is not None
+        assert tester3_after["resolved_issues"] >= 1
+        assert tester3_after["resolution_rate"] > 0.0
+        assert tester3_after["average_resolution_time_hours"] is not None
 
 
 # =========================================================================== #

@@ -1,3 +1,6 @@
+// UserRole values as returned by the backend.
+// DEVELOPER is kept for backward compatibility with legacy accounts.
+// New registrations use TESTER (issue investigator) or TESTER (issue reporter mapped as USER in UI).
 export type UserRole = 'ADMIN' | 'DEVELOPER' | 'TESTER';
 
 export interface User {
@@ -10,6 +13,8 @@ export interface User {
   created_at: string;
 }
 
+// Backend RegisterRequest.role accepts TESTER or DEVELOPER (not ADMIN).
+// UI presents these as "Tester" and "User" but maps to backend enum values.
 export interface RegisterRequest {
   full_name: string;
   email: string;
@@ -32,7 +37,7 @@ export interface ResendOtpRequest {
 
 export interface LoginRequest {
   email: string;
-  password?: string;
+  password: string;
 }
 
 export interface TokenResponse {

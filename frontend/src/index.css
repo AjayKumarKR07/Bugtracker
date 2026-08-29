@@ -936,6 +936,10 @@ input, select, textarea {
   to { transform: rotate(360deg); }
 }
 
+.spin {
+  animation: spin 0.75s linear infinite;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }

@@ -89,6 +89,8 @@ _USERS = {
     "dev2":    ("dev2",    UserRole.DEVELOPER, "Developer2 CI"),
     "tester":  ("tester",  UserRole.TESTER,    "Tester CI"),
     "tester2": ("tester2", UserRole.TESTER,    "Tester2 CI"),
+    "tester3": ("tester3", UserRole.TESTER,    "Tester3 CI"),  # worker tester (assignee)
+    "tester4": ("tester4", UserRole.TESTER,    "Tester4 CI"),  # worker tester 2 (assignee)
 }
 
 
@@ -154,6 +156,22 @@ def tester2_token() -> str:
 
 
 tester2_token.__test__ = False  # type: ignore[attr-defined]
+
+
+def tester3_token() -> str:
+    """Worker-tester token — TESTER role, used as assignment target."""
+    return get_token("tester3")
+
+
+tester3_token.__test__ = False  # type: ignore[attr-defined]
+
+
+def tester4_token() -> str:
+    """Worker-tester 2 token — TESTER role, used as second assignment target."""
+    return get_token("tester4")
+
+
+tester4_token.__test__ = False  # type: ignore[attr-defined]
 
 
 def auth_header(token: str) -> dict:

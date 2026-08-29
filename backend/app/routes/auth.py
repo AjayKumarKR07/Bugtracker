@@ -16,8 +16,11 @@ Security notes:
     (prevent email enumeration).
 """
 
+import logging
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -169,13 +172,15 @@ async def verify_otp(
     user: User | None = result.scalar_one_or_none()
 
     if user is None:
-        # Auto-create new user with safe default non-admin role (DEVELOPER)
+        # Auto-create new user with safe default role (TESTER).
+        # TESTER is the public-facing role for issue reporters.
+        # ADMIN cannot be auto-created via OTP.
         raw_name = body.email.split("@")[0].replace(".", " ").replace("_", " ").title()
         user = User(
             full_name=raw_name or "BugTracker User",
             email=body.email,
             password_hash=hash_password(secrets.token_urlsafe(32)),
-            role=UserRole.DEVELOPER,
+            role=UserRole.TESTER,
             is_active=True,
             is_email_verified=True,
         )

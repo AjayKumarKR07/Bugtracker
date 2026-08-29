@@ -100,10 +100,6 @@ export const DashboardPage: React.FC = () => {
     ? (statusDist.RESOLVED || 0) + (statusDist.CLOSED || 0)
     : 0;
 
-  const needsReviewCount = statusDist
-    ? (statusDist.IN_REVIEW || 0) + (statusDist.RESOLVED || 0)
-    : 0;
-
   return (
     <div>
       {/* Welcome Banner */}

@@ -7,8 +7,8 @@ PostgreSQL tables directly without any mock or cached data.
 
 RBAC:
   - ADMIN: Has full visibility across all users, projects, and issues.
-  - DEVELOPER: Scoped only to issues assigned to them.
-  - TESTER: Scoped only to issues reported by them.
+  - DEVELOPER: Scoped only to issues assigned to them (legacy role).
+  - TESTER: Scoped to issues they reported OR are assigned to investigate.
 """
 
 import csv
@@ -16,7 +16,7 @@ import io
 from datetime import datetime
 
 from fastapi import HTTPException, Response, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -142,7 +142,9 @@ async def get_status_distribution(
     if current_user.role == UserRole.DEVELOPER:
         query = query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(Issue.assignee_id == current_user.id)
+        query = query.where(
+            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
+        )
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)
@@ -190,7 +192,9 @@ async def get_severity_distribution(
     if current_user.role == UserRole.DEVELOPER:
         query = query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(Issue.assignee_id == current_user.id)
+        query = query.where(
+            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
+        )
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)
@@ -250,8 +254,12 @@ async def get_issue_trends(
         created_query = created_query.where(Issue.assignee_id == current_user.id)
         resolved_query = resolved_query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        created_query = created_query.where(Issue.assignee_id == current_user.id)
-        resolved_query = resolved_query.where(Issue.assignee_id == current_user.id)
+        created_query = created_query.where(
+            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
+        )
+        resolved_query = resolved_query.where(
+            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
+        )
 
     if project_id is not None:
         created_query = created_query.where(Issue.project_id == project_id)
@@ -347,7 +355,9 @@ async def get_all_projects_analytics(
     if current_user.role == UserRole.DEVELOPER:
         issue_query = issue_query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
+        issue_query = issue_query.where(
+            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
+        )
 
     issue_res = await db.execute(issue_query)
     stats_by_project = {row.project_id: row for row in issue_res.all()}
@@ -443,7 +453,9 @@ async def get_project_analytics(
     if current_user.role == UserRole.DEVELOPER:
         issue_query = issue_query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
+        issue_query = issue_query.where(
+            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
+        )
 
     if start_date is not None:
         issue_query = issue_query.where(Issue.created_at >= start_date)
@@ -568,7 +580,9 @@ async def export_issues_csv(
     if current_user.role == UserRole.DEVELOPER:
         query = query.where(Issue.assignee_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(Issue.assignee_id == current_user.id)
+        query = query.where(
+            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
+        )
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)
