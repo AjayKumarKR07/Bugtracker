@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -30,7 +30,12 @@ import { formatDate } from '../utils/formatters';
 
 export const IssuesPage: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
+
+  const isUser = user?.role === 'USER';
   const isTester = user?.role === 'TESTER';
+  const isAdmin = user?.role === 'ADMIN';
+  const canReport = isUser || isAdmin;
 
   const [issues, setIssues] = useState<Issue[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -107,6 +112,13 @@ export const IssuesPage: React.FC = () => {
   useEffect(() => {
     fetchIssues();
   }, [page, statusFilter, severityFilter, priorityFilter, typeFilter, projectFilter]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if ((params.get('create') === 'true' || params.get('new') === 'true') && canReport) {
+      openReportModal();
+    }
+  }, [location.search, canReport]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,17 +198,20 @@ export const IssuesPage: React.FC = () => {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Issues & Defects</h1>
+          <h1 className="page-title">
+            {isUser ? 'My Submitted Issues' : isTester ? 'My Assigned Issues' : 'Issues & Defects'}
+          </h1>
           <p className="page-subtitle">
-            {user?.role === 'ADMIN' && 'Showing all defects across the entire organization'}
-            {user?.role === 'TESTER' && 'Showing defects assigned to you and reported by you'}
+            {isAdmin && 'Showing all defects and issues across the entire organization'}
+            {isTester && 'Showing defects assigned to you for investigation'}
+            {isUser && 'Showing issues you reported and their current progress'}
           </p>
         </div>
 
-        {isTester && (
+        {canReport && (
           <button onClick={openReportModal} className="btn btn-primary">
             <Plus size={16} />
-            Report Defect
+            {isUser ? 'Report New Issue' : 'Report Issue'}
           </button>
         )}
       </div>
@@ -482,11 +497,11 @@ export const IssuesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Report Defect Modal (TESTER only) */}
+      {/* Report Issue Modal */}
       <Modal
         isOpen={isReportOpen}
         onClose={() => setIsReportOpen(false)}
-        title="Report New Defect"
+        title={isUser ? "Report a New Issue" : "Report New Defect"}
         maxWidth="680px"
       >
         {formError && (
@@ -645,7 +660,7 @@ export const IssuesPage: React.FC = () => {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Reporting...' : 'Submit Defect'}
+              {isSubmitting ? 'Submitting...' : isUser ? 'Submit Issue' : 'Submit Defect'}
             </button>
           </div>
         </form>

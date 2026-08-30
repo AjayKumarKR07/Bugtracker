@@ -34,6 +34,8 @@ from tests.conftest import (
     tester2_token,
     tester3_token,
     tester_token,
+    user2_token,
+    user_token,
 )
 
 
@@ -60,7 +62,7 @@ def _create_test_issue(
     priority: Priority = Priority.MEDIUM,
     token: str | None = None,
 ) -> dict:
-    tok = token or tester_token()
+    tok = token or user_token()
     r = _CLIENT.post(
         "/issues",
         json={
@@ -182,16 +184,19 @@ class TestStatusDistribution:
 
     def test_rbac_isolation_tester(self):
         proj = _create_test_project()
-        # Tester 1 creates issue
-        iss = _create_test_issue(proj["id"], token=tester_token())
+        # User creates issue
+        iss = _create_test_issue(proj["id"], token=user_token())
+        # Issue assigned to Tester 1
+        tester_id = _get_user_id(tester_token())
+        _assign_issue(iss["id"], tester_id)
 
-        # Tester 1 sees it (they are the reporter)
+        # Tester 1 sees it (they are the assignee)
         r1 = _CLIENT.get(
             f"/analytics/issues/status-distribution?project_id={proj['id']}",
             headers=auth_header(tester_token()),
         )
         assert r1.status_code == 200
-        assert r1.json()["REPORTED"] >= 1
+        assert r1.json()["ASSIGNED"] >= 1
 
         # Tester 2 does NOT see Tester 1's issue (not reporter or assignee)
         r2 = _CLIENT.get(
@@ -492,7 +497,10 @@ class TestCSVExport:
 
     def test_export_rbac_isolation(self):
         proj = _create_test_project()
-        _create_test_issue(proj["id"], token=tester_token())
+        iss = _create_test_issue(proj["id"], token=user_token())
+        # Assign to tester 1
+        tester_id = _get_user_id(tester_token())
+        _assign_issue(iss["id"], tester_id)
 
         # Tester 2 exports from this project -> should receive header only (0 rows)
         r = _CLIENT.get(

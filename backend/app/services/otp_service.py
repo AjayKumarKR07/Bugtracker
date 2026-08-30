@@ -147,29 +147,24 @@ async def verify_otp_for_email(email: str, otp: str, db: AsyncSession) -> None:
             detail="OTP has already been used.",
         )
 
-    # Increment attempt counter using a nested savepoint so the increment
-    # is committed even when we raise HTTPException below (which triggers
-    # get_db's rollback on the outer transaction).
     record_id = record.id
     current_attempts = record.attempts
 
-    async with db.begin_nested():
-        # This SAVEPOINT is released (committed to the outer txn) here
-        await db.execute(
-            update(EmailOTP)
-            .where(EmailOTP.id == record_id)
-            .values(attempts=current_attempts + 1)
-        )
-    # Refresh to pick up the updated attempt count
+    await db.execute(
+        update(EmailOTP)
+        .where(EmailOTP.id == record_id)
+        .values(attempts=current_attempts + 1)
+    )
+    await db.commit()
     await db.refresh(record)
 
     if record.attempts > settings.OTP_MAX_ATTEMPTS:
-        async with db.begin_nested():
-            await db.execute(
-                update(EmailOTP)
-                .where(EmailOTP.id == record_id)
-                .values(is_used=True)
-            )
+        await db.execute(
+            update(EmailOTP)
+            .where(EmailOTP.id == record_id)
+            .values(is_used=True)
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many failed attempts. Please request a new OTP.",

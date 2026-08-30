@@ -61,25 +61,26 @@ async def _get_issue_or_404(issue_id: int, db: AsyncSession) -> Issue:
 def _check_issue_access(issue: Issue, current_user: User) -> None:
     """Enforce the existing issue visibility rules for comments.
 
-    ADMIN  → any issue
-    DEVELOPER → only assigned issues
-    TESTER → only issues they reported
+    ADMIN      → any issue
+    TESTER     → issues assigned to them OR that they reported
+    USER       → only issues they reported
+    DEVELOPER  → only assigned issues (legacy)
 
     Raises HTTP 403 if access is denied.
     """
     if current_user.role == UserRole.ADMIN:
         return
-    if current_user.role == UserRole.DEVELOPER:
-        if issue.assignee_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Developers can only interact with issues assigned to them.",
-            )
-    elif current_user.role == UserRole.TESTER:
+    if current_user.role == UserRole.USER:
         if issue.reporter_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Testers can only interact with issues they reported.",
+                detail="You can only comment on issues you reported.",
+            )
+    elif current_user.role in (UserRole.TESTER, UserRole.DEVELOPER):
+        if issue.assignee_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only comment on issues assigned to you.",
             )
 
 

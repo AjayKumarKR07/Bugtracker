@@ -15,10 +15,17 @@ from app.database.base import Base
 
 
 class UserRole(str, enum.Enum):
-    """Roles available in the system."""
-    ADMIN = "ADMIN"
-    DEVELOPER = "DEVELOPER"
-    TESTER = "TESTER"
+    """Roles available in the system.
+
+    ADMIN    — system administrator, full access
+    TESTER   — assigned issue investigator
+    USER     — issue reporter (public portal user)
+    DEVELOPER — legacy role, treated same as TESTER for RBAC
+    """
+    ADMIN     = "ADMIN"
+    DEVELOPER = "DEVELOPER"   # legacy — kept for existing accounts
+    TESTER    = "TESTER"
+    USER      = "USER"        # issue reporters (public self-registration)
 
 
 class User(Base):

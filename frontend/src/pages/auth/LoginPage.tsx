@@ -15,16 +15,32 @@ import {
 } from 'lucide-react';
 import { getApiErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import type { User, UserRole } from '../../types/auth';
+import { storage } from '../../utils/storage';
 
 type LoginMode = 'password' | 'otp';
+
+/**
+ * Determines post-login redirect path based on user role.
+ * ADMIN → /admin (their primary workspace)
+ * TESTER / DEVELOPER → /dashboard
+ * If the user had tried to access a specific page (from), honour it.
+ */
+function getRoleRedirect(role: UserRole, requestedFrom: string): string {
+  if (requestedFrom && requestedFrom !== '/' && requestedFrom !== '/login' && requestedFrom !== '/register') {
+    return requestedFrom;
+  }
+  if (role === 'ADMIN') return '/admin';
+  return '/dashboard';
+}
 
 export const LoginPage: React.FC = () => {
   const { login, requestOtp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const rawFrom = (location.state as { from?: { pathname: string } })?.from?.pathname;
-  const from = rawFrom && rawFrom !== '/' ? rawFrom : '/dashboard';
+  const rawFrom = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '';
+  const from = rawFrom !== '/' ? rawFrom : '';
 
   // Mode toggle
   const [mode, setMode] = useState<LoginMode>('password');
@@ -50,8 +66,12 @@ export const LoginPage: React.FC = () => {
     setError(null);
     setIsSubmitting(true);
     try {
+      // login() internally calls /auth/login and stores the user+token
       await login({ email: email.trim(), password });
-      navigate(from, { replace: true });
+      // Read the freshly stored user to determine role-based redirect
+      const freshUser: User | null = storage.getUser<User>();
+      const role: UserRole = freshUser?.role ?? 'TESTER';
+      navigate(getRoleRedirect(role, from), { replace: true });
     } catch (err: unknown) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -74,7 +94,7 @@ export const LoginPage: React.FC = () => {
       });
     } catch (err: unknown) {
       const errMsg = getApiErrorMessage(err);
-      // If rate-limited let user proceed to enter already-sent code
+      // If rate-limited, let user enter the already-sent code
       if (
         errMsg.toLowerCase().includes('wait') ||
         errMsg.toLowerCase().includes('too many') ||

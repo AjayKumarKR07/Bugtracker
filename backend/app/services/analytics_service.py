@@ -139,12 +139,15 @@ async def get_status_distribution(
 
     query = select(Issue.status, func.count().label("cnt")).group_by(Issue.status)
 
-    if current_user.role == UserRole.DEVELOPER:
-        query = query.where(Issue.assignee_id == current_user.id)
+    if current_user.role == UserRole.USER:
+        # Users see only their own reported issues
+        query = query.where(Issue.reporter_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(
-            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
-        )
+        # Testers see only assigned issues
+        query = query.where(Issue.assignee_id == current_user.id)
+    elif current_user.role == UserRole.DEVELOPER:
+        # Legacy role — assigned issues only
+        query = query.where(Issue.assignee_id == current_user.id)
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)
@@ -189,12 +192,15 @@ async def get_severity_distribution(
 
     query = select(Issue.severity, func.count().label("cnt")).group_by(Issue.severity)
 
-    if current_user.role == UserRole.DEVELOPER:
-        query = query.where(Issue.assignee_id == current_user.id)
+    if current_user.role == UserRole.USER:
+        # Users see only their own reported issues
+        query = query.where(Issue.reporter_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(
-            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
-        )
+        # Testers see only assigned issues
+        query = query.where(Issue.assignee_id == current_user.id)
+    elif current_user.role == UserRole.DEVELOPER:
+        # Legacy role — assigned issues only
+        query = query.where(Issue.assignee_id == current_user.id)
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)
@@ -250,16 +256,18 @@ async def get_issue_trends(
         func.count().label("cnt"),
     ).where(Issue.resolved_at.isnot(None)).group_by("period")
 
-    if current_user.role == UserRole.DEVELOPER:
+    if current_user.role == UserRole.USER:
+        # Users see only their own reported issues
+        created_query = created_query.where(Issue.reporter_id == current_user.id)
+        resolved_query = resolved_query.where(Issue.reporter_id == current_user.id)
+    elif current_user.role == UserRole.TESTER:
+        # Testers see only assigned issues
         created_query = created_query.where(Issue.assignee_id == current_user.id)
         resolved_query = resolved_query.where(Issue.assignee_id == current_user.id)
-    elif current_user.role == UserRole.TESTER:
-        created_query = created_query.where(
-            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
-        )
-        resolved_query = resolved_query.where(
-            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
-        )
+    elif current_user.role == UserRole.DEVELOPER:
+        # Legacy role — assigned issues only
+        created_query = created_query.where(Issue.assignee_id == current_user.id)
+        resolved_query = resolved_query.where(Issue.assignee_id == current_user.id)
 
     if project_id is not None:
         created_query = created_query.where(Issue.project_id == project_id)
@@ -352,12 +360,15 @@ async def get_all_projects_analytics(
         ).label("critical"),
     ).group_by(Issue.project_id)
 
-    if current_user.role == UserRole.DEVELOPER:
-        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
+    if current_user.role == UserRole.USER:
+        # Users see only their own reported issues
+        issue_query = issue_query.where(Issue.reporter_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        issue_query = issue_query.where(
-            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
-        )
+        # Testers see only assigned issues
+        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
+    elif current_user.role == UserRole.DEVELOPER:
+        # Legacy role — assigned issues only
+        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
 
     issue_res = await db.execute(issue_query)
     stats_by_project = {row.project_id: row for row in issue_res.all()}
@@ -450,12 +461,15 @@ async def get_project_analytics(
         ).label("critical"),
     ).select_from(Issue).where(Issue.project_id == project_id)
 
-    if current_user.role == UserRole.DEVELOPER:
-        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
+    if current_user.role == UserRole.USER:
+        # Users see only their own reported issues
+        issue_query = issue_query.where(Issue.reporter_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        issue_query = issue_query.where(
-            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
-        )
+        # Testers see only assigned issues
+        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
+    elif current_user.role == UserRole.DEVELOPER:
+        # Legacy role — assigned issues only
+        issue_query = issue_query.where(Issue.assignee_id == current_user.id)
 
     if start_date is not None:
         issue_query = issue_query.where(Issue.created_at >= start_date)
@@ -577,12 +591,15 @@ async def export_issues_csv(
         .order_by(Issue.id)
     )
 
-    if current_user.role == UserRole.DEVELOPER:
-        query = query.where(Issue.assignee_id == current_user.id)
+    if current_user.role == UserRole.USER:
+        # Users see only their own reported issues
+        query = query.where(Issue.reporter_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        query = query.where(
-            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
-        )
+        # Testers see only assigned issues
+        query = query.where(Issue.assignee_id == current_user.id)
+    elif current_user.role == UserRole.DEVELOPER:
+        # Legacy role — assigned issues only
+        query = query.where(Issue.assignee_id == current_user.id)
 
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)

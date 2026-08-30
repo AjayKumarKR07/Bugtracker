@@ -20,6 +20,7 @@ Total: 30 tests covering:
 
 import asyncio
 import selectors
+import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -126,7 +127,8 @@ class TestJWT:
 
 class TestRegistration:
     def test_valid_developer_registration(self) -> None:
-        """POST /auth/register with valid DEVELOPER payload returns 201."""
+        """POST /auth/register with DEVELOPER role returns 422 — DEVELOPER is a legacy role
+        that cannot be registered publicly. Only USER and TESTER are allowed."""
         with patch("app.routes.auth.send_otp_email", new_callable=AsyncMock):
             response = client.post("/auth/register", json={
                 "full_name": "Test Developer",
@@ -134,14 +136,14 @@ class TestRegistration:
                 "password": "SecurePass123",
                 "role": "DEVELOPER",
             })
-        assert response.status_code in (201, 409)
+        assert response.status_code == 422
 
     def test_invalid_email_rejected(self) -> None:
         response = client.post("/auth/register", json={
             "full_name": "Bad Email User",
             "email": "not-an-email",
             "password": "SecurePass123",
-            "role": "DEVELOPER",
+            "role": "TESTER",
         })
         assert response.status_code == 422
 
@@ -151,7 +153,7 @@ class TestRegistration:
             "full_name": "Weak Password User",
             "email": _email("weakpass"),
             "password": "short",
-            "role": "DEVELOPER",
+            "role": "TESTER",
         })
         assert response.status_code == 422
 
@@ -207,7 +209,7 @@ class TestOTPMechanics:
                 "full_name": "OTP Test User",
                 "email": email,
                 "password": "SecurePass123",
-                "role": "DEVELOPER",
+                "role": "USER",
             })
 
         if r.status_code == 409 or not captured_otp:
@@ -226,7 +228,7 @@ class TestOTPMechanics:
                 "full_name": "Wrong OTP User",
                 "email": email,
                 "password": "SecurePass123",
-                "role": "DEVELOPER",
+                "role": "USER",
             })
         if r.status_code == 409:
             pytest.skip("User exists from prior run")
@@ -244,7 +246,7 @@ class TestOTPMechanics:
                 "full_name": "Expired OTP User",
                 "email": email,
                 "password": "SecurePass123",
-                "role": "DEVELOPER",
+                "role": "USER",
             })
         if r.status_code == 409:
             pytest.skip("User exists from prior run")
@@ -267,7 +269,7 @@ class TestOTPMechanics:
                 "full_name": "Used OTP User",
                 "email": email,
                 "password": "SecurePass123",
-                "role": "DEVELOPER",
+                "role": "USER",
             })
 
         if r.status_code == 409 or not captured_otp:
@@ -282,13 +284,13 @@ class TestOTPMechanics:
 
     def test_max_attempts_enforced(self) -> None:
         """After OTP_MAX_ATTEMPTS wrong guesses the endpoint returns 429."""
-        email = _email("maxattempts")
+        email = f"maxattempts_{uuid.uuid4().hex[:6]}.{_SUFFIX}@example.com"
         with patch("app.routes.auth.send_otp_email", new_callable=AsyncMock):
             r = client.post("/auth/register", json={
                 "full_name": "Max Attempts",
                 "email": email,
                 "password": "SecurePass123",
-                "role": "DEVELOPER",
+                "role": "USER",  # USER role (DEVELOPER is now blocked from public registration)
             })
         if r.status_code == 409:
             pytest.skip("User exists from prior run")
@@ -306,7 +308,7 @@ class TestOTPMechanics:
                 "full_name": "Cooldown User",
                 "email": email,
                 "password": "SecurePass123",
-                "role": "DEVELOPER",
+                "role": "USER",
             })
             if r.status_code == 409:
                 pytest.skip("User exists from prior run")
@@ -491,7 +493,7 @@ class TestEmailService:
                 "full_name": "No Real Email",
                 "email": _email("norealemail2"),
                 "password": "SecurePass123",
-                "role": "DEVELOPER",
+                "role": "USER",
             })
             assert mock_email.call_count in (0, 1)
 
@@ -526,7 +528,7 @@ class TestPasswordlessAuth:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
         assert data["user"]["email"] == email
-        assert data["user"]["role"] in ("DEVELOPER", "TESTER", "ADMIN")
+        assert data["user"]["role"] in ("DEVELOPER", "TESTER", "ADMIN", "USER")
         assert data["user"]["is_active"] is True
         assert data["user"]["is_email_verified"] is True
 

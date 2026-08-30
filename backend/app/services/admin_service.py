@@ -74,6 +74,7 @@ async def _user_stats(db: AsyncSession) -> UserStats:
             func.count(case((User.role == UserRole.ADMIN, 1))).label("admins"),
             func.count(case((User.role == UserRole.DEVELOPER, 1))).label("developers"),
             func.count(case((User.role == UserRole.TESTER, 1))).label("testers"),
+            func.count(case((User.role == UserRole.USER, 1))).label("users"),
             func.count(case((User.is_email_verified == True, 1))).label("verified"),   # noqa: E712
             func.count(case((User.is_email_verified == False, 1))).label("unverified"),  # noqa: E712
         ).select_from(User)
@@ -86,6 +87,7 @@ async def _user_stats(db: AsyncSession) -> UserStats:
         admins=row.admins,
         developers=row.developers,
         testers=row.testers,
+        users=row.users,
         verified=row.verified,
         unverified=row.unverified,
     )

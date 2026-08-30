@@ -54,14 +54,18 @@ from tests.conftest import (
     admin_token,
     auth_header,
     dev_token,
-    tester_token,
     tester2_token,
+    tester_token,
+    user2_token,
+    user_token,
 )
 
 _admin_tok = admin_token
 _dev_tok = dev_token
 _tester_tok = tester_token
 _tester2_tok = tester2_token
+_user_tok = user_token
+_user2_tok = user2_token
 
 client = TestClient(app)
 
@@ -167,9 +171,9 @@ _issue_assigned_to_dev: int = 0
 def _setup():
     global _proj_id, _issue_by_tester, _issue_by_tester2, _issue_assigned_to_dev
     _proj_id = _get_or_create_project(_PROJ_KEY, f"Attachment Test Project {_PROJ_KEY}")
-    _issue_by_tester = _create_issue(_proj_id, _tester_tok())
-    _issue_by_tester2 = _create_issue(_proj_id, _tester2_tok())
-    _issue_assigned_to_dev = _create_issue(_proj_id, _tester_tok())
+    _issue_by_tester = _create_issue(_proj_id, _user_tok())
+    _issue_by_tester2 = _create_issue(_proj_id, _user2_tok())
+    _issue_assigned_to_dev = _create_issue(_proj_id, _user_tok())
     _assign_issue(_issue_assigned_to_dev, "dev.p4ci@example.com")
 
 
@@ -220,7 +224,7 @@ def test_upload_unauthenticated_returns_401(tmp_path):
 
 
 def test_authenticated_upload_success(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "test.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), "test.png", "image/png", tmp_path)
     assert r.status_code == 201
 
 
@@ -229,7 +233,7 @@ def test_authenticated_upload_success(tmp_path):
 # =========================================================================== #
 
 def test_tester_upload_to_own_issue(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "shot.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), "shot.png", "image/png", tmp_path)
     assert r.status_code == 201
 
 
@@ -244,8 +248,8 @@ def test_admin_upload_to_any_issue(tmp_path):
 
 
 def test_unauthorized_upload_returns_403(tmp_path):
-    # tester cannot upload to another tester's issue
-    r = _upload(_issue_by_tester2, _tester_tok(), _make_png(), "hack.png", "image/png", tmp_path)
+    # user cannot upload to another user's issue
+    r = _upload(_issue_by_tester2, _user_tok(), _make_png(), "hack.png", "image/png", tmp_path)
     assert r.status_code == 403
 
 
@@ -263,25 +267,25 @@ def test_upload_to_nonexistent_issue_returns_404(tmp_path):
 # =========================================================================== #
 
 def test_valid_png_upload(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "screenshot.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), "screenshot.png", "image/png", tmp_path)
     assert r.status_code == 201
     assert r.json()["mime_type"] == "image/png"
 
 
 def test_valid_jpeg_upload(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_jpeg(), "photo.jpg", "image/jpeg", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_jpeg(), "photo.jpg", "image/jpeg", tmp_path)
     assert r.status_code == 201
     assert r.json()["mime_type"] == "image/jpeg"
 
 
 def test_valid_pdf_upload(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_pdf(), "doc.pdf", "application/pdf", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_pdf(), "doc.pdf", "application/pdf", tmp_path)
     assert r.status_code == 201
     assert r.json()["mime_type"] == "application/pdf"
 
 
 def test_valid_txt_upload(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_txt(), "log.txt", "text/plain", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_txt(), "log.txt", "text/plain", tmp_path)
     assert r.status_code == 201
     assert r.json()["mime_type"] == "text/plain"
 
@@ -291,13 +295,13 @@ def test_valid_txt_upload(tmp_path):
 # =========================================================================== #
 
 def test_unsupported_extension_rejected(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), b"some data", "script.sh", "text/plain", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), b"some data", "script.sh", "text/plain", tmp_path)
     assert r.status_code in (400, 415)
 
 
 def test_unsupported_mime_type_rejected(tmp_path):
     r = _upload(
-        _issue_by_tester, _tester_tok(),
+        _issue_by_tester, _user_tok(),
         b"<html><body>test</body></html>",
         "page.html", "text/html",
         tmp_path,
@@ -306,12 +310,12 @@ def test_unsupported_mime_type_rejected(tmp_path):
 
 
 def test_executable_file_rejected(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), b"MZ\x90\x00", "virus.exe", "application/octet-stream", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), b"MZ\x90\x00", "virus.exe", "application/octet-stream", tmp_path)
     assert r.status_code in (400, 415)
 
 
 def test_ps1_script_rejected(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), b"Get-Process", "hack.ps1", "text/plain", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), b"Get-Process", "hack.ps1", "text/plain", tmp_path)
     assert r.status_code in (400, 415)
 
 
@@ -322,7 +326,7 @@ def test_ps1_script_rejected(tmp_path):
 def test_oversized_file_returns_413(tmp_path):
     # Build minimal PNG but then pad to exceed 10MB limit
     big_content = _make_png(11 * 1024 * 1024)  # 11 MB
-    r = _upload(_issue_by_tester, _tester_tok(), big_content, "big.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), big_content, "big.png", "image/png", tmp_path)
     assert r.status_code == 413
 
 
@@ -331,7 +335,7 @@ def test_oversized_file_returns_413(tmp_path):
 # =========================================================================== #
 
 def test_stored_filename_is_server_generated_uuid(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "original.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), "original.png", "image/png", tmp_path)
     assert r.status_code == 201
     data = r.json()
     # Response should NOT contain stored_filename or storage_path
@@ -340,7 +344,7 @@ def test_stored_filename_is_server_generated_uuid(tmp_path):
 
 
 def test_original_filename_preserved_as_metadata(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "my_screenshot.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), "my_screenshot.png", "image/png", tmp_path)
     assert r.status_code == 201
     assert r.json()["original_filename"] == "my_screenshot.png"
 
@@ -348,7 +352,7 @@ def test_original_filename_preserved_as_metadata(tmp_path):
 def test_path_traversal_filename_sanitized(tmp_path):
     # The API should accept the upload (stripping path traversal) or reject it gracefully
     traversal_name = "../../etc/passwd.png"
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), traversal_name, "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), traversal_name, "image/png", tmp_path)
     # Either 201 (sanitized) or 4xx (rejected)
     if r.status_code == 201:
         # Must NOT store the original traversal path as original_filename literally traversing
@@ -366,12 +370,12 @@ def test_path_traversal_filename_sanitized(tmp_path):
 
 def test_list_attachments_returns_paginated_response(tmp_path):
     # Upload 2 attachments
-    _upload(_issue_by_tester, _tester_tok(), _make_png(), "a1.png", "image/png", tmp_path)
-    _upload(_issue_by_tester, _tester_tok(), _make_pdf(), "a2.pdf", "application/pdf", tmp_path)
+    _upload(_issue_by_tester, _user_tok(), _make_png(), "a1.png", "image/png", tmp_path)
+    _upload(_issue_by_tester, _user_tok(), _make_pdf(), "a2.pdf", "application/pdf", tmp_path)
 
     r = client.get(
         f"/issues/{_issue_by_tester}/attachments",
-        headers=auth_header(_tester_tok()),
+        headers=auth_header(_user_tok()),
     )
     assert r.status_code == 200
     data = r.json()
@@ -382,7 +386,7 @@ def test_list_attachments_returns_paginated_response(tmp_path):
 def test_list_attachments_pagination(tmp_path):
     r = client.get(
         f"/issues/{_issue_by_tester}/attachments?page=1&page_size=1",
-        headers=auth_header(_tester_tok()),
+        headers=auth_header(_user_tok()),
     )
     assert r.status_code == 200
     data = r.json()
@@ -391,10 +395,10 @@ def test_list_attachments_pagination(tmp_path):
 
 
 def test_get_attachment_metadata(tmp_path):
-    upload_r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "meta.png", "image/png", tmp_path)
+    upload_r = _upload(_issue_by_tester, _user_tok(), _make_png(), "meta.png", "image/png", tmp_path)
     attachment_id = upload_r.json()["id"]
 
-    r = client.get(f"/attachments/{attachment_id}", headers=auth_header(_tester_tok()))
+    r = client.get(f"/attachments/{attachment_id}", headers=auth_header(_user_tok()))
     assert r.status_code == 200
     data = r.json()
     assert data["id"] == attachment_id
@@ -406,12 +410,12 @@ def test_get_attachment_metadata(tmp_path):
 
 def test_download_attachment(tmp_path):
     content = _make_png()
-    upload_r = _upload(_issue_by_tester, _tester_tok(), content, "download_me.png", "image/png", tmp_path)
+    upload_r = _upload(_issue_by_tester, _user_tok(), content, "download_me.png", "image/png", tmp_path)
     attachment_id = upload_r.json()["id"]
 
     r = client.get(
         f"/attachments/{attachment_id}/download",
-        headers=auth_header(_tester_tok()),
+        headers=auth_header(_user_tok()),
     )
     assert r.status_code == 200
     assert r.content == content
@@ -420,13 +424,13 @@ def test_download_attachment(tmp_path):
 def test_downloaded_content_matches_uploaded(tmp_path):
     unique_content = _make_txt(f"Unique content: {uuid.uuid4()}\n")
     upload_r = _upload(
-        _issue_by_tester, _tester_tok(), unique_content, "unique.txt", "text/plain", tmp_path
+        _issue_by_tester, _user_tok(), unique_content, "unique.txt", "text/plain", tmp_path
     )
     attachment_id = upload_r.json()["id"]
 
     r = client.get(
         f"/attachments/{attachment_id}/download",
-        headers=auth_header(_tester_tok()),
+        headers=auth_header(_user_tok()),
     )
     assert r.content == unique_content
 
@@ -436,20 +440,20 @@ def test_downloaded_content_matches_uploaded(tmp_path):
 # =========================================================================== #
 
 def test_uploader_can_delete_own_attachment(tmp_path):
-    upload_r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "todelete.png", "image/png", tmp_path)
+    upload_r = _upload(_issue_by_tester, _user_tok(), _make_png(), "todelete.png", "image/png", tmp_path)
     attachment_id = upload_r.json()["id"]
 
     original_fn = attachment_svc._get_storage_root
     attachment_svc._get_storage_root = lambda: tmp_path
     try:
-        r = client.delete(f"/attachments/{attachment_id}", headers=auth_header(_tester_tok()))
+        r = client.delete(f"/attachments/{attachment_id}", headers=auth_header(_user_tok()))
     finally:
         attachment_svc._get_storage_root = original_fn
     assert r.status_code == 204
 
 
 def test_admin_can_delete_any_attachment(tmp_path):
-    upload_r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "admin_del.png", "image/png", tmp_path)
+    upload_r = _upload(_issue_by_tester, _user_tok(), _make_png(), "admin_del.png", "image/png", tmp_path)
     attachment_id = upload_r.json()["id"]
 
     original_fn = attachment_svc._get_storage_root
@@ -462,9 +466,9 @@ def test_admin_can_delete_any_attachment(tmp_path):
 
 
 def test_developer_cannot_delete_another_users_attachment_returns_403(tmp_path):
-    # Tester uploads to issue assigned to dev; dev should not be able to delete it
+    # User uploads to issue assigned to dev; dev should not be able to delete it
     upload_r = _upload(
-        _issue_assigned_to_dev, _tester_tok(), _make_png(), "dev_cant_del.png", "image/png", tmp_path
+        _issue_assigned_to_dev, _user_tok(), _make_png(), "dev_cant_del.png", "image/png", tmp_path
     )
     attachment_id = upload_r.json()["id"]
 
@@ -473,11 +477,11 @@ def test_developer_cannot_delete_another_users_attachment_returns_403(tmp_path):
 
 
 def test_tester_cannot_delete_another_users_attachment_returns_403(tmp_path):
-    # Admin uploads, tester should not delete
+    # Admin uploads, user should not delete
     upload_r = _upload(_issue_by_tester, _admin_tok(), _make_png(), "admin_upload.png", "image/png", tmp_path)
     attachment_id = upload_r.json()["id"]
 
-    r = client.delete(f"/attachments/{attachment_id}", headers=auth_header(_tester_tok()))
+    r = client.delete(f"/attachments/{attachment_id}", headers=auth_header(_user_tok()))
     assert r.status_code == 403
 
 
@@ -498,7 +502,7 @@ def test_delete_nonexistent_attachment_returns_404():
 def test_physical_file_removed_after_deletion(tmp_path):
     """Verify the physical file is gone from disk after successful deletion."""
     content = _make_png()
-    upload_r = _upload(_issue_by_tester, _tester_tok(), content, "physical.png", "image/png", tmp_path)
+    upload_r = _upload(_issue_by_tester, _user_tok(), content, "physical.png", "image/png", tmp_path)
     assert upload_r.status_code == 201
     attachment_id = upload_r.json()["id"]
 
@@ -529,7 +533,7 @@ def test_physical_file_removed_after_deletion(tmp_path):
     original_fn = attachment_svc._get_storage_root
     attachment_svc._get_storage_root = lambda: tmp_path
     try:
-        r = client.delete(f"/attachments/{attachment_id}", headers=auth_header(_tester_tok()))
+        r = client.delete(f"/attachments/{attachment_id}", headers=auth_header(_user_tok()))
     finally:
         attachment_svc._get_storage_root = original_fn
 
@@ -543,7 +547,7 @@ def test_physical_file_removed_after_deletion(tmp_path):
 # =========================================================================== #
 
 def test_audit_event_on_upload(tmp_path):
-    _upload(_issue_by_tester, _tester_tok(), _make_png(), "audit_upload.png", "image/png", tmp_path)
+    _upload(_issue_by_tester, _user_tok(), _make_png(), "audit_upload.png", "image/png", tmp_path)
 
     r = client.get("/activity?action=ATTACHMENT_UPLOADED", headers=auth_header(_admin_tok()))
     assert r.status_code == 200
@@ -551,13 +555,13 @@ def test_audit_event_on_upload(tmp_path):
 
 
 def test_audit_event_on_deletion(tmp_path):
-    upload_r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "audit_del.png", "image/png", tmp_path)
+    upload_r = _upload(_issue_by_tester, _user_tok(), _make_png(), "audit_del.png", "image/png", tmp_path)
     attachment_id = upload_r.json()["id"]
 
     original_fn = attachment_svc._get_storage_root
     attachment_svc._get_storage_root = lambda: tmp_path
     try:
-        client.delete(f"/attachments/{attachment_id}", headers=auth_header(_tester_tok()))
+        client.delete(f"/attachments/{attachment_id}", headers=auth_header(_user_tok()))
     finally:
         attachment_svc._get_storage_root = original_fn
 
@@ -572,7 +576,7 @@ def test_audit_event_on_deletion(tmp_path):
 # =========================================================================== #
 
 def test_absolute_filesystem_path_never_exposed_in_response(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "path_check.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), "path_check.png", "image/png", tmp_path)
     assert r.status_code == 201
     response_text = r.text
     assert "storage/" not in response_text
@@ -582,13 +586,13 @@ def test_absolute_filesystem_path_never_exposed_in_response(tmp_path):
 
 
 def test_password_hash_never_exposed_in_attachment_response(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "hash_check.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), "hash_check.png", "image/png", tmp_path)
     assert r.status_code == 201
     assert "password_hash" not in r.text
 
 
 def test_attachment_response_fields(tmp_path):
-    r = _upload(_issue_by_tester, _tester_tok(), _make_png(), "fields.png", "image/png", tmp_path)
+    r = _upload(_issue_by_tester, _user_tok(), _make_png(), "fields.png", "image/png", tmp_path)
     data = r.json()
     assert all(k in data for k in ("id", "issue_id", "uploader", "original_filename", "mime_type", "file_size", "created_at"))
     assert "storage_path" not in data

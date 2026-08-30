@@ -3,6 +3,16 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle, Mail, ShieldCheck, ArrowRight, RotateCw, ArrowLeft } from 'lucide-react';
 import { getApiErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import type { User, UserRole } from '../../types/auth';
+import { storage } from '../../utils/storage';
+
+function getRoleRedirect(role: UserRole, requestedFrom: string): string {
+  if (requestedFrom && requestedFrom !== '/' && requestedFrom !== '/login' && requestedFrom !== '/register') {
+    return requestedFrom;
+  }
+  if (role === 'ADMIN') return '/admin';
+  return '/dashboard';
+}
 
 export const VerifyOtpPage: React.FC = () => {
   const { verifyOtp, resendOtp } = useAuth();
@@ -47,8 +57,12 @@ export const VerifyOtpPage: React.FC = () => {
     try {
       await verifyOtp({ email: email.trim(), otp: otp.trim() });
       setSuccessMsg('Verification successful! Entering workspace...');
+      // Determine redirect based on the authenticated role
+      const freshUser: User | null = storage.getUser<User>();
+      const role: UserRole = freshUser?.role ?? 'TESTER';
+      const redirect = getRoleRedirect(role, from);
       setTimeout(() => {
-        navigate(from, { replace: true });
+        navigate(redirect, { replace: true });
       }, 400);
     } catch (err: unknown) {
       const errMsg = getApiErrorMessage(err);

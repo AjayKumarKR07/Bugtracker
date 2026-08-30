@@ -44,6 +44,8 @@ from tests.conftest import (
     dev2_token,
     tester3_token,
     tester4_token,
+    user_token,
+    user2_token,
 )
 from tests.conftest import tester2_token as _get_tester2_token
 from tests.conftest import tester_token as _get_tester_token
@@ -54,6 +56,8 @@ _dev_tok = tester3_token   # worker-tester assigned to issues
 _dev2_tok = tester4_token  # second worker-tester
 _tester_tok = _get_tester_token
 _tester2_tok = _get_tester2_token
+_user_tok = user_token
+_user2_tok = user2_token
 _legacy_dev_tok = dev_token   # kept for RBAC-exclusion tests only
 
 client = TestClient(app)
@@ -90,7 +94,7 @@ def _create_issue(
     title: str = "This is a valid defect title",
     token: str | None = None,
 ) -> dict:
-    t = token or _tester_tok()
+    t = token or _user_tok()
     r = client.post(
         "/issues",
         json={
@@ -142,7 +146,7 @@ class TestIssueUnauthenticated:
 # =========================================================================== #
 
 class TestIssueCreation:
-    def test_tester_can_create_issue(self) -> None:
+    def test_user_can_create_issue(self) -> None:
         pid = _get_or_create_project(_fresh_key("CREA"), "Create Test Project")
         r = client.post(
             "/issues",
@@ -157,7 +161,7 @@ class TestIssueCreation:
                 "expected_result": "Login form submits",
                 "actual_result": "Nothing happens",
             },
-            headers=auth_header(_tester_tok()),
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 201
         data = r.json()
@@ -166,24 +170,36 @@ class TestIssueCreation:
         assert data["project"]["id"] == pid
         assert "password_hash" not in str(data)
 
+    def test_tester_cannot_create_issue_403(self) -> None:
+        """TESTER role cannot create issues (reporting is USER role)."""
+        pid = _get_or_create_project(_fresh_key("TCREA"), "Tester Create Forbidden")
+        r = client.post(
+            "/issues",
+            json={"project_id": pid, "title": "Tester bug report here", "description": "D" * 20},
+            headers=auth_header(_tester_tok()),
+        )
+        assert r.status_code == 403
+
     def test_developer_cannot_create_issue_403(self) -> None:
-        """DEVELOPER-role (legacy) cannot create issues — only TESTER can."""
-        pid = _get_or_create_project(_fresh_key("DCREA"), "Dev Create Forbidden")
+        """DEVELOPER-role (legacy) CAN create issues (treated same as TESTER for creation)."""
+        pid = _get_or_create_project(_fresh_key("DCREA"), "Dev Create Allowed")
         r = client.post(
             "/issues",
             json={"project_id": pid, "title": "Dev bug report here", "description": "D" * 20},
             headers=auth_header(_legacy_dev_tok()),
         )
-        assert r.status_code == 403
+        # DEVELOPER is a legacy role allowed to create issues
+        assert r.status_code == 201
 
-    def test_admin_cannot_create_issue_403(self) -> None:
-        pid = _get_or_create_project(_fresh_key("ACREA"), "Admin Create Forbidden")
+    def test_admin_can_create_issue(self) -> None:
+        """ADMIN can create issues (useful for admin-reported bugs)."""
+        pid = _get_or_create_project(_fresh_key("ACREA"), "Admin Create Allowed")
         r = client.post(
             "/issues",
             json={"project_id": pid, "title": "Admin bug report here", "description": "D" * 20},
             headers=auth_header(_admin_tok()),
         )
-        assert r.status_code == 403
+        assert r.status_code == 201
 
     def test_unique_issue_key_generated(self) -> None:
         pid = _get_or_create_project(_fresh_key("UKEY"), "Unique Key Project")
@@ -198,10 +214,10 @@ class TestIssueCreation:
         issue = _create_issue(pid)
         assert issue["issue_key"].startswith(key)
 
-    def test_reporter_is_authenticated_tester(self) -> None:
+    def test_reporter_is_authenticated_user(self) -> None:
         pid = _get_or_create_project(_fresh_key("RPTR"), "Reporter Test Project")
-        me = client.get("/auth/me", headers=auth_header(_tester_tok())).json()
-        issue = _create_issue(pid)
+        me = client.get("/auth/me", headers=auth_header(_user_tok())).json()
+        issue = _create_issue(pid, token=_user_tok())
         assert issue["reporter"]["id"] == me["id"]
 
     def test_reporter_id_not_in_request_schema(self) -> None:
@@ -212,7 +228,7 @@ class TestIssueCreation:
         r = client.post(
             "/issues",
             json={"project_id": 99999999, "title": "Ghost project issue title", "description": "D" * 20},
-            headers=auth_header(_tester_tok()),
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 404
 
@@ -223,7 +239,7 @@ class TestIssueCreation:
         r = client.post(
             "/issues",
             json={"project_id": pid, "title": "Issue on inactive project here", "description": "D" * 20},
-            headers=auth_header(_tester_tok()),
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 400
 
@@ -232,7 +248,7 @@ class TestIssueCreation:
         r = client.post(
             "/issues",
             json={"project_id": pid, "title": "Hi", "description": "D" * 20},
-            headers=auth_header(_tester_tok()),
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 422
 
@@ -281,20 +297,20 @@ class TestIssueListing:
         assert any(unique in i["title"] for i in r.json()["items"])
 
     def test_developer_sees_only_assigned_issues(self) -> None:
-        """TESTER role (worker) sees issues where they are reporter OR assignee."""
+        """TESTER role (worker) sees only assigned issues."""
         me = client.get("/auth/me", headers=auth_header(_dev_tok())).json()
         r = client.get("/issues", headers=auth_header(_dev_tok()))
         assert r.status_code == 200
         for issue in r.json()["items"]:
-            assert issue["reporter_id"] == me["id"] or issue["assignee_id"] == me["id"]
+            assert issue["assignee_id"] == me["id"]
 
-    def test_tester_sees_own_and_assigned_issues(self) -> None:
-        """TESTER role sees issues they reported OR are assigned to."""
-        me = client.get("/auth/me", headers=auth_header(_tester_tok())).json()
-        r = client.get("/issues", headers=auth_header(_tester_tok()))
+    def test_user_sees_only_own_reported_issues(self) -> None:
+        """USER role sees only issues they reported."""
+        me = client.get("/auth/me", headers=auth_header(_user_tok())).json()
+        r = client.get("/issues", headers=auth_header(_user_tok()))
         assert r.status_code == 200
         for issue in r.json()["items"]:
-            assert issue["reporter_id"] == me["id"] or issue["assignee_id"] == me["id"]
+            assert issue["reporter_id"] == me["id"]
 
     def test_response_has_no_sensitive_data(self) -> None:
         r = client.get("/issues", headers=auth_header(_admin_tok()))
@@ -329,6 +345,12 @@ class TestIssueDetail:
     def test_nonexistent_issue_returns_404(self) -> None:
         r = client.get("/issues/99999999", headers=auth_header(_admin_tok()))
         assert r.status_code == 404
+
+    def test_user_cannot_view_other_user_issue_403(self) -> None:
+        pid = _get_or_create_project(_fresh_key("DETLU"), "User Detail Isolation")
+        issue = _create_issue(pid, token=_user_tok())
+        r = client.get(f"/issues/{issue['id']}", headers=auth_header(_user2_tok()))
+        assert r.status_code == 403
 
 
 # =========================================================================== #
@@ -369,22 +391,23 @@ class TestIssueAssignment:
         r = client.patch(
             f"/issues/{issue['id']}/assign",
             json={"developer_id": dev_id},
-            headers=auth_header(_tester_tok()),
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 403
 
     def test_cannot_assign_non_tester_400(self) -> None:
-        """Cannot assign an issue to a DEVELOPER-role user (must be TESTER)."""
+        """DEVELOPER-role users CAN be assigned issues (DEVELOPER is a valid legacy role for assignment)."""
         pid = _get_or_create_project(_fresh_key("ASSI"), "Invalid Assign Test")
         issue = _create_issue(pid)
-        # _legacy_dev_tok is a DEVELOPER-role user — assignment should be rejected
+        # _legacy_dev_tok is a DEVELOPER-role user — now a valid assignment target
         legacy_dev_id = client.get("/auth/me", headers=auth_header(_legacy_dev_tok())).json()["id"]
         r = client.patch(
             f"/issues/{issue['id']}/assign",
             json={"developer_id": legacy_dev_id},
             headers=auth_header(_admin_tok()),
         )
-        assert r.status_code == 400
+        # DEVELOPER is a legacy role accepted for issue assignment
+        assert r.status_code == 200
 
     def test_cannot_assign_nonexistent_user_404(self) -> None:
         pid = _get_or_create_project(_fresh_key("ASSG5"), "Ghost Assign Test")
@@ -463,13 +486,13 @@ class TestIssueStatusTransitions:
     def test_tester_cannot_update_status_403(self) -> None:
         """A TESTER who is NOT the assignee cannot update another issue's status."""
         pid = _get_or_create_project(_fresh_key("TSTS"), "Tester Status Forbidden")
-        issue = _create_issue(pid)  # created by tester
-        # Assign to tester3 (different tester), then tester (reporter) tries to update status
+        issue = _create_issue(pid)  # created by user
+        # Assign to tester3 (different tester), then tester (not assignee) tries to update status
         _assign(issue["id"])  # assigned to tester3
         r = client.patch(
             f"/issues/{issue['id']}/status",
             json={"status": "IN_DEVELOPMENT"},
-            headers=auth_header(_tester_tok()),  # tester is reporter, not assignee
+            headers=auth_header(_tester_tok()),  # tester is not assignee
         )
         assert r.status_code == 403
 
@@ -515,7 +538,7 @@ class TestIssueResolution:
             json={"resolution_summary": "Fixed the issue in version 2.1 of the module."},
             headers=auth_header(_dev_tok()),
         )
-        client.patch(f"/issues/{issue['id']}/reopen", json={"reason": "Still broken"}, headers=auth_header(_tester_tok()))
+        client.patch(f"/issues/{issue['id']}/reopen", json={"reason": "Still broken"}, headers=auth_header(_user_tok()))
         r = client.get(f"/issues/{issue['id']}", headers=auth_header(_admin_tok()))
         assert r.json()["resolution_summary"] is None
 
@@ -534,12 +557,11 @@ class TestIssueResolution:
     def test_tester_cannot_resolve_403(self) -> None:
         """A TESTER who is NOT the assignee cannot resolve."""
         pid = _get_or_create_project(_fresh_key("TREV"), "Tester Resolve Forbidden")
-        issue = _create_issue(pid)  # created by _tester_tok
+        issue = _create_issue(pid)
         _assign(issue["id"])  # assigned to tester3
-        # tester (reporter, not assignee) tries to resolve
         r = client.patch(
             f"/issues/{issue['id']}/resolve",
-            json={"resolution_summary": "Tester-reporter tries to resolve the assigned issue."},
+            json={"resolution_summary": "Tester-non-assignee tries to resolve the assigned issue."},
             headers=auth_header(_tester_tok()),
         )
         assert r.status_code == 403
@@ -570,12 +592,12 @@ class TestIssueReopen:
         )
         return issue
 
-    def test_tester_can_reopen_own_issue(self) -> None:
+    def test_user_can_reopen_own_issue(self) -> None:
         issue = self._resolved_issue("ROPN")
         r = client.patch(
             f"/issues/{issue['id']}/reopen",
             json={"reason": "Still broken in staging environment."},
-            headers=auth_header(_tester_tok()),
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 200
         assert r.json()["status"] == "REOPENED"
@@ -617,25 +639,25 @@ class TestIssueReopen:
 # =========================================================================== #
 
 class TestIssueUpdate:
-    def test_tester_can_update_own_issue(self) -> None:
+    def test_user_can_update_own_issue(self) -> None:
         pid = _get_or_create_project(_fresh_key("UPD"), "Update Test Project")
         issue = _create_issue(pid)
         r = client.patch(
             f"/issues/{issue['id']}",
             json={"environment": "Chrome 118, Windows 11"},
-            headers=auth_header(_tester_tok()),
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 200
         assert r.json()["environment"] == "Chrome 118, Windows 11"
 
-    def test_tester_cannot_update_others_issue_403(self) -> None:
-        pid = _get_or_create_project(_fresh_key("UPD2"), "Other Tester Update Test")
-        issue = _create_issue(pid, token=_tester_tok())  # created by tester
-        # tester2 tries to update
+    def test_user_cannot_update_others_issue_403(self) -> None:
+        pid = _get_or_create_project(_fresh_key("UPD2"), "Other User Update Test")
+        issue = _create_issue(pid, token=_user_tok())  # created by user
+        # user2 tries to update
         r = client.patch(
             f"/issues/{issue['id']}",
             json={"environment": "Hacked"},
-            headers=auth_header(_tester2_tok()),
+            headers=auth_header(_user2_tok()),
         )
         assert r.status_code == 403
 

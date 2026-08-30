@@ -89,8 +89,10 @@ _USERS = {
     "dev2":    ("dev2",    UserRole.DEVELOPER, "Developer2 CI"),
     "tester":  ("tester",  UserRole.TESTER,    "Tester CI"),
     "tester2": ("tester2", UserRole.TESTER,    "Tester2 CI"),
-    "tester3": ("tester3", UserRole.TESTER,    "Tester3 CI"),  # worker tester (assignee)
-    "tester4": ("tester4", UserRole.TESTER,    "Tester4 CI"),  # worker tester 2 (assignee)
+    "tester3": ("tester3", UserRole.TESTER,    "Tester3 CI"),   # worker tester (assignee)
+    "tester4": ("tester4", UserRole.TESTER,    "Tester4 CI"),   # worker tester 2 (assignee)
+    "user":    ("user",    UserRole.USER,      "User CI"),      # issue reporter (USER role)
+    "user2":   ("user2",   UserRole.USER,      "User2 CI"),     # second USER for isolation tests
 }
 
 
@@ -172,6 +174,22 @@ def tester4_token() -> str:
 
 
 tester4_token.__test__ = False  # type: ignore[attr-defined]
+
+
+def user_token() -> str:
+    """Issue-reporter token — USER role."""
+    return get_token("user")
+
+
+user_token.__test__ = False  # type: ignore[attr-defined]
+
+
+def user2_token() -> str:
+    """Second issue-reporter token — USER role, for isolation tests."""
+    return get_token("user2")
+
+
+user2_token.__test__ = False  # type: ignore[attr-defined]
 
 
 def auth_header(token: str) -> dict:

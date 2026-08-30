@@ -24,6 +24,7 @@ from tests.conftest import (
     admin_token,
     dev_token,
     tester_token,
+    user_token,
     auth_header,
 )
 from app.main import app
@@ -149,7 +150,8 @@ class TestDashboardUserCounts:
     def test_role_counts_sum_equals_total(self):
         d = self._dashboard()
         u = d["users"]
-        assert u["admins"] + u["developers"] + u["testers"] == u["total"]
+        # admins + developers + testers + users (USER role) should equal total
+        assert u["admins"] + u["developers"] + u["testers"] + u["users"] == u["total"]
 
     def test_verified_unverified_sum_equals_total(self):
         d = self._dashboard()
@@ -224,7 +226,7 @@ class TestDashboardIssueCounts:
                 "title": f"Dashboard test issue {secrets.token_hex(4)}",
                 "description": "Testing dashboard issue counts for Phase 6.",
             },
-            headers=auth_header(tester_token()),
+            headers=auth_header(user_token()),
         )
         assert r.status_code == 201, f"Issue creation failed: {r.status_code} {r.text}"
         return r.json()

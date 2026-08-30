@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
+import { getRoleLabel, getRoleDescription } from '../../types/auth';
 
 interface SidebarProps {
   mobileOpen: boolean;
@@ -32,16 +33,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
       .slice(0, 2);
   };
 
-  const getRoleClass = (role?: string) => {
+  const getRoleBadgeClass = (role?: string) => {
     switch (role) {
       case 'ADMIN':
-        return 'role-admin';
-      case 'DEVELOPER':
-        return 'role-developer';
+        return 'role-badge-admin';
       case 'TESTER':
-        return 'role-tester';
+        return 'role-badge-tester';
+      case 'DEVELOPER':
+        return 'role-badge-developer';
+      case 'USER':
+        return 'role-badge-user';
       default:
-        return '';
+        return 'role-badge-tester';
     }
   };
 
@@ -71,9 +74,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               <div className="user-display-name" title={user.full_name}>
                 {user.full_name}
               </div>
-              <span className={`user-role-badge ${getRoleClass(user.role)}`}>
-                {user.role}
+              <span className={`user-role-badge ${getRoleBadgeClass(user.role)}`}>
+                {getRoleLabel(user.role)}
               </span>
+              <div
+                style={{
+                  fontSize: '0.68rem',
+                  color: 'var(--text-muted)',
+                  marginTop: '0.1rem',
+                  lineHeight: 1.3,
+                }}
+              >
+                {getRoleDescription(user.role)}
+              </div>
             </div>
           </div>
         )}
@@ -89,23 +102,70 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
             <span>Dashboard</span>
           </NavLink>
 
-          <NavLink
-            to="/projects"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={onCloseMobile}
-          >
-            <FolderGit2 size={18} />
-            <span>Projects</span>
-          </NavLink>
+          {/* ADMIN: Full Management Navigation */}
+          {user?.role === 'ADMIN' && (
+            <>
+              <NavLink
+                to="/issues"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <Bug size={18} />
+                <span>Issues &amp; Defects</span>
+              </NavLink>
 
-          <NavLink
-            to="/issues"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={onCloseMobile}
-          >
-            <Bug size={18} />
-            <span>Issues & Defects</span>
-          </NavLink>
+              <NavLink
+                to="/projects"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <FolderGit2 size={18} />
+                <span>Projects</span>
+              </NavLink>
+
+              <NavLink
+                to="/analytics"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <BarChart3 size={18} />
+                <span>Analytics</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <Shield size={18} />
+                <span>Admin Management</span>
+              </NavLink>
+            </>
+          )}
+
+          {/* TESTER / DEVELOPER: Assigned Issues Navigation */}
+          {(user?.role === 'TESTER' || user?.role === 'DEVELOPER') && (
+            <NavLink
+              to="/issues"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={onCloseMobile}
+            >
+              <Bug size={18} />
+              <span>My Assigned Issues</span>
+            </NavLink>
+          )}
+
+          {/* USER: My Issues Navigation */}
+          {user?.role === 'USER' && (
+            <NavLink
+              to="/issues"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={onCloseMobile}
+            >
+              <Bug size={18} />
+              <span>My Issues</span>
+            </NavLink>
+          )}
 
           <NavLink
             to="/notifications"
@@ -116,26 +176,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
             <span>Notifications</span>
             {unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}
           </NavLink>
-
-          <NavLink
-            to="/analytics"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={onCloseMobile}
-          >
-            <BarChart3 size={18} />
-            <span>Analytics</span>
-          </NavLink>
-
-          {user?.role === 'ADMIN' && (
-            <NavLink
-              to="/admin"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              onClick={onCloseMobile}
-            >
-              <Shield size={18} />
-              <span>Admin Panel</span>
-            </NavLink>
-          )}
 
           <NavLink
             to="/profile"

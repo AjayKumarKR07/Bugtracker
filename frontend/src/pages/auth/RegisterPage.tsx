@@ -4,12 +4,12 @@ import {
   AlertCircle,
   ArrowRight,
   Bug,
+  CheckCircle2,
   Eye,
   EyeOff,
   KeyRound,
   Loader2,
   Mail,
-  Search,
   Shield,
   ShieldCheck,
   User,
@@ -20,19 +20,61 @@ import { useAuth } from '../../hooks/useAuth';
 /**
  * RegisterPage — public user registration.
  *
- * The backend UserRole enum contains: ADMIN | DEVELOPER | TESTER.
+ * The backend UserRole enum: ADMIN | DEVELOPER | TESTER | USER.
  * ADMIN cannot be registered publicly.
  *
- * UI presents two public roles:
- *   - "Tester / QA" → maps to backend role TESTER
- *     (investigates and resolves issues assigned by Admin)
- *   - "User / Reporter" → maps to backend role TESTER
- *     (reports issues and tracks their status)
- *
- * NOTE: The backend currently uses TESTER for both issue reporters and
- * investigators. A single TESTER role is used for public registration.
- * The Admin assigns specific testers from the user pool.
+ * Two roles available for public registration:
+ *   - "User" (issue reporter)     → maps to backend USER role
+ *   - "Tester" (investigator)     → maps to backend TESTER role
  */
+
+type UIRole = 'USER' | 'TESTER_ROLE';
+
+interface UIRoleOption {
+  id: UIRole;
+  label: string;
+  backendRole: 'USER' | 'TESTER';
+  icon: React.ReactNode;
+  description: string;
+  capabilities: string[];
+  color: string;
+  bg: string;
+}
+
+const ROLE_OPTIONS: UIRoleOption[] = [
+  {
+    id: 'USER',
+    label: 'User',
+    backendRole: 'USER',
+    icon: <User size={22} />,
+    description: 'Creates and submits issues/problems and tracks their final status.',
+    capabilities: [
+      'Submit detailed bug reports',
+      'Track issue status in real time',
+      'Add comments and attachments',
+      'Reopen resolved issues',
+      'Receive status notifications',
+    ],
+    color: '#6366f1',
+    bg: 'rgba(99,102,241,0.1)',
+  },
+  {
+    id: 'TESTER_ROLE',
+    label: 'Tester',
+    backendRole: 'TESTER',
+    icon: <ShieldCheck size={22} />,
+    description: 'Receives issues assigned by Admin, investigates them, updates progress, and resolves issues.',
+    capabilities: [
+      'Receive assigned issues from Admin',
+      'Investigate and reproduce bugs',
+      'Update investigation progress',
+      'Mark issues as resolved',
+      'Provide resolution summaries',
+    ],
+    color: '#22c55e',
+    bg: 'rgba(34,197,94,0.1)',
+  },
+];
 
 export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
@@ -44,11 +86,12 @@ export const RegisterPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
-  // Backend accepts TESTER or DEVELOPER (not ADMIN).
-  // We expose only TESTER for new public registrations.
-  const [role] = useState<'TESTER'>('TESTER');
+  const [selectedUIRole, setSelectedUIRole] = useState<UIRole>('USER');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const getBackendRole = (): 'USER' | 'TESTER' =>
+    ROLE_OPTIONS.find((o) => o.id === selectedUIRole)!.backendRole;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +116,7 @@ export const RegisterPage: React.FC = () => {
         full_name: fullName.trim(),
         email: email.trim(),
         password,
-        role,
+        role: getBackendRole(),
       });
       navigate('/verify-otp', {
         state: {
@@ -102,10 +145,11 @@ export const RegisterPage: React.FC = () => {
   };
 
   const strength = passwordStrength();
+  const selectedOption = ROLE_OPTIONS.find((o) => o.id === selectedUIRole)!;
 
   return (
     <div className="auth-page-wrapper">
-      <div className="auth-card" style={{ maxWidth: '480px' }}>
+      <div className="auth-card" style={{ maxWidth: '520px' }}>
         {/* Header */}
         <div className="auth-header">
           <div className="brand-logo auth-logo-center">
@@ -115,6 +159,146 @@ export const RegisterPage: React.FC = () => {
           <p className="auth-subtitle">
             Join BugTracker to report, track, and resolve defects
           </p>
+        </div>
+
+        {/* Role Selection */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <p
+            style={{
+              fontSize: '0.8rem',
+              fontWeight: '700',
+              color: 'var(--text-secondary)',
+              marginBottom: '0.6rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}
+          >
+            Select Your Role
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+            {ROLE_OPTIONS.map((option) => {
+              const isSelected = selectedUIRole === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setSelectedUIRole(option.id)}
+                  style={{
+                    background: isSelected ? option.bg : 'var(--bg-surface)',
+                    border: `1.5px solid ${isSelected ? option.color : 'var(--border-subtle)'}`,
+                    borderRadius: '12px',
+                    padding: '0.85rem',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s',
+                    position: 'relative',
+                  }}
+                >
+                  {isSelected && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '0.5rem',
+                        right: '0.5rem',
+                        color: option.color,
+                      }}
+                    >
+                      <CheckCircle2 size={14} />
+                    </span>
+                  )}
+                  <div
+                    style={{
+                      color: isSelected ? option.color : 'var(--text-muted)',
+                      marginBottom: '0.4rem',
+                    }}
+                  >
+                    {option.icon}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '0.9rem',
+                      fontWeight: '700',
+                      color: isSelected ? option.color : 'var(--text-primary)',
+                      marginBottom: '0.2rem',
+                    }}
+                  >
+                    {option.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--text-muted)',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {option.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Role capabilities */}
+          <div
+            style={{
+              marginTop: '0.65rem',
+              background: selectedOption.bg,
+              border: `1px solid ${selectedOption.color}30`,
+              borderRadius: '8px',
+              padding: '0.75rem 1rem',
+            }}
+          >
+            <p
+              style={{
+                fontSize: '0.72rem',
+                fontWeight: '700',
+                color: selectedOption.color,
+                marginBottom: '0.4rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}
+            >
+              {selectedOption.label} Capabilities
+            </p>
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              {selectedOption.capabilities.map((cap) => (
+                <li
+                  key={cap}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <CheckCircle2 size={11} style={{ color: selectedOption.color, flexShrink: 0 }} />
+                  {cap}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Admin note */}
+          <div
+            style={{
+              marginTop: '0.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              fontSize: '0.72rem',
+              color: 'var(--text-muted)',
+              background: 'rgba(249,115,22,0.05)',
+              border: '1px solid rgba(249,115,22,0.15)',
+              borderRadius: '6px',
+              padding: '0.4rem 0.6rem',
+            }}
+          >
+            <Shield size={11} style={{ color: '#f97316' }} />
+            <span>
+              <strong style={{ color: '#f97316' }}>Admin</strong> accounts are created securely by system administrators only.
+            </span>
+          </div>
         </div>
 
         {/* Error */}
@@ -201,10 +385,9 @@ export const RegisterPage: React.FC = () => {
                 id="register-password"
                 type={showPassword ? 'text' : 'password'}
                 required
-                minLength={8}
                 className="form-input"
                 style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
-                placeholder="Min. 8 characters"
+                placeholder="At least 8 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isSubmitting}
@@ -262,30 +445,21 @@ export const RegisterPage: React.FC = () => {
                     }}
                   />
                 </div>
-                {strength.label && (
-                  <span
-                    style={{
-                      fontSize: '0.72rem',
-                      color: strength.color,
-                      marginTop: '0.2rem',
-                      display: 'block',
-                    }}
-                  >
-                    {strength.label}
-                  </span>
-                )}
+                <span style={{ fontSize: '0.72rem', color: strength.color, fontWeight: '600' }}>
+                  {strength.label}
+                </span>
               </div>
             )}
           </div>
 
           {/* Confirm Password */}
           <div className="form-group">
-            <label className="form-label" htmlFor="register-confirm-password">
+            <label className="form-label" htmlFor="register-confirm">
               Confirm Password
             </label>
             <div style={{ position: 'relative' }}>
               <input
-                id="register-confirm-password"
+                id="register-confirm"
                 type={showConfirmPassword ? 'text' : 'password'}
                 required
                 className="form-input"
@@ -334,92 +508,25 @@ export const RegisterPage: React.FC = () => {
                 {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+            {confirmPassword && confirmPassword !== password && (
+              <span style={{ fontSize: '0.72rem', color: 'var(--danger)', fontWeight: '600' }}>
+                Passwords do not match
+              </span>
+            )}
           </div>
 
-          {/* Role info card */}
-          <div
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '10px',
-              padding: '0.85rem 1rem',
-              marginBottom: '1rem',
-              display: 'flex',
-              gap: '0.75rem',
-              alignItems: 'flex-start',
-            }}
-          >
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: 'rgba(99, 102, 241, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <ShieldCheck size={16} color="var(--primary)" />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontWeight: '600',
-                  fontSize: '0.875rem',
-                  color: 'var(--text-primary)',
-                  marginBottom: '0.2rem',
-                }}
-              >
-                Team Member Account
-              </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                You can report issues, track progress, and collaborate with your team.
-                Admins and Testers are assigned by your workspace administrator.
-              </div>
-            </div>
-          </div>
-
-          {/* What you can do */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '0.5rem',
-              marginBottom: '1rem',
-            }}
-          >
-            {[
-              { icon: <Search size={13} />, text: 'Report Issues' },
-              { icon: <ShieldCheck size={13} />, text: 'Track Progress' },
-            ].map(({ icon, text }) => (
-              <div
-                key={text}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  padding: '0.5rem 0.65rem',
-                  background: 'var(--primary-subtle)',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
-                  fontWeight: '500',
-                  color: 'var(--primary)',
-                }}
-              >
-                {icon}
-                {text}
-              </div>
-            ))}
-          </div>
-
-          {/* Submit button */}
           <button
             type="submit"
-            disabled={isSubmitting || !fullName.trim() || !email.trim() || !password || !confirmPassword}
+            disabled={
+              isSubmitting ||
+              !fullName.trim() ||
+              !email.trim() ||
+              !password ||
+              password !== confirmPassword ||
+              password.length < 8
+            }
             className="btn btn-primary"
-            style={{ width: '100%', padding: '0.75rem' }}
+            style={{ width: '100%', marginTop: '0.5rem', padding: '0.75rem' }}
           >
             {isSubmitting ? (
               <>
@@ -428,7 +535,7 @@ export const RegisterPage: React.FC = () => {
               </>
             ) : (
               <>
-                Continue to Verification
+                Create Account as {selectedOption.label}
                 <ArrowRight size={16} />
               </>
             )}
@@ -438,7 +545,7 @@ export const RegisterPage: React.FC = () => {
         {/* Footer */}
         <div
           style={{
-            marginTop: '1.5rem',
+            marginTop: '1.25rem',
             paddingTop: '1.25rem',
             borderTop: '1px solid var(--border-subtle)',
             textAlign: 'center',
@@ -450,21 +557,6 @@ export const RegisterPage: React.FC = () => {
           <Link to="/login" style={{ fontWeight: '600', color: 'var(--primary)' }}>
             Sign In
           </Link>
-        </div>
-
-        <div
-          style={{
-            marginTop: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.4rem',
-            fontSize: '0.75rem',
-            color: 'var(--text-muted)',
-          }}
-        >
-          <Shield size={12} />
-          <span>ADMIN accounts cannot be self-registered · BugTracker</span>
         </div>
       </div>
     </div>

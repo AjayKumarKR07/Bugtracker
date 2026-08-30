@@ -1,15 +1,15 @@
 """
-Issue / Defect management routes — Phase 4.
+Issue / Defect management routes.
 
 RBAC summary:
-  POST   /issues                        → TESTER
+  POST   /issues                        → USER, ADMIN (reporters)
   GET    /issues                        → ALL (role-filtered in service)
   GET    /issues/{id}                   → ALL (ownership check in service)
-  PATCH  /issues/{id}                   → TESTER (own issues)
+  PATCH  /issues/{id}                   → USER (own issues), ADMIN
   PATCH  /issues/{id}/assign            → ADMIN
-  PATCH  /issues/{id}/status            → DEVELOPER (assigned)
-  PATCH  /issues/{id}/resolve           → DEVELOPER (assigned)
-  PATCH  /issues/{id}/reopen            → TESTER (own) | ADMIN
+  PATCH  /issues/{id}/status            → TESTER (assigned)
+  PATCH  /issues/{id}/resolve           → TESTER (assigned)
+  PATCH  /issues/{id}/reopen            → USER (own) | TESTER (own) | ADMIN
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
@@ -42,10 +42,10 @@ router = APIRouter(prefix="/issues", tags=["Issues"])
 )
 async def create_issue(
     body: IssueCreate,
-    current_user: User = Depends(require_role(UserRole.TESTER)),
+    current_user: User = Depends(require_role(UserRole.USER, UserRole.DEVELOPER, UserRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Report a new defect. **TESTER only.**
+    """Report a new defect. **USER, DEVELOPER (legacy), or ADMIN.**
     The reporter is automatically set to the authenticated user.
     """
     return await issue_service.create_issue(body, current_user, db)
@@ -73,7 +73,8 @@ async def list_issues(
     """List issues. Role-based filtering is applied automatically:
     - **ADMIN** sees all issues
     - **DEVELOPER** sees only assigned issues
-    - **TESTER** sees only issues they reported
+    - **TESTER** sees only assigned issues
+    - **USER** sees only issues they reported
     """
     return await issue_service.list_issues(
         db=db,
@@ -101,10 +102,8 @@ async def get_issue(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Get full issue detail. All authenticated users can view issues,
-    but sensitive user fields (password_hash) are never returned.
-    """
-    detail = await issue_service.get_issue_detail(issue_id, db)
+    """Get full issue detail with role-based access control."""
+    detail = await issue_service.get_issue_detail(issue_id, db, current_user=current_user)
     return detail
 
 
@@ -169,11 +168,11 @@ async def update_issue_status(
     issue_id: int,
     body: IssueStatusUpdate,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_role(UserRole.TESTER)),
+    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.DEVELOPER)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
     """Transition an assigned issue through the investigation workflow.
-    **TESTER only** — must be assigned to the issue.
+    **TESTER (or legacy DEVELOPER)** — must be assigned to the issue.
 
     Valid transitions:
     - ASSIGNED → IN_DEVELOPMENT
@@ -210,10 +209,10 @@ async def resolve_issue(
     issue_id: int,
     body: IssueResolve,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_role(UserRole.TESTER)),
+    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.DEVELOPER)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Mark an assigned issue as RESOLVED. **TESTER only** — must be assigned."""
+    """Mark an assigned issue as RESOLVED. **TESTER (or legacy DEVELOPER)** — must be assigned."""
     from app.services.websocket_manager import ws_manager
     detail, notifications = await issue_service.resolve_issue(issue_id, body, current_user, db)
     for notif in notifications:
@@ -250,11 +249,11 @@ async def reopen_issue(
     - **TESTER**: can reopen their own reported issues
     - **ADMIN**: can reopen any issue
     """
-    if current_user.role not in (UserRole.TESTER, UserRole.ADMIN):
+    if current_user.role not in (UserRole.USER, UserRole.TESTER, UserRole.ADMIN):
         from fastapi import HTTPException
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only TESTER or ADMIN can reopen issues.",
+            detail="Only USER, TESTER, or ADMIN can reopen issues.",
         )
     from app.services.websocket_manager import ws_manager
     detail, notifications = await issue_service.reopen_issue(issue_id, body, current_user, db)

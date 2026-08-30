@@ -19,19 +19,26 @@ class RegisterRequest(BaseModel):
     """Body for POST /auth/register."""
 
     full_name: str = Field(
-        ..., min_length=1, max_length=200, examples=["Jane Developer"]
+        ..., min_length=1, max_length=200, examples=["Jane Reporter"]
     )
     email: EmailStr = Field(..., examples=["jane@example.com"])
     password: str = Field(..., min_length=8, examples=["StrongPass123"])
-    role: UserRole = Field(..., examples=["DEVELOPER"])
+    role: UserRole = Field(..., examples=["USER"])
 
     @field_validator("role")
     @classmethod
     def role_must_not_be_admin(cls, v: UserRole) -> UserRole:
-        """ADMIN accounts cannot be self-registered through the public API."""
+        """ADMIN accounts cannot be self-registered through the public API.
+        Only USER (issue reporter) and TESTER (issue investigator) are allowed.
+        """
         if v == UserRole.ADMIN:
             raise ValueError(
                 "ADMIN role cannot be assigned via public registration."
+            )
+        if v == UserRole.DEVELOPER:
+            raise ValueError(
+                "DEVELOPER is a legacy role and cannot be registered publicly. "
+                "Use USER or TESTER instead."
             )
         return v
 

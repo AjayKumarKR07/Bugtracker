@@ -157,9 +157,26 @@ async def create_issue(body: IssueCreate, reporter: User, db: AsyncSession) -> I
     return await get_issue_detail(issue.id, db)
 
 
-async def get_issue_detail(issue_id: int, db: AsyncSession) -> IssueDetailResponse:
-    """Fetch full issue detail with related project, reporter, assignee."""
+async def get_issue_detail(
+    issue_id: int, db: AsyncSession, current_user: User | None = None
+) -> IssueDetailResponse:
+    """Fetch full issue detail with related project, reporter, assignee and enforce RBAC."""
     issue = await _get_issue_or_404(issue_id, db)
+    if current_user is not None and current_user.role != UserRole.ADMIN:
+        if current_user.role == UserRole.USER and issue.reporter_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view issues you reported.",
+            )
+        elif (
+            current_user.role in (UserRole.TESTER, UserRole.DEVELOPER)
+            and issue.assignee_id != current_user.id
+            and issue.reporter_id != current_user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view issues assigned to you.",
+            )
     return IssueDetailResponse.model_validate(issue)
 
 
@@ -180,20 +197,23 @@ async def list_issues(
     """Return paginated issues with role-based visibility enforcement.
 
     Role filters:
-      ADMIN   — sees all issues
-      DEVELOPER — only issues assigned to them (legacy role)
-      TESTER  — issues they reported OR are assigned to investigate
+      ADMIN     — sees all issues
+      TESTER    — only issues assigned to them (assignee_id)
+      USER      — only issues they personally reported (reporter_id)
+      DEVELOPER — only issues assigned to them (legacy)
     """
     query = select(Issue)
 
     # ---- Role-based base filter ------------------------------------------- #
-    if current_user.role == UserRole.DEVELOPER:
-        query = query.where(Issue.assignee_id == current_user.id)
+    if current_user.role == UserRole.USER:
+        # Users can only see their own submitted issues
+        query = query.where(Issue.reporter_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
-        # Testers can both report issues and be assigned to investigate them
-        query = query.where(
-            or_(Issue.reporter_id == current_user.id, Issue.assignee_id == current_user.id)
-        )
+        # Testers see only issues assigned to them
+        query = query.where(Issue.assignee_id == current_user.id)
+    elif current_user.role == UserRole.DEVELOPER:
+        # Legacy role — assigned issues only
+        query = query.where(Issue.assignee_id == current_user.id)
     # ADMIN sees all — no base filter
 
     # ---- Optional filters ------------------------------------------------- #
@@ -248,11 +268,11 @@ async def list_issues(
 async def update_issue(
     issue_id: int, body: IssueUpdate, current_user: User, db: AsyncSession
 ) -> IssueDetailResponse:
-    """TESTER: update their own reported issue's metadata fields."""
+    """USER/TESTER: update their own reported issue's metadata fields."""
     issue = await _get_issue_or_404(issue_id, db)
 
-    # Ownership check
-    if current_user.role == UserRole.TESTER and issue.reporter_id != current_user.id:
+    # Ownership check — only reporters can update issue metadata
+    if current_user.role in (UserRole.USER, UserRole.TESTER) and issue.reporter_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only update issues you reported.",
@@ -354,10 +374,10 @@ async def assign_issue(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User {body.developer_id} not found.",
         )
-    if developer.role != UserRole.TESTER:
+    if developer.role not in (UserRole.TESTER, UserRole.DEVELOPER):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The target user is not a TESTER.",
+            detail="Issues can only be assigned to a TESTER.",
         )
     if not developer.is_active:
         raise HTTPException(
@@ -576,11 +596,16 @@ async def reopen_issue(
             ),
         )
 
-    # Tester can only reopen their own issues
-    if current_user.role == UserRole.TESTER and issue.reporter_id != current_user.id:
+    # Ownership check
+    if current_user.role == UserRole.USER and issue.reporter_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Testers can only reopen issues they reported.",
+            detail="Users can only reopen issues they reported.",
+        )
+    elif current_user.role == UserRole.TESTER and issue.assignee_id != current_user.id and issue.reporter_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Testers can only reopen issues assigned to or reported by them.",
         )
 
     old_status = issue.status

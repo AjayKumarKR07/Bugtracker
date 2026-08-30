@@ -172,15 +172,15 @@ async def verify_otp(
     user: User | None = result.scalar_one_or_none()
 
     if user is None:
-        # Auto-create new user with safe default role (TESTER).
-        # TESTER is the public-facing role for issue reporters.
-        # ADMIN cannot be auto-created via OTP.
+        # Auto-create via OTP: create a USER (issue reporter) account.
+        # OTP-only flow is the fastest self-registration path for reporters.
+        # ADMIN and TESTER accounts require explicit password registration.
         raw_name = body.email.split("@")[0].replace(".", " ").replace("_", " ").title()
         user = User(
             full_name=raw_name or "BugTracker User",
             email=body.email,
             password_hash=hash_password(secrets.token_urlsafe(32)),
-            role=UserRole.TESTER,
+            role=UserRole.USER,
             is_active=True,
             is_email_verified=True,
         )

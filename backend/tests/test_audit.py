@@ -97,12 +97,16 @@ _run_sync(_get_or_create_user(
 _run_sync(_get_or_create_user(
     f"tester.{_CI_SUFFIX}@example.com", "Tester P5CI", UserRole.TESTER
 ))
+_run_sync(_get_or_create_user(
+    f"user.{_CI_SUFFIX}@example.com", "User P5CI", UserRole.USER
+))
 
 # NOTE: These are separate p5ci tokens, not the shared conftest tokens,
 # to avoid cross-contamination with Phase 4 tests.
 _ADMIN_TOKEN = _login("admin")
 _DEV_TOKEN = _login("dev")
 _TESTER_TOKEN = _login("tester")
+_USER_TOKEN = _login("user")
 
 
 def _admin_hdr():
@@ -113,6 +117,9 @@ def _dev_hdr():
 
 def _tester_hdr():
     return auth_header(_TESTER_TOKEN)
+
+def _user_hdr():
+    return auth_header(_USER_TOKEN)
 
 
 # --------------------------------------------------------------------------- #
@@ -323,7 +330,7 @@ class TestIssueAuditEvents:
             "issue_type": "BUG",
             "severity": "MAJOR",
             "priority": "MEDIUM",
-        }, headers=_tester_hdr())
+        }, headers=_user_hdr())
         assert resp.status_code == 201, resp.text
         return resp.json()
 
@@ -364,7 +371,7 @@ class TestIssueAuditEvents:
         issue_id = issue["id"]
 
         upd = client.patch(f"/issues/{issue_id}", json={"priority": "HIGH"},
-                           headers=_tester_hdr())
+                           headers=_user_hdr())
         assert upd.status_code == 200
 
         resp = client.get("/activity", params={"entity_type": "ISSUE", "entity_id": issue_id},
@@ -889,7 +896,7 @@ class TestTransactionSafety:
             "issue_type": "BUG",
             "severity": "MINOR",
             "priority": "LOW",
-        }, headers=_tester_hdr())
+        }, headers=_user_hdr())
         assert issue_resp.status_code == 201
         issue_id = issue_resp.json()["id"]
 

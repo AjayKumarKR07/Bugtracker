@@ -27,6 +27,7 @@ from tests.conftest import (
     dev2_token,
     tester_token,
     tester2_token,
+    user_token,
 )
 
 client = TestClient(app)
@@ -169,11 +170,12 @@ class TestNotificationOperations:
     def test_assignment_triggers_notification_and_operations(self):
         adm = admin_token()
         dev = dev_token()
+        usr = user_token()
         tst = tester_token()
 
         # Create project and issue
         proj_id = _create_project(adm)
-        issue_id = _create_issue(proj_id, tst)
+        issue_id = _create_issue(proj_id, usr)
 
         dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
 
@@ -240,11 +242,11 @@ class TestNotificationOperations:
     def test_mark_all_read(self):
         adm = admin_token()
         dev = dev_token()
-        tst = tester_token()
+        usr = user_token()
 
         proj_id = _create_project(adm)
-        issue_id1 = _create_issue(proj_id, tst)
-        issue_id2 = _create_issue(proj_id, tst)
+        issue_id1 = _create_issue(proj_id, usr)
+        issue_id2 = _create_issue(proj_id, usr)
         dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
 
         client.patch(f"/issues/{issue_id1}/assign", json={"developer_id": dev_id}, headers=auth_header(adm))
@@ -269,16 +271,16 @@ class TestNotificationEventTriggers:
     def test_status_update_and_resolve_and_reopen_notifications(self):
         adm = admin_token()
         dev = dev_token()
-        tst = tester_token()
+        usr = user_token()
 
         proj_id = _create_project(adm)
-        issue_id = _create_issue(proj_id, tst)
+        issue_id = _create_issue(proj_id, usr)
         dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
 
         # 1. Admin assigns issue to dev
         client.patch(f"/issues/{issue_id}/assign", json={"developer_id": dev_id}, headers=auth_header(adm))
 
-        # 2. Dev changes status to IN_DEVELOPMENT -> Reporter (tester) gets notified
+        # 2. Dev changes status to IN_DEVELOPMENT -> Reporter (user) gets notified
         r_status = client.patch(
             f"/issues/{issue_id}/status",
             json={"status": "IN_DEVELOPMENT"},
@@ -286,15 +288,15 @@ class TestNotificationEventTriggers:
         )
         assert r_status.status_code == 200
 
-        r_tst_notifs = client.get(
+        r_usr_notifs = client.get(
             "/notifications?notification_type=ISSUE_STATUS_CHANGED",
-            headers=auth_header(tst),
+            headers=auth_header(usr),
         )
-        assert r_tst_notifs.status_code == 200
-        found_status_notif = any(n["entity_id"] == issue_id for n in r_tst_notifs.json()["items"])
+        assert r_usr_notifs.status_code == 200
+        found_status_notif = any(n["entity_id"] == issue_id for n in r_usr_notifs.json()["items"])
         assert found_status_notif is True
 
-        # 3. Dev resolves issue -> Reporter (tester) gets notified
+        # 3. Dev resolves issue -> Reporter (user) gets notified
         r_resolve = client.patch(
             f"/issues/{issue_id}/resolve",
             json={"resolution_summary": "Bug has been fixed completely"},
@@ -302,19 +304,19 @@ class TestNotificationEventTriggers:
         )
         assert r_resolve.status_code == 200
 
-        r_tst_res = client.get(
+        r_usr_res = client.get(
             "/notifications?notification_type=ISSUE_RESOLVED",
-            headers=auth_header(tst),
+            headers=auth_header(usr),
         )
-        assert r_tst_res.status_code == 200
-        found_res_notif = any(n["entity_id"] == issue_id for n in r_tst_res.json()["items"])
+        assert r_usr_res.status_code == 200
+        found_res_notif = any(n["entity_id"] == issue_id for n in r_usr_res.json()["items"])
         assert found_res_notif is True
 
-        # 4. Tester reopens issue -> Assignee (dev) gets notified
+        # 4. User reopens issue -> Assignee (dev) gets notified
         r_reopen = client.patch(
             f"/issues/{issue_id}/reopen",
             json={"reason": "Reproduced on staging again"},
-            headers=auth_header(tst),
+            headers=auth_header(usr),
         )
         assert r_reopen.status_code == 200
 
@@ -329,14 +331,14 @@ class TestNotificationEventTriggers:
     def test_comment_and_attachment_notifications(self):
         adm = admin_token()
         dev = dev_token()
-        tst = tester_token()
+        usr = user_token()
 
         proj_id = _create_project(adm)
-        issue_id = _create_issue(proj_id, tst)
+        issue_id = _create_issue(proj_id, usr)
         dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
         client.patch(f"/issues/{issue_id}/assign", json={"developer_id": dev_id}, headers=auth_header(adm))
 
-        # Dev comments -> Tester gets notified, Dev (actor) is NOT notified
+        # Dev comments -> User gets notified, Dev (actor) is NOT notified
         r_comment = client.post(
             f"/issues/{issue_id}/comments",
             json={"body": "Investigating this defect right now."},
@@ -344,15 +346,15 @@ class TestNotificationEventTriggers:
         )
         assert r_comment.status_code == 201
 
-        # Check tester got notification
-        r_tst = client.get(
+        # Check user got notification
+        r_usr = client.get(
             "/notifications?notification_type=ISSUE_COMMENTED",
-            headers=auth_header(tst),
+            headers=auth_header(usr),
         )
-        assert r_tst.status_code == 200
-        assert any(n["entity_id"] == issue_id for n in r_tst.json()["items"])
+        assert r_usr.status_code == 200
+        assert any(n["entity_id"] == issue_id for n in r_usr.json()["items"])
 
-        # Dev uploads attachment -> Tester gets notified
+        # Dev uploads attachment -> User gets notified
         png_content = (
             b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
             b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01"
@@ -365,12 +367,12 @@ class TestNotificationEventTriggers:
         )
         assert r_attach.status_code == 201
 
-        r_tst_att = client.get(
+        r_usr_att = client.get(
             "/notifications?notification_type=ATTACHMENT_ADDED",
-            headers=auth_header(tst),
+            headers=auth_header(usr),
         )
-        assert r_tst_att.status_code == 200
-        assert any(n["entity_id"] == issue_id for n in r_tst_att.json()["items"])
+        assert r_usr_att.status_code == 200
+        assert any(n["entity_id"] == issue_id for n in r_usr_att.json()["items"])
 
     def test_user_management_notifications(self):
         adm = admin_token()
