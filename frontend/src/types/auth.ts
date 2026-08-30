@@ -100,3 +100,12 @@ export interface MessageResponse {
 export interface LogoutResponse {
   message: string;
 }
+
+export interface ProfileUpdateRequest {
+  full_name: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}

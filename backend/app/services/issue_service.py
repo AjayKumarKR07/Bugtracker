@@ -17,7 +17,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.audit_log import AuditAction
+from app.models.audit_log import AuditAction, AuditLog
+from app.schemas.audit import AuditLogResponse
 from app.models.issue import (
     DEVELOPER_TRANSITIONS,
     REOPENABLE_STATUSES,
@@ -417,13 +418,17 @@ async def assign_issue(
         },
     )
 
-    # Notify the assigned tester (actor = admin, never notified)
+    # Notify the assigned tester and reporter (actor = admin, never notified)
+    notify_recipients = [developer.id]
+    if issue.reporter_id and issue.reporter_id != current_user.id:
+        notify_recipients.append(issue.reporter_id)
+
     notifications = await notification_service.notify_users(
         db=db,
-        user_ids=[developer.id],
+        user_ids=notify_recipients,
         notification_type=NotificationType.ISSUE_ASSIGNED,
-        title="Issue assigned to you",
-        message=f"Issue {issue.issue_key} has been assigned to you.",
+        title="Issue assigned to tester",
+        message=f"Issue {issue.issue_key} has been assigned to {developer.full_name}.",
         actor_id=current_user.id,
         entity_type="ISSUE",
         entity_id=issue.id,
@@ -656,3 +661,98 @@ async def reopen_issue(
     )
 
     return await get_issue_detail(issue_id, db), notifications
+
+
+# --------------------------------------------------------------------------- #
+# Close / Confirm Resolution                                                   #
+# --------------------------------------------------------------------------- #
+
+async def close_issue(
+    issue_id: int, current_user: User, db: AsyncSession
+) -> tuple[IssueDetailResponse, list]:
+    """USER (reporter) or ADMIN: confirm resolution and close a resolved issue."""
+    issue = await _get_issue_or_404(issue_id, db)
+
+    if issue.status != IssueStatus.RESOLVED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot close issue in status {issue.status.value}. Only RESOLVED issues can be closed.",
+        )
+
+    if current_user.role == UserRole.USER and issue.reporter_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Users can only confirm resolution of issues they reported.",
+        )
+
+    old_status = issue.status
+    assignee_id = issue.assignee_id
+    issue.status = IssueStatus.CLOSED
+
+    await db.flush()
+    await db.refresh(issue)
+
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.ISSUE_STATUS_CHANGED,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+        description=(
+            f"{current_user.role.value.capitalize()} {current_user.full_name!r} "
+            f"confirmed resolution and closed issue {issue.issue_key}"
+        ),
+        old_values={"status": old_status},
+        new_values={"status": IssueStatus.CLOSED},
+    )
+
+    notify_ids = [assignee_id] if assignee_id else []
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=notify_ids,
+        notification_type=NotificationType.ISSUE_STATUS_CHANGED,
+        title="Issue resolution confirmed",
+        message=f"{issue.issue_key} was confirmed as resolved and closed by {current_user.full_name}.",
+        actor_id=current_user.id,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue.issue_key,
+    )
+
+    return await get_issue_detail(issue_id, db), notifications
+
+
+# --------------------------------------------------------------------------- #
+# Activity / History                                                           #
+# --------------------------------------------------------------------------- #
+
+async def get_issue_activity(
+    issue_id: int, current_user: User, db: AsyncSession
+) -> list[AuditLogResponse]:
+    """Fetch audit history for a specific issue respecting RBAC."""
+    issue = await _get_issue_or_404(issue_id, db)
+
+    # RBAC check
+    if current_user.role == UserRole.USER and issue.reporter_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Users can only view activity on issues they reported.",
+        )
+    elif current_user.role == UserRole.TESTER and issue.assignee_id != current_user.id and issue.reporter_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Testers can only view activity on issues assigned to or reported by them.",
+        )
+
+    result = await db.execute(
+        select(AuditLog)
+        .options(selectinload(AuditLog.actor))
+        .where(
+            AuditLog.entity_type == "ISSUE",
+            AuditLog.entity_id == issue_id,
+        )
+        .order_by(AuditLog.created_at.asc())
+    )
+    logs = result.scalars().all()
+    return [AuditLogResponse.model_validate(log) for log in logs]

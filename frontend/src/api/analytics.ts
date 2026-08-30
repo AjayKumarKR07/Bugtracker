@@ -6,6 +6,7 @@ import type {
   ProjectAnalyticsListResponse,
   ProjectAnalyticsResponse,
   SeverityDistributionResponse,
+  PriorityDistributionResponse,
   SystemAnalyticsResponse,
 } from '../types/analytics';
 import type { IssueStatus, Severity } from '../types/issue';
@@ -51,6 +52,16 @@ export const analyticsApi = {
   ): Promise<SeverityDistributionResponse> => {
     const response = await apiClient.get<SeverityDistributionResponse>(
       '/analytics/issues/severity-distribution',
+      { params }
+    );
+    return response.data;
+  },
+
+  getPriorityDistribution: async (
+    params?: AnalyticsFilterParams
+  ): Promise<PriorityDistributionResponse> => {
+    const response = await apiClient.get<PriorityDistributionResponse>(
+      '/analytics/issues/priority-distribution',
       { params }
     );
     return response.data;

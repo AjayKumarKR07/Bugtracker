@@ -69,4 +69,16 @@ export const issuesApi = {
     const response = await apiClient.patch<IssueDetail>(`/issues/${id}/reopen`, data);
     return response.data;
   },
+
+  close: async (id: number): Promise<IssueDetail> => {
+    const response = await apiClient.patch<IssueDetail>(`/issues/${id}/close`);
+    return response.data;
+  },
+
+  getActivity: async (id: number): Promise<import('../types/audit').AuditLogItem[]> => {
+    const response = await apiClient.get<import('../types/audit').AuditLogItem[]>(
+      `/issues/${id}/activity`
+    );
+    return response.data;
+  },
 };

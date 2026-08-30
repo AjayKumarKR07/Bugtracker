@@ -30,12 +30,26 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
   const getWsStatusText = () => {
     switch (wsStatus) {
       case 'connected':
-        return 'Live Stream';
+        return 'Live';
       case 'connecting':
         return 'Connecting...';
       case 'disconnected':
+        return 'Disconnected';
       case 'error':
-        return 'Offline';
+        return 'Connection Error';
+    }
+  };
+
+  const getWsIconColor = () => {
+    switch (wsStatus) {
+      case 'connected':
+        return '#10b981';
+      case 'connecting':
+        return '#f59e0b';
+      case 'error':
+        return '#ef4444';
+      default:
+        return 'var(--text-muted)';
     }
   };
 
@@ -67,9 +81,9 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
 
       <div className="header-right">
         {/* WebSocket Connection Status Pill */}
-        <div className="ws-status-pill" title={`WebSocket Status: ${wsStatus}`}>
+        <div className={`ws-status-pill ${wsStatus}`} title={`Real-time WebSocket Status: ${wsStatus}`}>
           <span className={`status-dot ${wsStatus}`} />
-          <Radio size={12} style={{ color: 'var(--text-muted)' }} />
+          <Radio size={12} style={{ color: getWsIconColor() }} />
           <span>{getWsStatusText()}</span>
         </div>
 

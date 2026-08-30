@@ -32,6 +32,7 @@ from app.schemas.analytics import (
     ProjectAnalyticsListResponse,
     ProjectAnalyticsResponse,
     SeverityDistributionResponse,
+    PriorityDistributionResponse,
     SystemAnalyticsResponse,
 )
 
@@ -221,6 +222,54 @@ async def get_severity_distribution(
 
 
 # --------------------------------------------------------------------------- #
+# C2. Priority Distribution                                                   #
+# --------------------------------------------------------------------------- #
+
+async def get_priority_distribution(
+    db: AsyncSession,
+    current_user: User,
+    project_id: int | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+) -> PriorityDistributionResponse:
+    """Return issue priority distribution respecting RBAC and optional filters."""
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="start_date cannot be greater than end_date.",
+        )
+
+    query = select(Issue.priority, func.count().label("cnt")).group_by(Issue.priority)
+
+    if current_user.role == UserRole.USER:
+        # Users see only their own reported issues
+        query = query.where(Issue.reporter_id == current_user.id)
+    elif current_user.role == UserRole.TESTER:
+        # Testers see only assigned issues
+        query = query.where(Issue.assignee_id == current_user.id)
+    elif current_user.role == UserRole.DEVELOPER:
+        # Legacy role — assigned issues only
+        query = query.where(Issue.assignee_id == current_user.id)
+
+    if project_id is not None:
+        query = query.where(Issue.project_id == project_id)
+    if start_date is not None:
+        query = query.where(Issue.created_at >= start_date)
+    if end_date is not None:
+        query = query.where(Issue.created_at <= end_date)
+
+    result = await db.execute(query)
+    counts = {row.priority: row.cnt for row in result.all()}
+
+    return PriorityDistributionResponse(
+        LOW=counts.get(Priority.LOW, 0),
+        MEDIUM=counts.get(Priority.MEDIUM, 0),
+        HIGH=counts.get(Priority.HIGH, 0),
+        URGENT=counts.get(Priority.URGENT, 0),
+    )
+
+
+# --------------------------------------------------------------------------- #
 # D. Issue Trends                                                              #
 # --------------------------------------------------------------------------- #
 
@@ -382,7 +431,7 @@ async def get_all_projects_analytics(
         res_cnt = row.resolved if row else 0
         closed_cnt = row.closed if row else 0
         crit_cnt = row.critical if row else 0
-        rate = round((res_cnt / total * 100.0), 2) if total > 0 else 0.0
+        rate = round(((res_cnt + closed_cnt) / total * 100.0), 2) if total > 0 else 0.0
 
         items.append(
             ProjectAnalyticsResponse(
@@ -479,7 +528,8 @@ async def get_project_analytics(
     row = (await db.execute(issue_query)).one()
     total = row.total
     res_cnt = row.resolved
-    rate = round((res_cnt / total * 100.0), 2) if total > 0 else 0.0
+    closed_cnt = row.closed
+    rate = round(((res_cnt + closed_cnt) / total * 100.0), 2) if total > 0 else 0.0
 
     return ProjectAnalyticsResponse(
         project_id=project.id,

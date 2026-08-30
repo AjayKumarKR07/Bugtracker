@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
+  FileDown,
   Plus,
   Search,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
+import { attachmentsApi } from '../api/attachments';
 import { getApiErrorMessage } from '../api/client';
 import { issuesApi } from '../api/issues';
 import { projectsApi } from '../api/projects';
@@ -27,6 +29,7 @@ import type {
 } from '../types/issue';
 import type { Project } from '../types/project';
 import { formatDate } from '../utils/formatters';
+import { generateIssuesPdfReport } from '../utils/pdfGenerator';
 
 export const IssuesPage: React.FC = () => {
   const { user } = useAuth();
@@ -54,7 +57,7 @@ export const IssuesPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showFilters, setShowFilters] = useState<boolean>(false);
 
-  // Report Defect Modal state (for Tester)
+  // Report Defect Modal state (for User / Tester / Admin)
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
   const [formProjectId, setFormProjectId] = useState<number | ''>('');
   const [formTitle, setFormTitle] = useState<string>('');
@@ -66,6 +69,7 @@ export const IssuesPage: React.FC = () => {
   const [formSteps, setFormSteps] = useState<string>('');
   const [formExpected, setFormExpected] = useState<string>('');
   const [formActual, setFormActual] = useState<string>('');
+  const [formFile, setFormFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -146,6 +150,7 @@ export const IssuesPage: React.FC = () => {
     setFormSteps('');
     setFormExpected('');
     setFormActual('');
+    setFormFile(null);
     setFormError(null);
     if (projects.length > 0) {
       setFormProjectId(projects[0].id);
@@ -183,7 +188,17 @@ export const IssuesPage: React.FC = () => {
         expected_result: formExpected.trim() || null,
         actual_result: formActual.trim() || null,
       };
-      await issuesApi.create(payload);
+      const created = await issuesApi.create(payload);
+
+      // Upload attachment if provided
+      if (formFile) {
+        try {
+          await attachmentsApi.upload(created.id, formFile);
+        } catch {
+          // File upload failure after issue creation non-fatal
+        }
+      }
+
       setIsReportOpen(false);
       fetchIssues();
     } catch (err: unknown) {
@@ -208,12 +223,32 @@ export const IssuesPage: React.FC = () => {
           </p>
         </div>
 
-        {canReport && (
-          <button onClick={openReportModal} className="btn btn-primary">
-            <Plus size={16} />
-            {isUser ? 'Report New Issue' : 'Report Issue'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => {
+              const filterText = [
+                statusFilter ? `Status: ${statusFilter}` : null,
+                severityFilter ? `Severity: ${severityFilter}` : null,
+                priorityFilter ? `Priority: ${priorityFilter}` : null,
+                searchQuery ? `Search: "${searchQuery}"` : null,
+              ].filter(Boolean).join(', ');
+              generateIssuesPdfReport(issues, user, filterText || undefined, projects);
+            }}
+            disabled={issues.length === 0}
+            className="btn btn-secondary"
+            title="Download formatted PDF report of visible issues"
+          >
+            <FileDown size={16} />
+            <span>Export PDF</span>
           </button>
-        )}
+
+          {canReport && (
+            <button onClick={openReportModal} className="btn btn-primary">
+              <Plus size={16} />
+              <span>{isUser ? 'Report New Issue' : 'Report Issue'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <ErrorMessage message={error} onRetry={fetchIssues} />}
@@ -648,6 +683,29 @@ export const IssuesPage: React.FC = () => {
                 onChange={(e) => setFormActual(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="rep-file">Attachment (Optional)</label>
+            <input
+              id="rep-file"
+              type="file"
+              className="form-input"
+              accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.csv,.log"
+              onChange={(e) => {
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                  setFormFile(files[0]);
+                } else {
+                  setFormFile(null);
+                }
+              }}
+            />
+            {formFile && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                Selected: {formFile.name} ({(formFile.size / 1024).toFixed(1)} KB)
+              </span>
+            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>

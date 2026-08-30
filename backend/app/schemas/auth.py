@@ -75,6 +75,21 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, examples=["StrongPass123"])
 
 
+class ProfileUpdateRequest(BaseModel):
+    """Body for PATCH /auth/profile."""
+
+    full_name: str = Field(
+        ..., min_length=1, max_length=200, examples=["Jane Reporter"]
+    )
+
+
+class ChangePasswordRequest(BaseModel):
+    """Body for POST /auth/change-password."""
+
+    current_password: str = Field(..., min_length=1, examples=["CurrentPass123"])
+    new_password: str = Field(..., min_length=8, max_length=128, examples=["NewStrongPass123"])
+
+
 # --------------------------------------------------------------------------- #
 # Response schemas                                                             #
 # --------------------------------------------------------------------------- #

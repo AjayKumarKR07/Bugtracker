@@ -1,8 +1,10 @@
 import { apiClient } from './client';
 import type {
+  ChangePasswordRequest,
   LoginRequest,
   LogoutResponse,
   MessageResponse,
+  ProfileUpdateRequest,
   RegisterRequest,
   ResendOtpRequest,
   TokenResponse,
@@ -38,6 +40,16 @@ export const authApi = {
 
   getMe: async (): Promise<User> => {
     const response = await apiClient.get<User>('/auth/me');
+    return response.data;
+  },
+
+  updateProfile: async (data: ProfileUpdateRequest): Promise<User> => {
+    const response = await apiClient.patch<User>('/auth/profile', data);
+    return response.data;
+  },
+
+  changePassword: async (data: ChangePasswordRequest): Promise<MessageResponse> => {
+    const response = await apiClient.post<MessageResponse>('/auth/change-password', data);
     return response.data;
   },
 

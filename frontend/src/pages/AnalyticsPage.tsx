@@ -3,6 +3,7 @@ import {
   BarChart3,
   Clock,
   Download,
+  FileDown,
   FolderGit2,
   PieChart,
   RefreshCw,
@@ -22,6 +23,7 @@ import type {
   SeverityDistributionResponse,
   SystemAnalyticsResponse,
 } from '../types/analytics';
+import { generateAnalyticsPdfReport } from '../utils/pdfGenerator';
 
 export const AnalyticsPage: React.FC = () => {
   const { user } = useAuth();
@@ -36,6 +38,7 @@ export const AnalyticsPage: React.FC = () => {
   const [interval, setInterval] = useState<'day' | 'week' | 'month'>('day');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAnalytics = async () => {
@@ -76,6 +79,24 @@ export const AnalyticsPage: React.FC = () => {
     fetchAnalytics();
   }, [interval]);
 
+  const handleExportPdf = () => {
+    setIsExportingPdf(true);
+    try {
+      generateAnalyticsPdfReport({
+        user: user as any,
+        statusDist,
+        severityDist,
+        projectAnalytics,
+        devAnalytics: isAdmin ? devAnalytics : undefined,
+        systemOverview: isAdmin ? systemOverview : undefined,
+      });
+    } catch (err: unknown) {
+      alert('Failed to generate PDF report: ' + String(err));
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const handleExportCsv = async () => {
     setIsExporting(true);
     try {
@@ -115,7 +136,17 @@ export const AnalyticsPage: React.FC = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={handleExportPdf}
+            disabled={isExportingPdf}
+            className="btn btn-primary btn-sm"
+            style={{ backgroundColor: '#6366f1', borderColor: '#6366f1', fontWeight: '600' }}
+            title="Download executive PDF report"
+          >
+            <FileDown size={15} />
+            <span>{isExportingPdf ? 'Generating PDF...' : 'Download PDF Report'}</span>
+          </button>
           <button
             onClick={handleExportCsv}
             disabled={isExporting}
@@ -123,11 +154,11 @@ export const AnalyticsPage: React.FC = () => {
             title="Download full defects CSV report"
           >
             <Download size={14} />
-            {isExporting ? 'Exporting...' : 'Export CSV Report'}
+            <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
           </button>
           <button onClick={() => fetchAnalytics()} className="btn btn-secondary btn-sm">
             <RefreshCw size={14} />
-            Refresh
+            <span>Refresh</span>
           </button>
         </div>
       </div>

@@ -30,6 +30,7 @@ from app.schemas.analytics import (
     ProjectAnalyticsListResponse,
     ProjectAnalyticsResponse,
     SeverityDistributionResponse,
+    PriorityDistributionResponse,
     SystemAnalyticsResponse,
 )
 from app.services import analytics_service
@@ -107,6 +108,32 @@ async def issue_severity_distribution(
 ) -> SeverityDistributionResponse:
     """Return severity distribution counts applying RBAC visibility rules."""
     return await analytics_service.get_severity_distribution(
+        db=db,
+        current_user=current_user,
+        project_id=project_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 3b. Priority Distribution                                                   #
+# --------------------------------------------------------------------------- #
+
+@router.get(
+    "/issues/priority-distribution",
+    response_model=PriorityDistributionResponse,
+    summary="Issue priority distribution",
+)
+async def issue_priority_distribution(
+    project_id: int | None = Query(None, description="Filter by project ID"),
+    start_date: datetime | None = Query(None, description="Filter by start date (ISO-8601)"),
+    end_date: datetime | None = Query(None, description="Filter by end date (ISO-8601)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PriorityDistributionResponse:
+    """Return priority distribution counts applying RBAC visibility rules."""
+    return await analytics_service.get_priority_distribution(
         db=db,
         current_user=current_user,
         project_id=project_id,

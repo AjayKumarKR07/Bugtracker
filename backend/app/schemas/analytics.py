@@ -64,6 +64,17 @@ class SeverityDistributionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PriorityDistributionResponse(BaseModel):
+    """Issue counts keyed by Priority enum values."""
+
+    LOW: int = 0
+    MEDIUM: int = 0
+    HIGH: int = 0
+    URGENT: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --------------------------------------------------------------------------- #
 # Trends Schemas                                                               #
 # --------------------------------------------------------------------------- #

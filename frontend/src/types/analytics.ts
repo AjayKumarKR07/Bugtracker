@@ -34,6 +34,13 @@ export interface SeverityDistributionResponse {
   BLOCKER: number;
 }
 
+export interface PriorityDistributionResponse {
+  LOW: number;
+  MEDIUM: number;
+  HIGH: number;
+  URGENT: number;
+}
+
 export interface IssueTrendItem {
   date: string;
   created_count: number;

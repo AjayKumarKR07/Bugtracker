@@ -532,3 +532,63 @@ class TestPasswordlessAuth:
         assert data["user"]["is_active"] is True
         assert data["user"]["is_email_verified"] is True
 
+
+# =========================================================================== #
+# 10. Profile Update & Password Change                                        #
+# =========================================================================== #
+
+class TestProfileAndChangePassword:
+    def test_update_profile_and_change_password(self) -> None:
+        """User can update their full_name and change password."""
+        import uuid
+        email = _email(f"profile_{uuid.uuid4().hex[:8]}")
+        captured_otp: list[str] = []
+
+        async def mock_send(to_email: str, otp: str) -> None:
+            captured_otp.append(otp)
+
+        with patch("app.routes.auth.send_otp_email", side_effect=mock_send):
+            client.post("/auth/register", json={
+                "full_name": "Original Name",
+                "email": email,
+                "password": "InitialPassword123",
+                "role": "USER",
+            })
+
+        if not captured_otp:
+            pytest.skip("OTP not captured")
+
+        verify_res = client.post("/auth/verify-otp", json={
+            "email": email,
+            "otp": captured_otp[0],
+        })
+        token = verify_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 1. Update Profile Full Name
+        patch_res = client.patch("/auth/profile", json={"full_name": "Updated Name"}, headers=headers)
+        assert patch_res.status_code == 200
+        assert patch_res.json()["full_name"] == "Updated Name"
+
+        # 2. Change Password - Incorrect current password
+        bad_pass = client.post("/auth/change-password", json={
+            "current_password": "WrongPassword",
+            "new_password": "NewSecretPassword123",
+        }, headers=headers)
+        assert bad_pass.status_code == 400
+
+        # 3. Change Password - Success
+        good_pass = client.post("/auth/change-password", json={
+            "current_password": "InitialPassword123",
+            "new_password": "NewSecretPassword123",
+        }, headers=headers)
+        assert good_pass.status_code == 200
+
+        # 4. Login with New Password
+        login_res = client.post("/auth/login", json={
+            "email": email,
+            "password": "NewSecretPassword123",
+        })
+        assert login_res.status_code == 200
+
+

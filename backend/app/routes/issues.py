@@ -29,6 +29,7 @@ from app.schemas.issue import (
     IssueStatusUpdate,
     IssueUpdate,
 )
+from app.schemas.audit import AuditLogResponse
 from app.services import issue_service
 
 router = APIRouter(prefix="/issues", tags=["Issues"])
@@ -273,3 +274,62 @@ async def reopen_issue(
         }
         background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
     return detail
+
+
+@router.patch(
+    "/{issue_id}/close",
+    response_model=IssueDetailResponse,
+    summary="Confirm resolution and close an issue",
+)
+async def close_issue(
+    issue_id: int,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IssueDetailResponse:
+    """Confirm resolution and mark a RESOLVED issue as CLOSED.
+    - **USER**: can confirm resolution of their own reported issues
+    - **ADMIN**: can confirm resolution and close any issue
+    """
+    if current_user.role not in (UserRole.USER, UserRole.ADMIN):
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only USER (reporter) or ADMIN can confirm resolution and close issues.",
+        )
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await issue_service.close_issue(issue_id, current_user, db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail
+
+
+@router.get(
+    "/{issue_id}/activity",
+    response_model=list[AuditLogResponse],
+    summary="Get issue activity timeline",
+)
+async def get_issue_activity(
+    issue_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AuditLogResponse]:
+    """Get audit history timeline for a specific issue.
+    - **USER**: own reported issues
+    - **TESTER**: assigned or reported issues
+    - **ADMIN**: all issues
+    """
+    return await issue_service.get_issue_activity(issue_id, current_user, db)

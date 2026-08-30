@@ -375,6 +375,27 @@ input, select, textarea {
   font-weight: 500;
   background-color: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
+  transition: all 0.2s ease;
+}
+
+.ws-status-pill.connected {
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.ws-status-pill.connecting {
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.ws-status-pill.disconnected {
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.ws-status-pill.error {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
 }
 
 .status-dot {
@@ -384,17 +405,23 @@ input, select, textarea {
 }
 
 .status-dot.connected {
-  background-color: var(--success);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  background-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
 }
 
 .status-dot.connecting {
-  background-color: var(--warning);
+  background-color: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
   animation: pulse 1.5s infinite;
 }
 
-.status-dot.disconnected, .status-dot.error {
-  background-color: var(--danger);
+.status-dot.disconnected {
+  background-color: #94a3b8;
+}
+
+.status-dot.error {
+  background-color: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
 }
 
 .header-icon-btn {

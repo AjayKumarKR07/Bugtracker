@@ -28,9 +28,11 @@ from app.database.session import get_db
 from app.dependencies.auth import get_current_user
 from app.models.user import User, UserRole
 from app.schemas.auth import (
+    ChangePasswordRequest,
     LoginRequest,
     LogoutResponse,
     MessageResponse,
+    ProfileUpdateRequest,
     RegisterRequest,
     RequestOTPRequest,
     ResendOTPRequest,
@@ -363,3 +365,85 @@ async def logout(
         description=f"User {current_user.full_name!r} ({current_user.role.value}) logged out",
     )
     return LogoutResponse(message="Logged out successfully.")
+
+
+# --------------------------------------------------------------------------- #
+# PATCH /auth/profile                                                          #
+# --------------------------------------------------------------------------- #
+
+@router.patch(
+    "/profile",
+    response_model=UserResponse,
+    summary="Update the currently authenticated user's profile",
+)
+async def update_profile(
+    body: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Update user full_name. Authenticated user only."""
+    clean_name = body.full_name.strip()
+    if not clean_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Full name cannot be empty.",
+        )
+
+    current_user.full_name = clean_name
+    await db.commit()
+    await db.refresh(current_user)
+
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.USER_UPDATED,
+        entity_type="USER",
+        entity_id=current_user.id,
+        entity_key=current_user.email,
+        description=f"User {current_user.email} updated profile full_name to {clean_name!r}",
+    )
+
+    return UserResponse.model_validate(current_user)
+
+
+# --------------------------------------------------------------------------- #
+# POST /auth/change-password                                                   #
+# --------------------------------------------------------------------------- #
+
+@router.post(
+    "/change-password",
+    response_model=MessageResponse,
+    summary="Change the currently authenticated user's password",
+)
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """Verify current password and set a new password."""
+    if not verify_password(body.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+
+    if verify_password(body.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password.",
+        )
+
+    current_user.password_hash = hash_password(body.new_password)
+    await db.commit()
+
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.USER_UPDATED,
+        entity_type="USER",
+        entity_id=current_user.id,
+        entity_key=current_user.email,
+        description=f"User {current_user.email} successfully changed password",
+    )
+
+    return MessageResponse(message="Password changed successfully.")
