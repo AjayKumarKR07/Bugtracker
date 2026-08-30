@@ -294,7 +294,7 @@ export const RegisterPage: React.FC = () => {
                   paddingRight: '2.5rem',
                   borderColor:
                     confirmPassword && confirmPassword !== password
-                      ? 'var(--error)'
+                      ? 'var(--danger)'
                       : undefined,
                 }}
                 placeholder="Re-enter your password"

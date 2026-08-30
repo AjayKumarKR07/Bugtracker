@@ -5,7 +5,7 @@
 /* ── Base Reset for Home Page ──────────────────────────────────────── */
 .home-page {
   min-height: 100vh;
-  background: var(--bg-base);
+  background: var(--bg-app);
   color: var(--text-primary);
   font-family: var(--font-sans);
   overflow-x: hidden;
@@ -787,7 +787,7 @@
 .home-cta-btn-outline {
   background: transparent;
   color: var(--text-primary);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-muted);
   padding: 0.85rem 1.5rem;
   font-size: 0.95rem;
   font-weight: 600;
