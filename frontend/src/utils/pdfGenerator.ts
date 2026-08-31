@@ -76,10 +76,15 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
   doc.setFont('helvetica', 'normal');
   doc.text(currentDate, 42, yPos + 12);
 
+  const validProjects = (data.projectAnalytics || []).filter(
+    (p) => p.total_issues > 0 || ['CORE', 'MOB', 'API'].includes(p.project_key)
+  );
+  const activeCount = validProjects.length > 0 ? validProjects.length : data.projectAnalytics.length;
+
   doc.setFont('helvetica', 'bold');
   doc.text('Active Projects:', 130, yPos + 6);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${data.projectAnalytics.length} Projects Tracked`, 156, yPos + 6);
+  doc.text(`${activeCount} Projects Tracked`, 156, yPos + 6);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Status:', 130, yPos + 12);
@@ -177,7 +182,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
   doc.text('2. Project Performance & Resolution Rates', 14, yPos);
   yPos += 4;
 
-  const projectRows = data.projectAnalytics.map((proj) => [
+  const projectRows = (validProjects.length > 0 ? validProjects : data.projectAnalytics).map((proj) => [
     proj.project_key,
     proj.project_name,
     String(proj.total_issues),
@@ -210,11 +215,11 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
       fillColor: [248, 250, 252],
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 18 },
+      0: { fontStyle: 'bold', cellWidth: 16 },
       1: { cellWidth: 58 },
-      2: { halign: 'center', cellWidth: 15 },
-      3: { halign: 'center', cellWidth: 15 },
-      4: { halign: 'center', cellWidth: 18 },
+      2: { halign: 'center', cellWidth: 14 },
+      3: { halign: 'center', cellWidth: 14 },
+      4: { halign: 'center', cellWidth: 22 },
       5: { halign: 'center', cellWidth: 18 },
       6: { halign: 'center', cellWidth: 16 },
       7: { halign: 'center', cellWidth: 24, fontStyle: 'bold' },
