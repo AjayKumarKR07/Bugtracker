@@ -15,6 +15,8 @@ import { IssuesPage } from '../pages/IssuesPage';
 import { NotificationsPage } from '../pages/NotificationsPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { ProjectsPage } from '../pages/ProjectsPage';
+import { TesterDashboardPage } from '../pages/TesterDashboardPage';
+import { TesterIssuesPage } from '../pages/TesterIssuesPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -40,6 +42,12 @@ export const AppRoutes: React.FC = () => {
             {/* Admin-only Protected Route */}
             <Route element={<RoleProtectedRoute allowedRoles={['ADMIN']} />}>
               <Route path="/admin" element={<AdminPage />} />
+            </Route>
+
+            {/* Tester / Developer Protected Routes */}
+            <Route element={<RoleProtectedRoute allowedRoles={['TESTER', 'DEVELOPER']} />}>
+              <Route path="/tester-dashboard" element={<TesterDashboardPage />} />
+              <Route path="/tester-issues" element={<TesterIssuesPage />} />
             </Route>
           </Route>
         </Route>

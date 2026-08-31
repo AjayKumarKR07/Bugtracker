@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   BarChart3,
   Bug,
+  FlaskConical,
   FolderGit2,
   LayoutDashboard,
   LogOut,
@@ -143,16 +144,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
             </>
           )}
 
-          {/* TESTER / DEVELOPER: Assigned Issues Navigation */}
+          {/* TESTER / DEVELOPER: Tester-specific Navigation */}
           {(user?.role === 'TESTER' || user?.role === 'DEVELOPER') && (
-            <NavLink
-              to="/issues"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              onClick={onCloseMobile}
-            >
-              <Bug size={18} />
-              <span>My Assigned Issues</span>
-            </NavLink>
+            <>
+              <NavLink
+                to="/tester-dashboard"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <FlaskConical size={18} />
+                <span>Tester Dashboard</span>
+              </NavLink>
+
+              <NavLink
+                to="/tester-issues"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <Bug size={18} />
+                <span>My Assigned Issues</span>
+              </NavLink>
+            </>
           )}
 
           {/* USER: My Issues Navigation */}
