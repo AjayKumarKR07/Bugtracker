@@ -41,7 +41,11 @@ from app.schemas.analytics import (
 # A. System Overview (Admin Only)                                              #
 # --------------------------------------------------------------------------- #
 
-async def get_system_overview(db: AsyncSession) -> SystemAnalyticsResponse:
+async def get_system_overview(
+    db: AsyncSession,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+) -> SystemAnalyticsResponse:
     """Return live system counts for users, projects, issues, and severities.
 
     Admin-only. Computes all counts via SQL aggregations in PostgreSQL.
@@ -63,8 +67,7 @@ async def get_system_overview(db: AsyncSession) -> SystemAnalyticsResponse:
     )
     proj_row = proj_result.one()
 
-    issue_result = await db.execute(
-        select(
+    issue_query = select(
             func.count().label("total"),
             func.count(
                 case((
@@ -99,7 +102,13 @@ async def get_system_overview(db: AsyncSession) -> SystemAnalyticsResponse:
             func.count(case((Issue.severity == Severity.MINOR, 1))).label("medium"),
             func.count(case((Issue.priority == Priority.LOW, 1))).label("low"),
         ).select_from(Issue)
-    )
+
+    if start_date is not None:
+        issue_query = issue_query.where(Issue.created_at >= start_date)
+    if end_date is not None:
+        issue_query = issue_query.where(Issue.created_at <= end_date)
+
+    issue_result = await db.execute(issue_query)
     issue_row = issue_result.one()
 
     return SystemAnalyticsResponse(
@@ -370,6 +379,8 @@ async def get_issue_trends(
 async def get_all_projects_analytics(
     db: AsyncSession,
     current_user: User,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
 ) -> ProjectAnalyticsListResponse:
     """Return aggregated issue metrics and resolution rate for all projects."""
     proj_res = await db.execute(select(Project).order_by(Project.id))
@@ -419,6 +430,11 @@ async def get_all_projects_analytics(
         # Legacy role — assigned issues only
         issue_query = issue_query.where(Issue.assignee_id == current_user.id)
 
+    if start_date is not None:
+        issue_query = issue_query.where(Issue.created_at >= start_date)
+    if end_date is not None:
+        issue_query = issue_query.where(Issue.created_at <= end_date)
+
     issue_res = await db.execute(issue_query)
     stats_by_project = {row.project_id: row for row in issue_res.all()}
 
@@ -426,6 +442,10 @@ async def get_all_projects_analytics(
     for proj in projects:
         row = stats_by_project.get(proj.id)
         total = row.total if row else 0
+        
+        if (start_date is not None or end_date is not None) and total == 0:
+            continue
+
         open_cnt = row.open if row else 0
         in_prog = row.in_progress if row else 0
         res_cnt = row.resolved if row else 0
@@ -549,7 +569,11 @@ async def get_project_analytics(
 # G. Developer Performance (Admin Only)                                        #
 # --------------------------------------------------------------------------- #
 
-async def get_developer_performance(db: AsyncSession) -> DeveloperAnalyticsResponse:
+async def get_developer_performance(
+    db: AsyncSession,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+) -> DeveloperAnalyticsResponse:
     """Return assignment, resolution, and time metrics for all testers."""
     dev_res = await db.execute(
         select(User)
@@ -579,7 +603,14 @@ async def get_developer_performance(db: AsyncSession) -> DeveloperAnalyticsRespo
                 func.extract("epoch", Issue.resolved_at - Issue.created_at) / 3600.0,
             ))
         ).label("avg_res_time"),
-    ).where(Issue.assignee_id.isnot(None)).group_by(Issue.assignee_id)
+    ).where(Issue.assignee_id.isnot(None))
+
+    if start_date is not None:
+        stats_query = stats_query.where(Issue.created_at >= start_date)
+    if end_date is not None:
+        stats_query = stats_query.where(Issue.created_at <= end_date)
+
+    stats_query = stats_query.group_by(Issue.assignee_id)
 
     stats_res = await db.execute(stats_query)
     stats_by_dev = {row.assignee_id: row for row in stats_res.all()}
@@ -590,6 +621,10 @@ async def get_developer_performance(db: AsyncSession) -> DeveloperAnalyticsRespo
         assigned = row.assigned if row else 0
         resolved = row.resolved if row else 0
         open_cnt = row.open if row else 0
+
+        if (start_date is not None or end_date is not None) and assigned == 0 and resolved == 0:
+            continue
+
         avg_time = float(row.avg_res_time) if (row and row.avg_res_time is not None) else None
         if avg_time is not None:
             avg_time = round(avg_time, 2)
