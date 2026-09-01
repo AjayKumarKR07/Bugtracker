@@ -5,6 +5,8 @@ import type {
   IssueStatusDistributionResponse,
   ProjectAnalyticsResponse,
   SeverityDistributionResponse,
+  PriorityDistributionResponse,
+  IssueTrendResponse,
   SystemAnalyticsResponse,
 } from '../types/analytics';
 import type { Comment } from '../types/comment';
@@ -25,6 +27,9 @@ interface AnalyticsReportData {
   projectAnalytics: ProjectAnalyticsResponse[];
   devAnalytics?: DeveloperAnalyticsItem[];
   systemOverview?: SystemAnalyticsResponse | null;
+  priorityDist?: PriorityDistributionResponse | null;
+  trends?: IssueTrendResponse | null;
+  periodLabel?: string;
   generatedAt?: string;
 }
 
@@ -76,9 +81,18 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
   doc.setFont('helvetica', 'normal');
   doc.text(currentDate, 42, yPos + 12);
 
-  const validProjects = (data.projectAnalytics || []).filter(
-    (p) => p.total_issues > 0 || ['CORE', 'MOB', 'API'].includes(p.project_key)
-  );
+  if (data.periodLabel) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Period:', 18, yPos + 18);
+    doc.setFont('helvetica', 'normal');
+    doc.text(data.periodLabel, 42, yPos + 18);
+  }
+
+  const validProjects = data.periodLabel 
+    ? (data.projectAnalytics || [])
+    : (data.projectAnalytics || []).filter(
+        (p) => p.total_issues > 0 || ['CORE', 'MOB', 'API'].includes(p.project_key)
+      );
   const activeCount = validProjects.length > 0 ? validProjects.length : data.projectAnalytics.length;
 
   doc.setFont('helvetica', 'bold');
@@ -170,7 +184,51 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
-  // 2. Project Performance & Resolution Rates
+  // 2. Priority Distribution & Trend Summary
+  if (data.priorityDist || data.trends) {
+    if (yPos > pageHeight - 65) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text('2. Priority Distribution & Trend Summary', 14, yPos);
+    yPos += 4;
+
+    const summaryRows = [
+      ['Urgent Priority', String(data.priorityDist?.URGENT || 0), 'Total Created (Trend)', String(data.trends?.total_created || 0)],
+      ['High Priority', String(data.priorityDist?.HIGH || 0), 'Total Resolved (Trend)', String(data.trends?.total_resolved || 0)],
+      ['Medium Priority', String(data.priorityDist?.MEDIUM || 0), 'Trend Interval', data.trends?.interval || '-'],
+      ['Low Priority', String(data.priorityDist?.LOW || 0), 'Data Points Recorded', String(data.trends?.items.length || 0)],
+    ];
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Priority Level', 'Count', 'Trend Metric', 'Value']],
+      body: summaryRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [99, 102, 241],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9,
+      },
+      styles: { fontSize: 8.5, cellPadding: 2.8, lineColor: [226, 232, 240], lineWidth: 0.15, textColor: [51, 65, 85] },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 55 },
+        1: { halign: 'center', cellWidth: 35 },
+        2: { fontStyle: 'bold', cellWidth: 55 },
+        3: { halign: 'center', cellWidth: 37 },
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+  }
+
+  // 3. Project Performance & Resolution Rates
   if (yPos > pageHeight - 65) {
     doc.addPage();
     yPos = 20;
@@ -179,7 +237,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(15, 23, 42);
-  doc.text('2. Project Performance & Resolution Rates', 14, yPos);
+  doc.text('3. Project Performance & Resolution Rates', 14, yPos);
   yPos += 4;
 
   const projectRows = (validProjects.length > 0 ? validProjects : data.projectAnalytics).map((proj) => [
@@ -229,7 +287,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
-  // 3. Tester / Developer Productivity (If present)
+  // 4. Tester / Developer Productivity (If present)
   if (data.devAnalytics && data.devAnalytics.length > 0) {
     if (yPos > pageHeight - 50) {
       doc.addPage();
@@ -239,7 +297,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(15, 23, 42);
-    doc.text('3. Tester & Developer Productivity', 14, yPos);
+    doc.text('4. Tester & Developer Productivity', 14, yPos);
     yPos += 4;
 
     const devRows = data.devAnalytics.map((dev) => [
@@ -285,7 +343,8 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - 25, pageHeight - 8);
   }
 
-  const filename = `BugTracker_Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+  let pLabel = data.periodLabel ? data.periodLabel.replace(/\s+/g, '') : 'Generated';
+  const filename = `BugTracker_${pLabel}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(filename);
 };
 
