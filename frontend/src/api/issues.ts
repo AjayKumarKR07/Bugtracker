@@ -24,6 +24,7 @@ export interface IssueListParams {
   project_id?: number;
   reporter_id?: number;
   assignee_id?: number;
+  unassigned?: boolean;
   search?: string;
 }
 

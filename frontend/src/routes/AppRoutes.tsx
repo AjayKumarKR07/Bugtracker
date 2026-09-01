@@ -5,13 +5,14 @@ import { RoleProtectedRoute } from '../components/common/RoleProtectedRoute';
 import { Layout } from '../components/layout/Layout';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
-import { VerifyOtpPage } from '../pages/auth/VerifyOtpPage';
 import { AdminPage } from '../pages/AdminPage';
+import { AdminDashboardPage } from '../pages/AdminDashboardPage';
 import { AnalyticsPage } from '../pages/AnalyticsPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { HomePage } from '../pages/HomePage';
 import { IssueDetailPage } from '../pages/IssueDetailPage';
 import { IssuesPage } from '../pages/IssuesPage';
+import { CreateIssuePage } from '../pages/CreateIssuePage';
 import { NotificationsPage } from '../pages/NotificationsPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { ProjectsPage } from '../pages/ProjectsPage';
@@ -26,7 +27,6 @@ export const AppRoutes: React.FC = () => {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/verify-otp" element={<VerifyOtpPage />} />
 
         {/* Authenticated Protected Application Routes */}
         <Route element={<ProtectedRoute />}>
@@ -34,6 +34,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/issues" element={<IssuesPage />} />
+            <Route path="/create-issue" element={<CreateIssuePage />} />
             <Route path="/issues/:id" element={<IssueDetailPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
@@ -42,6 +43,7 @@ export const AppRoutes: React.FC = () => {
             {/* Admin-only Protected Route */}
             <Route element={<RoleProtectedRoute allowedRoles={['ADMIN']} />}>
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
             </Route>
 
             {/* Tester / Developer Protected Routes */}

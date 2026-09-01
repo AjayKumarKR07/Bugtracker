@@ -72,6 +72,7 @@ export const IssuesPage: React.FC = () => {
   const [formFile, setFormFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const fetchIssues = async () => {
     setIsLoading(true);
@@ -200,6 +201,8 @@ export const IssuesPage: React.FC = () => {
       }
 
       setIsReportOpen(false);
+      setSuccessMsg(`Issue submitted successfully! Your issue has been logged and is now under review.`);
+      setTimeout(() => setSuccessMsg(null), 5000);
       fetchIssues();
     } catch (err: unknown) {
       setFormError(getApiErrorMessage(err));
@@ -250,6 +253,33 @@ export const IssuesPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Success Toast */}
+      {successMsg && (
+        <div
+          style={{
+            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            color: '#34d399',
+            padding: '0.85rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '1rem',
+            fontSize: '0.9rem',
+            fontWeight: '500',
+          }}
+        >
+          <span>✅ {successMsg}</span>
+          <button
+            onClick={() => setSuccessMsg(null)}
+            style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {error && <ErrorMessage message={error} onRetry={fetchIssues} />}
 
@@ -429,14 +459,16 @@ export const IssuesPage: React.FC = () => {
             searchQuery || statusFilter || severityFilter
               ? 'No defects match your selected filter criteria.'
               : isTester
-              ? 'You have not reported any defects yet. Click "Report Defect" to log one.'
+              ? 'No issues have been assigned to you yet.'
+              : isUser
+              ? 'You have not reported any issues yet. Click "Report New Issue" to get started.'
               : 'There are no defects in your workspace.'
           }
           action={
-            isTester ? (
+            canReport ? (
               <button onClick={openReportModal} className="btn btn-primary btn-sm">
                 <Plus size={14} />
-                Report First Defect
+                Report First Issue
               </button>
             ) : undefined
           }
@@ -563,7 +595,7 @@ export const IssuesPage: React.FC = () => {
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="rep-title">Summary / Title *</label>
+            <label className="form-label" htmlFor="rep-title">Create New Issue / Bug *</label>
             <input
               id="rep-title"
               type="text"
@@ -571,7 +603,7 @@ export const IssuesPage: React.FC = () => {
               minLength={5}
               maxLength={500}
               className="form-input"
-              placeholder="Concise summary of the defect"
+              placeholder="Type your own issue or bug here..."
               value={formTitle}
               onChange={(e) => setFormTitle(e.target.value)}
             />

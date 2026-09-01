@@ -43,13 +43,33 @@ router = APIRouter(prefix="/issues", tags=["Issues"])
 )
 async def create_issue(
     body: IssueCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role(UserRole.USER, UserRole.DEVELOPER, UserRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
     """Report a new defect. **USER, DEVELOPER (legacy), or ADMIN.**
     The reporter is automatically set to the authenticated user.
+    Status is always set to REPORTED. Assignee is always NULL.
+    ADMINs receive a real-time WebSocket notification via BackgroundTask.
     """
-    return await issue_service.create_issue(body, current_user, db)
+    from app.services.websocket_manager import ws_manager
+    detail, notifications = await issue_service.create_issue(body, current_user, db)
+    for notif in notifications:
+        payload = {
+            "type": "notification",
+            "data": {
+                "id": notif.id,
+                "notification_type": notif.notification_type.value,
+                "title": notif.title,
+                "message": notif.message,
+                "entity_type": notif.entity_type,
+                "entity_id": notif.entity_id,
+                "entity_key": notif.entity_key,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+            },
+        }
+        background_tasks.add_task(ws_manager.send_personal_notification, notif.user_id, payload)
+    return detail
 
 
 @router.get(
@@ -67,6 +87,7 @@ async def list_issues(
     project_id: int | None = Query(None),
     reporter_id: int | None = Query(None, description="ADMIN only"),
     assignee_id: int | None = Query(None, description="ADMIN only"),
+    unassigned: bool | None = Query(None, description="ADMIN only"),
     search: str | None = Query(None, description="Search issue key, title, or description"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -89,6 +110,7 @@ async def list_issues(
         project_id=project_id,
         reporter_id=reporter_id,
         assignee_id=assignee_id,
+        unassigned=unassigned,
         search=search,
     )
 
@@ -169,11 +191,12 @@ async def update_issue_status(
     issue_id: int,
     body: IssueStatusUpdate,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.DEVELOPER)),
+    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.DEVELOPER, UserRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Transition an assigned issue through the investigation workflow.
+    """Transition an issue through the investigation workflow.
     **TESTER (or legacy DEVELOPER)** — must be assigned to the issue.
+    **ADMIN** — can force-change status on any issue.
 
     Valid transitions:
     - ASSIGNED → IN_DEVELOPMENT

@@ -34,6 +34,8 @@ import { formatDate, formatRelativeTime } from '../utils/formatters';
 const PAGE_SIZE = 20;
 
 const TESTER_VALID_TRANSITIONS: Record<string, string[]> = {
+  REPORTED: ['IN_DEVELOPMENT'],
+  TRIAGED: ['IN_DEVELOPMENT'],
   ASSIGNED: ['IN_DEVELOPMENT'],
   IN_DEVELOPMENT: ['IN_REVIEW'],
   IN_REVIEW: ['IN_TESTING', 'IN_DEVELOPMENT'],
@@ -52,11 +54,18 @@ function getNextStatus(current: string): string | null {
 
 function getWorkflowLabel(status: string): string {
   switch (status) {
-    case 'ASSIGNED': return 'Start Investigation';
-    case 'IN_DEVELOPMENT': return 'Move to Review';
-    case 'IN_REVIEW': return 'Begin In-Testing';
-    case 'REOPENED': return 'Resume Investigation';
-    default: return 'Update';
+    case 'REPORTED':
+    case 'TRIAGED':
+    case 'ASSIGNED':
+      return 'Start Investigation';
+    case 'IN_DEVELOPMENT':
+      return 'Move to Review';
+    case 'IN_REVIEW':
+      return 'Begin In-Testing';
+    case 'REOPENED':
+      return 'Resume Investigation';
+    default:
+      return 'Advance';
   }
 }
 

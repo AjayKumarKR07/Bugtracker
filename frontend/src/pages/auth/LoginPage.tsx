@@ -11,14 +11,12 @@ import {
   Lock,
   Mail,
   Shield,
-  Sparkles,
 } from 'lucide-react';
 import { getApiErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import type { User, UserRole } from '../../types/auth';
 import { storage } from '../../utils/storage';
 
-type LoginMode = 'password' | 'otp';
 
 /**
  * Determines post-login redirect path based on user role.
@@ -30,28 +28,25 @@ function getRoleRedirect(role: UserRole, requestedFrom: string): string {
   if (requestedFrom && requestedFrom !== '/' && requestedFrom !== '/login' && requestedFrom !== '/register') {
     return requestedFrom;
   }
-  if (role === 'ADMIN') return '/admin';
+  if (role === 'ADMIN') return '/admin-dashboard';
+  if (role === 'TESTER' || role === 'DEVELOPER') return '/tester-dashboard';
   return '/dashboard';
 }
 
 export const LoginPage: React.FC = () => {
-  const { login, requestOtp } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const rawFrom = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '';
   const from = rawFrom !== '/' ? rawFrom : '';
 
-  // Mode toggle
-  const [mode, setMode] = useState<LoginMode>('password');
 
   // Password login fields
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  // OTP flow fields
-  const [otpEmail, setOtpEmail] = useState<string>('');
 
   // Shared state
   const [error, setError] = useState<string | null>(null);
@@ -79,42 +74,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleRequestOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otpEmail.trim()) {
-      setError('Please enter your email address.');
-      return;
-    }
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await requestOtp(otpEmail.trim());
-      navigate('/verify-otp', {
-        state: { email: otpEmail.trim(), from },
-      });
-    } catch (err: unknown) {
-      const errMsg = getApiErrorMessage(err);
-      // If rate-limited, let user enter the already-sent code
-      if (
-        errMsg.toLowerCase().includes('wait') ||
-        errMsg.toLowerCase().includes('too many') ||
-        errMsg.toLowerCase().includes('cooldown')
-      ) {
-        navigate('/verify-otp', {
-          state: { email: otpEmail.trim(), from },
-        });
-        return;
-      }
-      setError(errMsg);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const switchMode = (newMode: LoginMode) => {
-    setMode(newMode);
-    setError(null);
-  };
 
   return (
     <div className="auth-page-wrapper">
@@ -124,13 +83,53 @@ export const LoginPage: React.FC = () => {
           <div className="brand-logo auth-logo-center">
             <Bug size={24} />
           </div>
-          <h1 className="auth-title">Sign in to BugTracker</h1>
+          <h1 className="auth-title">BugTracker</h1>
           <p className="auth-subtitle">
-            Track, manage, and resolve defects with your team
+            Software Issue Tracking & Resolution Platform
           </p>
         </div>
 
-        {/* Mode Toggle */}
+        {/* Available Workspaces Info */}
+        <div style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '10px',
+          padding: '1rem',
+          marginBottom: '1.5rem',
+          fontSize: '0.8rem',
+        }}>
+          <p style={{ fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+            Available Workspaces
+          </p>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '0.8rem', fontSize: '0.75rem' }}>
+            Different users receive different workspaces after authentication. Your role is determined automatically.
+          </p>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <li style={{ display: 'flex', gap: '0.5rem' }}>
+              <span>👤</span>
+              <div>
+                <strong style={{ color: 'var(--text-primary)' }}>USER</strong>
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.75rem' }}>Report and track software issues.</p>
+              </div>
+            </li>
+            <li style={{ display: 'flex', gap: '0.5rem' }}>
+              <span>🧪</span>
+              <div>
+                <strong style={{ color: 'var(--text-primary)' }}>TESTER</strong>
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.75rem' }}>Investigate, test, and resolve assigned issues.</p>
+              </div>
+            </li>
+            <li style={{ display: 'flex', gap: '0.5rem' }}>
+              <span>🛡️</span>
+              <div>
+                <strong style={{ color: 'var(--text-primary)' }}>ADMIN</strong>
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.75rem' }}>Manage users, projects, issues, workflows, and system activity.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        {/* Auth Tabs Toggle */}
         <div
           style={{
             display: 'flex',
@@ -143,30 +142,28 @@ export const LoginPage: React.FC = () => {
         >
           <button
             type="button"
-            onClick={() => switchMode('password')}
             style={{
               flex: 1,
               padding: '0.5rem 0.75rem',
               borderRadius: '7px',
               border: 'none',
-              cursor: 'pointer',
+              cursor: 'default',
               fontWeight: '600',
               fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.4rem',
-              transition: 'all 0.2s',
-              background: mode === 'password' ? 'var(--primary)' : 'transparent',
-              color: mode === 'password' ? '#fff' : 'var(--text-secondary)',
+              background: 'var(--primary)',
+              color: '#fff',
             }}
           >
             <Lock size={14} />
-            Password
+            Login
           </button>
           <button
             type="button"
-            onClick={() => switchMode('otp')}
+            onClick={() => navigate('/register')}
             style={{
               flex: 1,
               padding: '0.5rem 0.75rem',
@@ -180,12 +177,11 @@ export const LoginPage: React.FC = () => {
               justifyContent: 'center',
               gap: '0.4rem',
               transition: 'all 0.2s',
-              background: mode === 'otp' ? 'var(--primary)' : 'transparent',
-              color: mode === 'otp' ? '#fff' : 'var(--text-secondary)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
             }}
           >
-            <Sparkles size={14} />
-            Email OTP
+            Create Account
           </button>
         </div>
 
@@ -198,47 +194,46 @@ export const LoginPage: React.FC = () => {
         )}
 
         {/* ── PASSWORD LOGIN FORM ── */}
-        {mode === 'password' && (
-          <form onSubmit={handlePasswordLogin}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="login-email">
-                Email Address
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  id="login-email"
-                  type="email"
-                  required
-                  className="form-input"
-                  style={{ paddingLeft: '2.5rem' }}
-                  placeholder="name@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isSubmitting}
-                  autoComplete="email"
-                  autoFocus
-                />
-                <Mail
-                  size={16}
-                  style={{
-                    position: 'absolute',
-                    left: '0.85rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-muted)',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </div>
+        <form onSubmit={handlePasswordLogin}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="login-email">
+              Email Address
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                id="login-email"
+                type="email"
+                required
+                className="form-input"
+                style={{ paddingLeft: '2.5rem' }}
+                placeholder="name@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isSubmitting}
+                autoComplete="email"
+                autoFocus
+              />
+              <Mail
+                size={16}
+                style={{
+                  position: 'absolute',
+                  left: '0.85rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-muted)',
+                  pointerEvents: 'none',
+                }}
+              />
             </div>
+          </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="login-password">
-                Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  id="login-password"
+          <div className="form-group">
+            <label className="form-label" htmlFor="login-password">
+              Password
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   className="form-input"
@@ -301,88 +296,7 @@ export const LoginPage: React.FC = () => {
               )}
             </button>
           </form>
-        )}
 
-        {/* ── EMAIL OTP FORM ── */}
-        {mode === 'otp' && (
-          <form onSubmit={handleRequestOtp}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="otp-email">
-                Email Address / Gmail
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  id="otp-email"
-                  type="email"
-                  required
-                  className="form-input"
-                  style={{ paddingLeft: '2.5rem' }}
-                  placeholder="name@company.com or user@gmail.com"
-                  value={otpEmail}
-                  onChange={(e) => setOtpEmail(e.target.value)}
-                  disabled={isSubmitting}
-                  autoComplete="email"
-                  autoFocus
-                />
-                <Mail
-                  size={16}
-                  style={{
-                    position: 'absolute',
-                    left: '0.85rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-muted)',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </div>
-              <p
-                style={{
-                  fontSize: '0.78rem',
-                  color: 'var(--text-muted)',
-                  marginTop: '0.35rem',
-                }}
-              >
-                A 6-digit code will be sent to this address
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting || !otpEmail.trim()}
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: '0.5rem', padding: '0.75rem' }}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={16} className="spin" />
-                  Sending OTP...
-                </>
-              ) : (
-                <>
-                  Send Verification Code
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </button>
-
-            <div
-              style={{
-                marginTop: '0.75rem',
-                textAlign: 'center',
-                fontSize: '0.8rem',
-              }}
-            >
-              <Link
-                to="/verify-otp"
-                state={{ email: otpEmail.trim(), from }}
-                style={{ color: 'var(--primary)', fontWeight: '500' }}
-              >
-                Already have a code? Enter it →
-              </Link>
-            </div>
-          </form>
-        )}
 
         {/* Footer links */}
         <div

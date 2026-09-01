@@ -401,7 +401,7 @@ export const IssueDetailPage: React.FC = () => {
 
             {isAssignedDev && (
               <>
-                {issue.status === 'ASSIGNED' && (
+                {['REPORTED', 'TRIAGED', 'ASSIGNED'].includes(issue.status) && (
                   <button
                     onClick={() => handleStatusTransition('IN_DEVELOPMENT')}
                     disabled={isActionSubmitting}

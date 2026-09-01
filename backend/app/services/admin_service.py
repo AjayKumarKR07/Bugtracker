@@ -30,6 +30,8 @@ from app.schemas.admin import (
     ProjectStats,
     RecentActivity,
     UserStats,
+    InactiveAssigneeItem,
+    InactiveAssigneeList,
 )
 
 
@@ -58,6 +60,40 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardResponse:
         notifications=notifications,
         content=content,
     )
+
+
+async def get_inactive_assignees(db: AsyncSession) -> InactiveAssigneeList:
+    """Return all inactive users who currently have open issues assigned to them."""
+    result = await db.execute(
+        select(
+            User.id.label("user_id"),
+            User.full_name,
+            User.email,
+            User.role,
+            func.count(Issue.id).label("assigned_issues_count"),
+        )
+        .join(Issue, Issue.assignee_id == User.id)
+        .where(
+            User.is_active == False,
+            Issue.status.notin_([IssueStatus.RESOLVED, IssueStatus.CLOSED])
+        )
+        .group_by(User.id)
+        .order_by(func.count(Issue.id).desc())
+    )
+    
+    items = []
+    for row in result.all():
+        items.append(
+            InactiveAssigneeItem(
+                user_id=row.user_id,
+                full_name=row.full_name,
+                email=row.email,
+                role=row.role.value,
+                assigned_issues_count=row.assigned_issues_count,
+            )
+        )
+        
+    return InactiveAssigneeList(items=items)
 
 
 # --------------------------------------------------------------------------- #

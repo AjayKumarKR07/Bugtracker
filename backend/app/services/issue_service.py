@@ -107,8 +107,12 @@ async def _generate_issue_key(project_key: str, db: AsyncSession) -> str:
 # CRUD                                                                         #
 # --------------------------------------------------------------------------- #
 
-async def create_issue(body: IssueCreate, reporter: User, db: AsyncSession) -> IssueDetailResponse:
-    """Create a new defect. Reporter is always the authenticated TESTER."""
+async def create_issue(body: IssueCreate, reporter: User, db: AsyncSession) -> tuple[IssueDetailResponse, list]:
+    """Create a new defect. Reporter is always the authenticated user (USER/ADMIN).
+
+    Returns (IssueDetailResponse, list_of_notifications) so the route handler
+    can schedule WebSocket delivery to ADMINs as a BackgroundTask.
+    """
     project = await _get_project_active_or_error(body.project_id, db)
     issue_key = await _generate_issue_key(project.project_key, db)
 
@@ -139,7 +143,7 @@ async def create_issue(body: IssueCreate, reporter: User, db: AsyncSession) -> I
         entity_id=issue.id,
         entity_key=issue_key,
         description=(
-            f"Tester {reporter.full_name!r} reported issue {issue_key} "
+            f"{reporter.role.value.capitalize()} {reporter.full_name!r} reported issue {issue_key} "
             f"in project {project.project_key}"
         ),
         new_values={
@@ -154,8 +158,31 @@ async def create_issue(body: IssueCreate, reporter: User, db: AsyncSession) -> I
         },
     )
 
+    # Notify all active ADMIN users that a new issue has been reported
+    admin_result = await db.execute(
+        select(User).where(
+            User.role == UserRole.ADMIN,
+            User.is_active == True,  # noqa: E712
+        )
+    )
+    admin_users = admin_result.scalars().all()
+    admin_ids = [u.id for u in admin_users]
+
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=admin_ids,
+        notification_type=NotificationType.ISSUE_REPORTED,
+        title="New issue reported",
+        message=f"New issue reported by {reporter.full_name}: {issue_key} — {body.title}",
+        actor_id=reporter.id,
+        entity_type="ISSUE",
+        entity_id=issue.id,
+        entity_key=issue_key,
+    )
+
     # Re-fetch with relationships
-    return await get_issue_detail(issue.id, db)
+    detail = await get_issue_detail(issue.id, db)
+    return detail, notifications
 
 
 async def get_issue_detail(
@@ -193,6 +220,7 @@ async def list_issues(
     project_id: int | None = None,
     reporter_id: int | None = None,
     assignee_id: int | None = None,
+    unassigned: bool | None = None,
     search: str | None = None,
 ) -> IssueListResponse:
     """Return paginated issues with role-based visibility enforcement.
@@ -235,6 +263,11 @@ async def list_issues(
             query = query.where(Issue.reporter_id == reporter_id)
         if assignee_id is not None:
             query = query.where(Issue.assignee_id == assignee_id)
+        
+        if unassigned is True:
+            query = query.where(Issue.assignee_id.is_(None))
+        elif unassigned is False:
+            query = query.where(Issue.assignee_id.is_not(None))
 
     # ---- Search ----------------------------------------------------------- #
     if search:
@@ -445,25 +478,29 @@ async def assign_issue(
 async def update_issue_status(
     issue_id: int, body: IssueStatusUpdate, current_user: User, db: AsyncSession
 ) -> tuple[IssueDetailResponse, list]:
-    """DEVELOPER: transition their assigned issue through allowed statuses."""
+    """TESTER/DEVELOPER: transition their assigned issue. ADMIN: force-set any status."""
     issue = await _get_issue_or_404(issue_id, db)
 
-    # Must be assigned to the requesting developer
-    if issue.assignee_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only update status on issues assigned to you.",
-        )
+    if current_user.role == UserRole.ADMIN:
+        # ADMIN can set any status on any issue without restriction
+        pass
+    else:
+        # Non-admin must be assigned to the issue
+        if issue.assignee_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only update status on issues assigned to you.",
+            )
 
-    allowed = DEVELOPER_TRANSITIONS.get(issue.status, set())
-    if body.status not in allowed:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Cannot transition from {issue.status.value} to {body.status.value}. "
-                f"Allowed targets: {[s.value for s in allowed] or 'none'}."
-            ),
-        )
+        allowed = DEVELOPER_TRANSITIONS.get(issue.status, set())
+        if body.status not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Cannot transition from {issue.status.value} to {body.status.value}. "
+                    f"Allowed targets: {[s.value for s in allowed] or 'none'}."
+                ),
+            )
 
     old_status = issue.status
     reporter_id = issue.reporter_id
@@ -479,7 +516,7 @@ async def update_issue_status(
         entity_id=issue.id,
         entity_key=issue.issue_key,
         description=(
-            f"Developer {current_user.full_name!r} changed status of "
+            f"{current_user.role.value.capitalize()} {current_user.full_name!r} changed status of "
             f"{issue.issue_key} from {old_status.value} to {body.status.value}"
         ),
         old_values={"status": old_status},

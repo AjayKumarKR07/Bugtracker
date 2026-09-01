@@ -28,13 +28,10 @@ class RegisterRequest(BaseModel):
     @field_validator("role")
     @classmethod
     def role_must_not_be_admin(cls, v: UserRole) -> UserRole:
-        """ADMIN accounts cannot be self-registered through the public API.
-        Only USER (issue reporter) and TESTER (issue investigator) are allowed.
         """
-        if v == UserRole.ADMIN:
-            raise ValueError(
-                "ADMIN role cannot be assigned via public registration."
-            )
+        TODO: In production, public ADMIN registration must be disabled or restricted.
+        Currently enabled for development/demo purposes.
+        """
         if v == UserRole.DEVELOPER:
             raise ValueError(
                 "DEVELOPER is a legacy role and cannot be registered publicly. "

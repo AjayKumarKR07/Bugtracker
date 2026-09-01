@@ -107,13 +107,8 @@ async def register(
     Validates input, hashes password, creates user, generates OTP,
     and sends verification email. ADMIN registration is blocked.
     """
-    # ADMIN check is already enforced by RegisterRequest.role validator,
-    # but we repeat it here as defence-in-depth.
-    if body.role == UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="ADMIN accounts cannot be created through public registration.",
-        )
+    # TODO: In production, public ADMIN registration must be disabled or restricted.
+    # Currently enabled for development/demo purposes.
 
     # Duplicate email check
     result = await db.execute(select(User).where(User.email == body.email))
@@ -123,32 +118,20 @@ async def register(
             detail="An account with this email address already exists.",
         )
 
-    # Create user (inactive + unverified until OTP confirmed)
+    # Create user (active immediately since OTP is disabled for now)
     new_user = User(
         full_name=body.full_name,
         email=body.email,
         password_hash=hash_password(body.password),
         role=body.role,
-        is_active=False,
-        is_email_verified=False,
+        is_active=True,
+        is_email_verified=True,
     )
     db.add(new_user)
-    await db.flush()  # assign ID without committing yet
-
-    # Generate OTP and send email
-    raw_otp = await create_otp_record(body.email, db)
-
-    try:
-        await send_otp_email(body.email, raw_otp)
-    except Exception:
-        # Email failure should not block registration — user can resend
-        pass
+    await db.commit()  # Commit the user to the database
 
     return MessageResponse(
-        message=(
-            "Registration successful. Please check your email for the "
-            "6-digit verification code."
-        )
+        message="Registration successful. Please sign in."
     )
 
 

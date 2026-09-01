@@ -5,8 +5,21 @@ export interface UserStats {
   admins: number;
   developers: number;
   testers: number;
+  users: number;
   verified: number;
   unverified: number;
+}
+
+export interface InactiveAssigneeItem {
+  user_id: number;
+  full_name: string;
+  email: string;
+  role: string;
+  assigned_issues_count: number;
+}
+
+export interface InactiveAssigneeList {
+  items: InactiveAssigneeItem[];
 }
 
 export interface ProjectStats {

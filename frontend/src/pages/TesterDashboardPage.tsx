@@ -44,6 +44,8 @@ import { formatDate, formatRelativeTime } from '../utils/formatters';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TESTER_VALID_TRANSITIONS: Record<string, string[]> = {
+  REPORTED: ['IN_DEVELOPMENT'],
+  TRIAGED: ['IN_DEVELOPMENT'],
   ASSIGNED: ['IN_DEVELOPMENT'],
   IN_DEVELOPMENT: ['IN_REVIEW'],
   IN_REVIEW: ['IN_TESTING', 'IN_DEVELOPMENT'],
@@ -61,6 +63,8 @@ const REOPENABLE_STATUSES = new Set(['RESOLVED', 'CLOSED', 'IN_TESTING']);
 
 function getWorkflowLabel(status: string): string {
   switch (status) {
+    case 'REPORTED':
+    case 'TRIAGED':
     case 'ASSIGNED':
       return 'Start Investigation';
     case 'IN_DEVELOPMENT':
@@ -267,7 +271,7 @@ export const TesterDashboardPage: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────
 
   const actionRequired = useMemo(
-    () => issues.filter((i) => REOPENABLE_STATUSES.has(i.status)).slice(0, 5),
+    () => issues.filter((i) => i.status !== 'RESOLVED' && i.status !== 'CLOSED').slice(0, 5),
     [issues]
   );
 
@@ -575,7 +579,7 @@ export const TesterDashboardPage: React.FC = () => {
                 margin: 0,
               }}
             >
-              ⚡ Awaiting Verification / Reopen ({actionRequired.length})
+              ⚡ Action Required (Open Issues: {actionRequired.length})
             </h2>
           </div>
 
@@ -630,10 +634,16 @@ export const TesterDashboardPage: React.FC = () => {
                   {issue.title}
                 </p>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
-                  {issue.status === 'RESOLVED'
-                    ? 'This issue is resolved. You may reopen it if the bug persists.'
+                  {issue.status === 'ASSIGNED'
+                    ? 'Newly assigned issue. Start investigation.'
+                    : issue.status === 'IN_DEVELOPMENT'
+                    ? 'In development. Update status when moving to review.'
+                    : issue.status === 'IN_REVIEW'
+                    ? 'In review. Test the changes.'
                     : issue.status === 'IN_TESTING'
                     ? 'In-testing. Resolve it or reopen if verification fails.'
+                    : issue.status === 'RESOLVED'
+                    ? 'This issue is resolved. You may reopen it if the bug persists.'
                     : 'Closed issue. Reopen if defect reappears.'}
                 </p>
                 <div
@@ -645,24 +655,60 @@ export const TesterDashboardPage: React.FC = () => {
                     flexWrap: 'wrap',
                   }}
                 >
-                  {REOPENABLE_STATUSES.has(issue.status) && (
-                    <button
-                      onClick={() => navigate(`/issues/${issue.id}`)}
-                      className="btn btn-outline-danger btn-sm"
-                      style={{ flex: 1, justifyContent: 'center' }}
-                    >
-                      <RotateCcw size={13} />
-                      <span>Reopen</span>
-                    </button>
-                  )}
-                  <Link
-                    to={`/issues/${issue.id}`}
-                    className="btn btn-secondary btn-sm"
-                    style={{ flex: 1, justifyContent: 'center' }}
-                  >
-                    <Eye size={13} />
-                    <span>View</span>
-                  </Link>
+                  {(() => {
+                    const nextStatus = getNextStatus(issue.status);
+                    const canAdvance = !!nextStatus;
+                    const canResolve = RESOLVABLE_STATUSES.has(issue.status);
+
+                    return (
+                      <>
+                        {canAdvance && (
+                          <button
+                            onClick={() => handleAdvanceStatus(issue)}
+                            disabled={transitioning === issue.id}
+                            className="btn btn-primary btn-sm"
+                            style={{ flex: 1, justifyContent: 'center' }}
+                          >
+                            <Play size={13} />
+                            <span>{transitioning === issue.id ? '…' : getWorkflowLabel(issue.status)}</span>
+                          </button>
+                        )}
+                        {canResolve && (
+                          <Link
+                            to={`/issues/${issue.id}`}
+                            className="btn btn-primary btn-sm"
+                            style={{
+                              flex: 1,
+                              justifyContent: 'center',
+                              backgroundColor: '#10b981',
+                              borderColor: '#10b981',
+                            }}
+                          >
+                            <CheckCheck size={13} />
+                            <span>Resolve</span>
+                          </Link>
+                        )}
+                        {REOPENABLE_STATUSES.has(issue.status) && (
+                          <button
+                            onClick={() => navigate(`/issues/${issue.id}`)}
+                            className="btn btn-outline-danger btn-sm"
+                            style={{ flex: 1, justifyContent: 'center' }}
+                          >
+                            <RotateCcw size={13} />
+                            <span>Reopen</span>
+                          </button>
+                        )}
+                        <Link
+                          to={`/issues/${issue.id}`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ flex: 1, justifyContent: 'center' }}
+                        >
+                          <Eye size={13} />
+                          <span>View</span>
+                        </Link>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             ))}

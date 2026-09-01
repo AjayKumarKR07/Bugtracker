@@ -94,14 +94,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
 
         {/* Navigation Items */}
         <nav className="sidebar-nav">
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={onCloseMobile}
-          >
-            <LayoutDashboard size={18} />
-            <span>Dashboard</span>
-          </NavLink>
+          {/* USER: User Dashboard & Issues */}
+          {user?.role === 'USER' && (
+            <>
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <LayoutDashboard size={18} />
+                <span>Dashboard</span>
+              </NavLink>
+              <NavLink
+                to="/issues"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <Bug size={18} />
+                <span>My Issues</span>
+              </NavLink>
+            </>
+          )}
 
           {/* ADMIN: Full Management Navigation */}
           {user?.role === 'ADMIN' && (
@@ -131,6 +144,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               >
                 <BarChart3 size={18} />
                 <span>Analytics</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin-dashboard"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <LayoutDashboard size={18} />
+                <span>Admin Dashboard</span>
               </NavLink>
 
               <NavLink
@@ -167,17 +189,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
             </>
           )}
 
-          {/* USER: My Issues Navigation */}
-          {user?.role === 'USER' && (
-            <NavLink
-              to="/issues"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              onClick={onCloseMobile}
-            >
-              <Bug size={18} />
-              <span>My Issues</span>
-            </NavLink>
-          )}
 
           <NavLink
             to="/notifications"

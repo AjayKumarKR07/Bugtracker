@@ -28,12 +28,12 @@ import { useAuth } from '../../hooks/useAuth';
  *   - "Tester" (investigator)     → maps to backend TESTER role
  */
 
-type UIRole = 'USER' | 'TESTER_ROLE';
+type UIRole = 'USER' | 'TESTER_ROLE' | 'ADMIN';
 
 interface UIRoleOption {
   id: UIRole;
   label: string;
-  backendRole: 'USER' | 'TESTER';
+  backendRole: 'USER' | 'TESTER' | 'ADMIN';
   icon: React.ReactNode;
   description: string;
   capabilities: string[];
@@ -74,6 +74,22 @@ const ROLE_OPTIONS: UIRoleOption[] = [
     color: '#22c55e',
     bg: 'rgba(34,197,94,0.1)',
   },
+  {
+    id: 'ADMIN',
+    label: 'Admin',
+    backendRole: 'ADMIN',
+    icon: <Shield size={22} />,
+    description: 'Manage the complete BugTracker platform, users, projects, assignments, and global analytics.',
+    capabilities: [
+      'Manage system users and access',
+      'Create and configure projects',
+      'Assign testers and developers',
+      'Monitor system health',
+      'Access global analytics',
+    ],
+    color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.1)',
+  },
 ];
 
 export const RegisterPage: React.FC = () => {
@@ -90,7 +106,7 @@ export const RegisterPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const getBackendRole = (): 'USER' | 'TESTER' =>
+  const getBackendRole = (): 'USER' | 'TESTER' | 'ADMIN' =>
     ROLE_OPTIONS.find((o) => o.id === selectedUIRole)!.backendRole;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,12 +132,13 @@ export const RegisterPage: React.FC = () => {
         full_name: fullName.trim(),
         email: email.trim(),
         password,
-        role: getBackendRole(),
+        role: getBackendRole() as any, // Cast to any to bypass the mismatch between frontend types and new API
       });
-      navigate('/verify-otp', {
+      // Registration successful. Backend auto-activates, now we log in.
+      navigate('/login', {
         state: {
+          successMessage: 'Registration successful. Please sign in.',
           email: email.trim(),
-          from: '/dashboard',
         },
       });
     } catch (err: unknown) {
@@ -159,6 +176,61 @@ export const RegisterPage: React.FC = () => {
           <p className="auth-subtitle">
             Join BugTracker to report, track, and resolve defects
           </p>
+        </div>
+
+        {/* Auth Tabs Toggle */}
+        <div
+          style={{
+            display: 'flex',
+            background: 'var(--bg-surface)',
+            borderRadius: '10px',
+            padding: '4px',
+            marginBottom: '1.5rem',
+            border: '1px solid var(--border-subtle)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            style={{
+              flex: 1,
+              padding: '0.5rem 0.75rem',
+              borderRadius: '7px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.4rem',
+              transition: 'all 0.2s',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            style={{
+              flex: 1,
+              padding: '0.5rem 0.75rem',
+              borderRadius: '7px',
+              border: 'none',
+              cursor: 'default',
+              fontWeight: '600',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.4rem',
+              background: 'var(--primary)',
+              color: '#fff',
+            }}
+          >
+            Create Account
+          </button>
         </div>
 
         {/* Role Selection */}
@@ -296,7 +368,7 @@ export const RegisterPage: React.FC = () => {
           >
             <Shield size={11} style={{ color: '#f97316' }} />
             <span>
-              <strong style={{ color: '#f97316' }}>Admin</strong> accounts are created securely by system administrators only.
+              <strong style={{ color: '#f97316' }}>Admin:</strong> Administrative accounts are managed by authorized system administrators.
             </span>
           </div>
         </div>

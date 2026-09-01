@@ -375,6 +375,7 @@ async def should_send_email(
         NotificationType.ISSUE_REOPENED: "issue_reopened",
         NotificationType.ISSUE_COMMENTED: "issue_commented",
         NotificationType.ATTACHMENT_ADDED: "attachment_added",
+        NotificationType.ISSUE_REPORTED: "issue_assigned",    # use email_enabled check only
         NotificationType.USER_ROLE_CHANGED: "issue_assigned",  # no specific field — use email_enabled check only
         NotificationType.USER_ACTIVATED: "issue_assigned",     # same
         NotificationType.USER_DEACTIVATED: "issue_assigned",   # same

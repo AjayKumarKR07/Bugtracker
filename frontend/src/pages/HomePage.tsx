@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   BarChart3,
@@ -63,8 +63,14 @@ export const HomePage: React.FC = () => {
 
   const getDashboardPath = () => {
     if (!user) return '/login';
+    if (user.role === 'ADMIN') return '/admin-dashboard';
+    if (user.role === 'TESTER' || user.role === 'DEVELOPER') return '/tester-dashboard';
     return '/dashboard';
   };
+
+  if (isAuthenticated && user) {
+    return <Navigate to={getDashboardPath()} replace />;
+  }
 
   return (
     <div className="home-page">

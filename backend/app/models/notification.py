@@ -48,6 +48,7 @@ class NotificationType(str, enum.Enum):
     USER_ROLE_CHANGED = "USER_ROLE_CHANGED"
     USER_ACTIVATED = "USER_ACTIVATED"
     USER_DEACTIVATED = "USER_DEACTIVATED"
+    ISSUE_REPORTED = "ISSUE_REPORTED"  # Sent to ADMINs when a USER submits a new issue
 
 
 class Notification(Base):

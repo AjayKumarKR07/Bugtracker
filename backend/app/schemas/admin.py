@@ -5,7 +5,21 @@ All fields are integer counts derived from pure SQL aggregation queries.
 No user secrets or sensitive data are present in these schemas.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+
+class InactiveAssigneeItem(BaseModel):
+    user_id: int
+    full_name: str
+    email: str
+    role: str
+    assigned_issues_count: int
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InactiveAssigneeList(BaseModel):
+    items: list[InactiveAssigneeItem]
 
 
 class UserStats(BaseModel):

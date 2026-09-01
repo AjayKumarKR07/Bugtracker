@@ -61,9 +61,13 @@ async def get_current_user(
     user: User | None = result.scalar_one_or_none()
 
     if user is None:
+        print(f"[DEBUG RBAC] get_current_user: User {user_id} not found in DB")
         raise _401
 
     if not user.is_active:
+        print(f"[DEBUG RBAC] get_current_user: User {user.id} ({user.email}) is NOT active!")
+        with open("rbac_debug.log", "a") as f:
+            f.write(f"403 INACTIVE: user_id={user.id} email={user.email}\n")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive.",
@@ -84,7 +88,11 @@ def require_role(*roles: UserRole):
     async def _check_role(
         current_user: User = Depends(get_current_user),
     ) -> User:
+        print(f"[DEBUG RBAC] User ID: {current_user.id}, DB Role: {repr(current_user.role)}, Required: {roles}")
         if current_user.role not in roles:
+            print(f"[DEBUG RBAC] FAILED! {current_user.role} not in {roles}")
+            with open("rbac_debug.log", "a") as f:
+                f.write(f"403 ROLE MISMATCH: user_id={current_user.id} email={current_user.email} db_role={current_user.role} required={roles}\n")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to perform this action.",

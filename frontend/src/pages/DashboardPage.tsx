@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -71,7 +71,7 @@ type FilterChip =
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { notifications: liveNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications: liveNotifications, markAsRead, markAllAsRead } = useNotifications();
 
   const isUser = user?.role === 'USER';
   const isTester = user?.role === 'TESTER' || user?.role === 'DEVELOPER';
@@ -220,12 +220,16 @@ export const DashboardPage: React.FC = () => {
   }, [loadTrends]);
 
   // Real-Time auto-refresh on WebSocket notifications
+  const lastNotificationIdRef = useRef<number | null>(null);
   const latestNotificationId = liveNotifications[0]?.id;
   useEffect(() => {
-    if (latestNotificationId || unreadCount > 0) {
-      loadDashboardData(true);
+    if (latestNotificationId) {
+      if (lastNotificationIdRef.current !== null && lastNotificationIdRef.current !== latestNotificationId) {
+        loadDashboardData(true);
+      }
+      lastNotificationIdRef.current = latestNotificationId;
     }
-  }, [latestNotificationId, unreadCount, loadDashboardData]);
+  }, [latestNotificationId, loadDashboardData]);
 
   // Preferences Handlers
   const handleDensityChange = (newDensity: DashboardDensity) => {
@@ -640,11 +644,11 @@ export const DashboardPage: React.FC = () => {
             {isUser && (
               <button
                 className="btn btn-primary btn-sm"
-                onClick={() => navigate('/issues?create=true')}
+                onClick={() => navigate('/create-issue')}
                 style={{ fontWeight: '600' }}
               >
                 <FilePlus2 size={16} />
-                <span>Report Defect</span>
+                <span>Create New Issue</span>
               </button>
             )}
 
