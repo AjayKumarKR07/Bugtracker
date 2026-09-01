@@ -23,6 +23,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Modal } from '../components/common/Modal';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { SeverityBadge } from '../components/common/SeverityBadge';
+import { AdvancedAnalytics } from '../components/admin/AdvancedAnalytics';
 import { useNotifications } from '../hooks/useNotifications';
 import type { AdminDashboardResponse, InactiveAssigneeItem } from '../types/admin';
 import type { DeveloperAnalyticsItem } from '../types/analytics';
@@ -316,8 +317,11 @@ export const AdminDashboardPage: React.FC = () => {
         />
       </div>
 
+      {/* Advanced Analytics Section */}
+      <AdvancedAnalytics />
+
       {/* Main Content Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '1.5rem', marginBottom: '2rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '1.5rem', marginBottom: '2rem', marginTop: '2rem', alignItems: 'start' }}>
         
         {/* Left Column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

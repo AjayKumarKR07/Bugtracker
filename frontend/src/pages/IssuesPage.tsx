@@ -38,7 +38,7 @@ export const IssuesPage: React.FC = () => {
   const isUser = user?.role === 'USER';
   const isTester = user?.role === 'TESTER';
   const isAdmin = user?.role === 'ADMIN';
-  const canReport = isUser || isAdmin;
+  const canReport = isUser;
 
   const [issues, setIssues] = useState<Issue[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);

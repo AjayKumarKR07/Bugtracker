@@ -8,6 +8,7 @@ import type {
   SeverityDistributionResponse,
   PriorityDistributionResponse,
   SystemAnalyticsResponse,
+  AnalyticsReportDataResponse,
 } from '../types/analytics';
 import type { IssueStatus, Severity } from '../types/issue';
 
@@ -30,9 +31,10 @@ export interface ExportReportParams {
 }
 
 export const analyticsApi = {
-  getSystemOverview: async (): Promise<SystemAnalyticsResponse> => {
+  getSystemOverview: async (params?: AnalyticsFilterParams): Promise<SystemAnalyticsResponse> => {
     const response = await apiClient.get<SystemAnalyticsResponse>(
-      '/analytics/overview'
+      '/analytics/overview',
+      { params }
     );
     return response.data;
   },
@@ -93,9 +95,10 @@ export const analyticsApi = {
     return response.data;
   },
 
-  getDeveloperPerformance: async (): Promise<DeveloperAnalyticsResponse> => {
+  getDeveloperPerformance: async (params?: AnalyticsFilterParams): Promise<DeveloperAnalyticsResponse> => {
     const response = await apiClient.get<DeveloperAnalyticsResponse>(
-      '/analytics/developers'
+      '/analytics/developers',
+      { params }
     );
     return response.data;
   },
@@ -114,5 +117,13 @@ export const analyticsApi = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+
+  downloadReport: async (period: '1d' | '7d' | '30d'): Promise<AnalyticsReportDataResponse> => {
+    const response = await apiClient.get<AnalyticsReportDataResponse>(
+      '/analytics/report/download',
+      { params: { period } }
+    );
+    return response.data;
   },
 };

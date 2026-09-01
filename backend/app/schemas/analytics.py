@@ -156,3 +156,22 @@ class DeveloperAnalyticsResponse(BaseModel):
     total: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# Downloadable Report Schema (Admin only)                                      #
+# --------------------------------------------------------------------------- #
+
+class AnalyticsReportDataResponse(BaseModel):
+    """Aggregated data for generating the downloadable analytics report."""
+
+    system_overview: SystemAnalyticsResponse
+    status_distribution: IssueStatusDistributionResponse
+    severity_distribution: SeverityDistributionResponse
+    priority_distribution: PriorityDistributionResponse
+    trends: IssueTrendResponse
+    project_analytics: list[ProjectAnalyticsResponse]
+    developer_performance: list[DeveloperAnalyticsItem]
+    generated_at: str
+
+    model_config = ConfigDict(from_attributes=True)

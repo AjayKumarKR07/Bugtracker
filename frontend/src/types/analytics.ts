@@ -87,3 +87,14 @@ export interface DeveloperAnalyticsResponse {
   items: DeveloperAnalyticsItem[];
   total: number;
 }
+
+export interface AnalyticsReportDataResponse {
+  system_overview: SystemAnalyticsResponse;
+  status_distribution: IssueStatusDistributionResponse;
+  severity_distribution: SeverityDistributionResponse;
+  priority_distribution: PriorityDistributionResponse;
+  trends: IssueTrendResponse;
+  project_analytics: ProjectAnalyticsResponse[];
+  developer_performance: DeveloperAnalyticsItem[];
+  generated_at: string;
+}
