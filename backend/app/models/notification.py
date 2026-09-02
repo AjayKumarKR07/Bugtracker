@@ -49,6 +49,9 @@ class NotificationType(str, enum.Enum):
     USER_ACTIVATED = "USER_ACTIVATED"
     USER_DEACTIVATED = "USER_DEACTIVATED"
     ISSUE_REPORTED = "ISSUE_REPORTED"  # Sent to ADMINs when a USER submits a new issue
+    SPRINT_STARTED = "SPRINT_STARTED"
+    SPRINT_ENDED = "SPRINT_ENDED"
+    SPRINT_OVERDUE = "SPRINT_OVERDUE"
 
 
 class Notification(Base):

@@ -12,7 +12,7 @@ expected_result, actual_result, resolution_summary, resolved_at).
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -131,6 +131,7 @@ class Issue(Base):
     steps_to_reproduce: Mapped[str | None] = mapped_column(Text, nullable=True)
     expected_result: Mapped[str | None] = mapped_column(Text, nullable=True)
     actual_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    estimated_effort: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # ------------------------------------------------------------------ #
     # Resolution (Phase 4)                                                 #
@@ -151,6 +152,9 @@ class Issue(Base):
     )
     assignee_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    sprint_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sprints.id", ondelete="SET NULL"), nullable=True
     )
 
     # ------------------------------------------------------------------ #
@@ -184,6 +188,11 @@ class Issue(Base):
         "User",
         back_populates="assigned_issues",
         foreign_keys=[assignee_id],
+    )
+    sprint: Mapped["Sprint | None"] = relationship(  # type: ignore[name-defined]
+        "Sprint",
+        back_populates="issues",
+        foreign_keys=[sprint_id],
     )
     # Phase 7 — back-references
     comments: Mapped[list["IssueComment"]] = relationship(  # type: ignore[name-defined]

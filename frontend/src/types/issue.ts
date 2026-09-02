@@ -44,6 +44,8 @@ export interface Issue {
   project_id: number;
   reporter_id: number;
   assignee_id: number | null;
+  sprint_id: number | null;
+  estimated_effort: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -66,6 +68,8 @@ export interface IssueDetail {
   project: ProjectBrief;
   reporter: UserBrief;
   assignee: UserBrief | null;
+  sprint_id: number | null;
+  estimated_effort: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -81,6 +85,8 @@ export interface IssueCreate {
   steps_to_reproduce?: string | null;
   expected_result?: string | null;
   actual_result?: string | null;
+  sprint_id?: number | null;
+  estimated_effort?: number | null;
 }
 
 export interface IssueUpdate {
@@ -92,6 +98,8 @@ export interface IssueUpdate {
   steps_to_reproduce?: string | null;
   expected_result?: string | null;
   actual_result?: string | null;
+  sprint_id?: number | null;
+  estimated_effort?: number | null;
 }
 
 export interface IssueAssign {

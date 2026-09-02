@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -366,6 +367,25 @@ export const ProjectsPage: React.FC = () => {
                   )}
                 </div>
               )}
+              
+              <div
+                className="card-footer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  gap: '1rem',
+                  padding: '0.75rem 1.25rem',
+                  borderTop: isAdmin ? 'none' : '1px solid var(--border-subtle)',
+                }}
+              >
+                <Link to={`/projects/${project.id}/sprints`} className="text-primary text-sm font-medium hover:underline">
+                  Sprints
+                </Link>
+                <Link to={`/projects/${project.id}/backlog`} className="text-primary text-sm font-medium hover:underline">
+                  Backlog
+                </Link>
+              </div>
             </div>
           ))}
         </div>

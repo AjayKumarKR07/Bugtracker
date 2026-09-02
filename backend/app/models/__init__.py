@@ -19,6 +19,7 @@ from app.models.issue_comment import IssueComment
 from app.models.notification import Notification, NotificationType
 from app.models.notification_preference import NotificationPreference
 from app.models.project import Project, ProjectStatus
+from app.models.sprint import Sprint, SprintStatus
 from app.models.user import User, UserRole
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "IssueAttachment",
     "Notification",
     "NotificationPreference",
+    "Sprint",
     # Enums
     "UserRole",
     "ProjectStatus",
@@ -41,4 +43,5 @@ __all__ = [
     "IssueStatus",
     "AuditAction",
     "NotificationType",
+    "SprintStatus",
 ]

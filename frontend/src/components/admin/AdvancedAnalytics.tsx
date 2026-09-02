@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, Legend, PieChart, Pie, Cell,
 } from 'recharts';
-import { Calendar, Clock, AlertOctagon, AlertTriangle, CheckCircle, CircleDot, Bug, TrendingUp, Download, ChevronDown } from 'lucide-react';
+import { Clock, AlertOctagon, AlertTriangle, CheckCircle, CircleDot, Bug, TrendingUp, Download, ChevronDown } from 'lucide-react';
 import { analyticsApi, type AnalyticsFilterParams, type TrendFilterParams } from '../../api/analytics';
 import { useAuth } from '../../hooks/useAuth';
 import { generateAnalyticsPdfReport } from '../../utils/pdfGenerator';
@@ -188,7 +188,7 @@ export const AdvancedAnalytics: React.FC = () => {
               className="btn btn-secondary"
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: isDownloading ? 0.7 : 1 }}
             >
-              {isDownloading ? <LoadingSpinner size={16} /> : <Download size={16} />}
+              {isDownloading ? <LoadingSpinner message="" /> : <Download size={16} />}
               <span>{isDownloading ? 'Generating...' : 'Download Report'}</span>
               <ChevronDown size={14} />
             </button>
@@ -301,7 +301,7 @@ export const AdvancedAnalytics: React.FC = () => {
                       <YAxis tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
                       <RechartsTooltip 
                         contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}
-                        labelFormatter={(val) => new Date(val).toLocaleDateString()}
+                        labelFormatter={(val) => new Date(val as string | number).toLocaleDateString()}
                       />
                       <Legend />
                       <Area type="monotone" name="Created" dataKey="created_count" stroke="#ef4444" fillOpacity={1} fill="url(#colorCreated)" />

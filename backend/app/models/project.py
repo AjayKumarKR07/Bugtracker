@@ -68,6 +68,11 @@ class Project(Base):
         "Issue",
         back_populates="project",
     )
+    sprints: Mapped[list["Sprint"]] = relationship(
+        "Sprint",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Project id={self.id} key={self.project_key!r} name={self.name!r}>"

@@ -1053,3 +1053,8 @@ input, select, textarea {
     padding: 1.25rem;
   }
 }
+
+.selected-row {
+  background-color: var(--primary-subtle) !important;
+}
+

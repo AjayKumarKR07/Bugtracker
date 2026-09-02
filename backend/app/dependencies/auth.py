@@ -85,14 +85,17 @@ def require_role(*roles: UserRole):
             user: User = Depends(require_role(UserRole.ADMIN)),
         ): ...
     """
+    # Flatten if passed as a list, e.g., require_role([UserRole.ADMIN])
+    flat_roles = roles[0] if len(roles) == 1 and isinstance(roles[0], list) else roles
+    
     async def _check_role(
         current_user: User = Depends(get_current_user),
     ) -> User:
-        print(f"[DEBUG RBAC] User ID: {current_user.id}, DB Role: {repr(current_user.role)}, Required: {roles}")
-        if current_user.role not in roles:
-            print(f"[DEBUG RBAC] FAILED! {current_user.role} not in {roles}")
+        print(f"[DEBUG RBAC] User ID: {current_user.id}, DB Role: {repr(current_user.role)}, Required: {flat_roles}")
+        if current_user.role not in flat_roles:
+            print(f"[DEBUG RBAC] FAILED! {current_user.role} not in {flat_roles}")
             with open("rbac_debug.log", "a") as f:
-                f.write(f"403 ROLE MISMATCH: user_id={current_user.id} email={current_user.email} db_role={current_user.role} required={roles}\n")
+                f.write(f"403 ROLE MISMATCH: user_id={current_user.id} email={current_user.email} db_role={current_user.role} required={flat_roles}\n")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to perform this action.",

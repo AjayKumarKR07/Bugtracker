@@ -18,6 +18,8 @@ import { ProfilePage } from '../pages/ProfilePage';
 import { ProjectsPage } from '../pages/ProjectsPage';
 import { TesterDashboardPage } from '../pages/TesterDashboardPage';
 import { TesterIssuesPage } from '../pages/TesterIssuesPage';
+import { SprintsPage } from '../pages/SprintsPage';
+import { BacklogPage } from '../pages/BacklogPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -36,6 +38,8 @@ export const AppRoutes: React.FC = () => {
             <Route path="/issues" element={<IssuesPage />} />
             <Route path="/create-issue" element={<CreateIssuePage />} />
             <Route path="/issues/:id" element={<IssueDetailPage />} />
+            <Route path="/projects/:id/sprints" element={<SprintsPage />} />
+            <Route path="/projects/:id/backlog" element={<BacklogPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/profile" element={<ProfilePage />} />

@@ -29,6 +29,7 @@ from app.models.issue import (
     Severity,
 )
 from app.models.project import Project, ProjectStatus
+from app.models.sprint import Sprint
 from app.models.user import User, UserRole
 from app.schemas.issue import (
     IssueAssign,
@@ -131,6 +132,7 @@ async def create_issue(body: IssueCreate, reporter: User, db: AsyncSession) -> t
         project_id=body.project_id,
         reporter_id=reporter.id,
         assignee_id=None,
+        estimated_effort=body.estimated_effort,
     )
     db.add(issue)
     await db.flush()
@@ -221,7 +223,11 @@ async def list_issues(
     reporter_id: int | None = None,
     assignee_id: int | None = None,
     unassigned: bool | None = None,
+    sprint_id: int | None = None,
+    backlog: bool | None = None,
     search: str | None = None,
+    sort_by: str | None = None,
+    sort_desc: bool = True,
 ) -> IssueListResponse:
     """Return paginated issues with role-based visibility enforcement.
 
@@ -256,6 +262,10 @@ async def list_issues(
         query = query.where(Issue.issue_type == issue_type_filter)
     if project_id is not None:
         query = query.where(Issue.project_id == project_id)
+    if sprint_id is not None:
+        query = query.where(Issue.sprint_id == sprint_id)
+    if backlog is True:
+        query = query.where(Issue.sprint_id.is_(None))
 
     # Reporter / assignee filters are ADMIN-only (to prevent enumeration)
     if current_user.role == UserRole.ADMIN:
@@ -280,13 +290,31 @@ async def list_issues(
             )
         )
 
-    # ---- Pagination ------------------------------------------------------- #
+    # ---- Pagination & Sorting --------------------------------------------- #
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()
 
     offset = (page - 1) * page_size
+    
+    # Sorting
+    order_col = Issue.created_at
+    if sort_by == 'updated_at':
+        order_col = Issue.updated_at
+        order_expr = order_col.desc() if sort_desc else order_col.asc()
+    elif sort_by == 'priority':
+        order_col = Issue.priority
+        order_expr = order_col.desc() if sort_desc else order_col.asc()
+    elif sort_by == 'recommended':
+        # Recommended: Priority desc, Severity desc, created_at asc
+        order_expr = [Issue.priority.desc(), Issue.severity.desc(), Issue.created_at.asc()]
+    else:
+        order_expr = order_col.desc() if sort_desc else order_col.asc()
+        
+    if not isinstance(order_expr, list):
+        order_expr = [order_expr]
+    
     result = await db.execute(
-        query.order_by(Issue.created_at.desc()).offset(offset).limit(page_size)
+        query.order_by(*order_expr).offset(offset).limit(page_size)
     )
     issues = result.scalars().all()
 
@@ -329,6 +357,7 @@ async def update_issue(
         "steps_to_reproduce": issue.steps_to_reproduce,
         "expected_result": issue.expected_result,
         "actual_result": issue.actual_result,
+        "estimated_effort": issue.estimated_effort,
     }
 
     if body.title is not None:
@@ -347,6 +376,8 @@ async def update_issue(
         issue.expected_result = body.expected_result
     if body.actual_result is not None:
         issue.actual_result = body.actual_result
+    if body.estimated_effort is not None:
+        issue.estimated_effort = body.estimated_effort
 
     await db.flush()
     await db.refresh(issue)
@@ -361,6 +392,7 @@ async def update_issue(
         "steps_to_reproduce": issue.steps_to_reproduce,
         "expected_result": issue.expected_result,
         "actual_result": issue.actual_result,
+        "estimated_effort": issue.estimated_effort,
     }
     old_diff, new_diff = compute_diff(before, after)
 
@@ -793,3 +825,73 @@ async def get_issue_activity(
     )
     logs = result.scalars().all()
     return [AuditLogResponse.model_validate(log) for log in logs]
+
+# --------------------------------------------------------------------------- #
+# Bulk Operations                                                              #
+# --------------------------------------------------------------------------- #
+
+async def bulk_update_issues_sprint(
+    db: AsyncSession,
+    issue_ids: list[int],
+    sprint_id: int | None,
+    current_user: User
+) -> int:
+    """ADMIN: bulk update the sprint_id for a list of issues."""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can bulk assign issues to sprints."
+        )
+
+    if not issue_ids:
+        return 0
+
+    target_sprint = None
+    if sprint_id is not None:
+        sprint_res = await db.execute(select(Sprint).where(Sprint.id == sprint_id))
+        target_sprint = sprint_res.scalar_one_or_none()
+        if not target_sprint:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Target sprint {sprint_id} not found."
+            )
+
+    result = await db.execute(select(Issue).where(Issue.id.in_(issue_ids)))
+    issues = result.scalars().all()
+
+    if len(issues) != len(issue_ids):
+        found_ids = {i.id for i in issues}
+        missing_ids = list(set(issue_ids) - found_ids)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Issues with IDs {missing_ids} not found."
+        )
+
+    dest_name = f"Sprint '{target_sprint.name}'" if target_sprint else "Backlog"
+    if target_sprint:
+        for issue in issues:
+            if issue.project_id != target_sprint.project_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot assign issue {issue.issue_key} to sprint '{target_sprint.name}': issue belongs to project {issue.project_id}, but sprint belongs to project {target_sprint.project_id}."
+                )
+
+    updated_count = 0
+    for issue in issues:
+        issue.sprint_id = sprint_id
+        await create_audit_log(
+            db=db,
+            actor=current_user,
+            action=AuditAction.ISSUE_UPDATED,
+            entity_type="ISSUE",
+            entity_id=issue.id,
+            entity_key=issue.issue_key,
+            description=(
+                f"Admin {current_user.full_name!r} assigned issue {issue.issue_key} to {dest_name}"
+            )
+        )
+        updated_count += 1
+        
+    await db.commit()
+    return updated_count
+

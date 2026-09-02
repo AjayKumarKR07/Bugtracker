@@ -44,20 +44,36 @@ apiClient.interceptors.response.use(
 export function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data;
-    if (data?.detail) {
-      if (typeof data.detail === 'string') {
-        return data.detail;
+    if (data) {
+      if (typeof data === 'string') return data;
+      if (data.detail) {
+        if (typeof data.detail === 'string') return data.detail;
+        if (Array.isArray(data.detail) && data.detail.length > 0) {
+          return data.detail
+            .map((err: { msg?: string } | string) =>
+              typeof err === 'object' && err?.msg ? err.msg : String(err)
+            )
+            .join(', ');
+        }
       }
-      if (Array.isArray(data.detail) && data.detail.length > 0) {
-        return data.detail
-          .map((err: { msg?: string } | string) =>
-            typeof err === 'object' && err?.msg ? err.msg : String(err)
-          )
-          .join(', ');
+      if (data.message && typeof data.message === 'string') {
+        return data.message;
+      }
+      if (data.error && typeof data.error === 'string') {
+        return data.error;
       }
     }
-    if (error.response?.statusText) {
-      return `${error.response.status}: ${error.response.statusText}`;
+    if (error.response?.status) {
+      const status = error.response.status;
+      if (status === 403) return 'You do not have permission to perform this action.';
+      if (status === 404) return 'The requested resource was not found.';
+      if (status === 409) return 'A resource with these details already exists.';
+      if (error.response.statusText) {
+        return `${status}: ${error.response.statusText}`;
+      }
+    }
+    if (error.message === 'Network Error') {
+      return 'Unable to reach backend server. Please verify the API is running at http://127.0.0.1:8000 and check network connection.';
     }
     if (error.message) {
       return error.message;

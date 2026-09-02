@@ -30,6 +30,7 @@ from app.routes.notifications import router as notifications_router
 from app.routes.projects import router as projects_router
 from app.routes.users import router as users_router
 from app.routes.websocket import router as ws_router
+from app.routes.sprints import router as sprints_router
 
 
 class RootResponse(BaseModel):
@@ -83,6 +84,7 @@ app.include_router(attachments_router)
 app.include_router(notifications_router)
 app.include_router(ws_router)
 app.include_router(analytics_router)
+app.include_router(sprints_router)
 
 
 # -----------------------------------------------------------------

@@ -26,9 +26,11 @@ from app.schemas.issue import (
     IssueListResponse,
     IssueReopen,
     IssueResolve,
+    IssueResponse,
     IssueStatusUpdate,
     IssueUpdate,
 )
+from pydantic import BaseModel
 from app.schemas.audit import AuditLogResponse
 from app.services import issue_service
 
@@ -88,16 +90,15 @@ async def list_issues(
     reporter_id: int | None = Query(None, description="ADMIN only"),
     assignee_id: int | None = Query(None, description="ADMIN only"),
     unassigned: bool | None = Query(None, description="ADMIN only"),
-    search: str | None = Query(None, description="Search issue key, title, or description"),
+    sprint_id: int | None = Query(None, description="Filter by Sprint ID"),
+    backlog: bool | None = Query(None, description="If true, only return issues with no sprint_id"),
+    search: str | None = Query(None, min_length=3, description="Search key, title, or description"),
+    sort_by: str | None = Query(None, description="Field to sort by (created_at, updated_at, priority)"),
+    sort_desc: bool = Query(True, description="Sort in descending order"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> IssueListResponse:
-    """List issues. Role-based filtering is applied automatically:
-    - **ADMIN** sees all issues
-    - **DEVELOPER** sees only assigned issues
-    - **TESTER** sees only assigned issues
-    - **USER** sees only issues they reported
-    """
+):
+    """List issues with pagination, filtering, and role-based visibility."""
     return await issue_service.list_issues(
         db=db,
         current_user=current_user,
@@ -111,7 +112,11 @@ async def list_issues(
         reporter_id=reporter_id,
         assignee_id=assignee_id,
         unassigned=unassigned,
+        sprint_id=sprint_id,
+        backlog=backlog,
         search=search,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
     )
 
 
@@ -356,3 +361,21 @@ async def get_issue_activity(
     - **ADMIN**: all issues
     """
     return await issue_service.get_issue_activity(issue_id, current_user, db)
+
+
+class BulkSprintAssignRequest(BaseModel):
+    issue_ids: list[int]
+    sprint_id: int | None
+
+@router.post("/bulk-assign-sprint")
+async def bulk_assign_sprint(
+    request: BulkSprintAssignRequest,
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk assign issues to a sprint."""
+    updated_count = await issue_service.bulk_update_issues_sprint(
+        db=db, issue_ids=request.issue_ids, sprint_id=request.sprint_id, current_user=current_user
+    )
+    return {"message": f"Successfully updated {updated_count} issues."}
+

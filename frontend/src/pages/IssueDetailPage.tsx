@@ -1159,6 +1159,17 @@ export const IssueDetailPage: React.FC = () => {
               </div>
 
               <div>
+                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase' }}>Estimated Effort</span>
+                {issue.estimated_effort ? (
+                  <span style={{ fontWeight: 'bold', backgroundColor: 'var(--bg-secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                    {issue.estimated_effort} pts
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--text-muted)' }}>Not estimated</span>
+                )}
+              </div>
+
+              <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase' }}>Assignee (Tester)</span>
                 {issue.assignee ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>

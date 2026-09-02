@@ -54,6 +54,8 @@ class IssueCreate(BaseModel):
     steps_to_reproduce: str | None = None
     expected_result: str | None = None
     actual_result: str | None = None
+    sprint_id: int | None = None
+    estimated_effort: int | None = None
 
     @field_validator("title", mode="before")
     @classmethod
@@ -72,6 +74,8 @@ class IssueUpdate(BaseModel):
     steps_to_reproduce: str | None = None
     expected_result: str | None = None
     actual_result: str | None = None
+    sprint_id: int | None = None
+    estimated_effort: int | None = None
 
     @field_validator("title", mode="before")
     @classmethod
@@ -121,6 +125,8 @@ class IssueResponse(BaseModel):
     project_id: int
     reporter_id: int
     assignee_id: int | None
+    sprint_id: int | None
+    estimated_effort: int | None
     created_at: datetime
     updated_at: datetime
 
@@ -147,6 +153,8 @@ class IssueDetailResponse(BaseModel):
     project: ProjectBrief
     reporter: UserBrief
     assignee: UserBrief | None
+    sprint_id: int | None
+    estimated_effort: int | None
     created_at: datetime
     updated_at: datetime
 

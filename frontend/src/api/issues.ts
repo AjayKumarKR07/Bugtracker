@@ -25,7 +25,11 @@ export interface IssueListParams {
   reporter_id?: number;
   assignee_id?: number;
   unassigned?: boolean;
+  sprint_id?: number;
+  backlog?: boolean;
   search?: string;
+  sort_by?: string;
+  sort_desc?: boolean;
 }
 
 export const issuesApi = {
@@ -82,4 +86,10 @@ export const issuesApi = {
     );
     return response.data;
   },
+  
+  bulkAssignSprint: async (data: { issue_ids: number[]; sprint_id: number | null }): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>('/issues/bulk-assign-sprint', data);
+    return response.data;
+  },
 };
+

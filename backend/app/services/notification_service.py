@@ -380,6 +380,9 @@ async def should_send_email(
         NotificationType.USER_ACTIVATED: "issue_assigned",     # same
         NotificationType.USER_DEACTIVATED: "issue_assigned",   # same
         NotificationType.ISSUE_MENTIONED: "issue_commented",
+        NotificationType.SPRINT_STARTED: "issue_assigned",
+        NotificationType.SPRINT_ENDED: "issue_assigned",
+        NotificationType.SPRINT_OVERDUE: "issue_assigned",
     }
 
     field = type_to_field.get(notification_type)
