@@ -636,8 +636,8 @@ backend/
 ## 1️⃣ Clone the Repository
 
 ```bash
-git clone <repository-url>
-cd backend
+git clone https://github.com/AjayKumarKR07/Bugtracker.git
+cd Bugtracker/backend
 ```
 
 ---
@@ -1055,6 +1055,6 @@ BugTracker `v1.0.0` currently provides a complete backend foundation for:
 <p align="center">
   Built with ❤️ using FastAPI, PostgreSQL, SQLAlchemy and modern Agile principles.
 </p>
-```
+
 
 
