@@ -23,6 +23,11 @@ import {
   Clock,
   CheckSquare,
   Layers,
+  Crown,
+  Code2,
+  TestTube,
+  Wifi,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -98,6 +103,27 @@ const orbitItems = [
   { icon: '📄', label: 'Reports', angle: 308.5 },
 ];
 
+/* ─── Demo data ───────────────────────────────────────────────────── */
+const demoIssues = [
+  { key: 'BUG-1024', title: 'Login authentication failure', severity: 'CRITICAL', status: 'IN PROGRESS', assignee: 'AK', severityColor: '#ef4444', statusColor: '#f59e0b' },
+  { key: 'BUG-1025', title: 'Dashboard chart not loading', severity: 'HIGH', status: 'OPEN', assignee: 'SR', severityColor: '#f97316', statusColor: '#6366f1' },
+  { key: 'BUG-1026', title: 'File upload timeout error', severity: 'MEDIUM', status: 'RESOLVED', assignee: 'JD', severityColor: '#f59e0b', statusColor: '#22c55e' },
+  { key: 'BUG-1027', title: 'User profile page 404', severity: 'LOW', status: 'OPEN', assignee: 'PL', severityColor: '#0ea5e9', statusColor: '#6366f1' },
+];
+
+const demoTeamWorkload = [
+  { name: 'Alex K.', initials: 'AK', issues: 5, accent: '#6366f1' },
+  { name: 'Sarah R.', initials: 'SR', issues: 4, accent: '#22c55e' },
+  { name: 'John D.', initials: 'JD', issues: 6, accent: '#a855f7' },
+];
+
+const demoNotifications = [
+  { icon: '🏃', title: 'Sprint Started', body: 'Sprint Alpha is now ACTIVE.', time: 'Just now', accent: '#6366f1', unread: true },
+  { icon: '✅', title: 'Issue Resolved', body: 'BUG-1024 was resolved successfully.', time: '2 minutes ago', accent: '#22c55e', unread: true },
+  { icon: '📊', title: 'Sprint Health Updated', body: 'Sprint Alpha is ON TRACK.', time: '5 minutes ago', accent: '#0ea5e9', unread: false },
+  { icon: '🔔', title: 'New Issue Assigned', body: 'BUG-1028 assigned to you.', time: '12 minutes ago', accent: '#f59e0b', unread: false },
+];
+
 /* ══════════════════════════════════════════════════════════════════
    HOMEPAGE COMPONENT
 ══════════════════════════════════════════════════════════════════ */
@@ -107,17 +133,23 @@ export const HomePage: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
+  const [scrollProgress, setScrollProgress] = useState(0);
 
-  /* Navbar scroll effect */
+  /* Navbar scroll effect + progress bar */
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20);
+    const handler = () => {
+      setScrolled(window.scrollY > 20);
+      const el = document.documentElement;
+      const progress = (el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100;
+      setScrollProgress(Math.min(100, Math.max(0, progress)));
+    };
     window.addEventListener('scroll', handler, { passive: true });
     return () => window.removeEventListener('scroll', handler);
   }, []);
 
   /* Active section highlight */
   useEffect(() => {
-    const sectionIds = ['features', 'workflow', 'analytics', 'sprints'];
+    const sectionIds = ['features', 'demo', 'workflow', 'sprints', 'analytics', 'roles', 'realtime', 'why'];
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => { if (e.isIntersecting) setActiveSection(e.target.id); });
@@ -166,6 +198,19 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="lp-root">
+      {/* ═══════════════════════════════════════
+          SCROLL PROGRESS BAR
+      ═══════════════════════════════════════ */}
+      <div
+        className="lp-scroll-progress"
+        style={{ width: `${scrollProgress}%` }}
+        role="progressbar"
+        aria-valuenow={Math.round(scrollProgress)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Page scroll progress"
+      />
+
       {/* ═══════════════════════════════════════
           ANIMATED BACKGROUND
       ═══════════════════════════════════════ */}
@@ -290,13 +335,18 @@ export const HomePage: React.FC = () => {
             real-time collaboration into one powerful workspace.
           </p>
 
+          {/* ENHANCEMENT 5: Updated CTA hierarchy */}
           <div className="lp-hero-cta">
             <button type="button" className="lp-btn lp-btn--primary lp-btn--lg" onClick={handleRegister}>
-              Get Started
+              Get Started Free
               <ArrowRight size={18} />
             </button>
-            <button type="button" className="lp-btn lp-btn--outline lp-btn--lg" onClick={() => scrollToSection('features')}>
-              Explore Features
+            <button
+              type="button"
+              className="lp-btn lp-btn--outline lp-btn--lg"
+              onClick={() => scrollToSection('demo')}
+            >
+              Explore Product
               <ChevronDown size={18} />
             </button>
           </div>
@@ -431,7 +481,7 @@ export const HomePage: React.FC = () => {
                 emoji: '🔐', icon: <ShieldCheck size={20} />, accent: '#ef4444',
                 title: 'Role-Based Access',
                 desc: 'Secure workflows with dedicated permissions for Admins, Developers, Testers, and Users.',
-                action: () => scrollToSection('why'),
+                action: () => scrollToSection('roles'),
               },
             ].map(({ emoji, icon, accent, title, desc, action }) => (
               <FeatureCard key={title} emoji={emoji} icon={icon} accent={accent} title={title} desc={desc} onClick={action} />
@@ -441,9 +491,26 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* ═══════════════════════════════════════
+          INTERACTIVE PRODUCT DEMO  [ENHANCEMENT 1]
+      ═══════════════════════════════════════ */}
+      <section id="demo" className="lp-section lp-section--alt" aria-labelledby="demo-title">
+        <div className="lp-section-inner">
+          <div className="lp-section-head">
+            <div className="lp-section-badge"><Zap size={12} aria-hidden="true" />Product Demo</div>
+            <h2 id="demo-title" className="lp-section-title">Experience BugTracker in Action</h2>
+            <p className="lp-section-sub">
+              Explore how teams track issues, plan sprints, and monitor project performance
+              from one intelligent workspace.
+            </p>
+          </div>
+          <ProductDemo />
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
           WORKFLOW
       ═══════════════════════════════════════ */}
-      <section id="workflow" className="lp-section lp-section--alt" aria-labelledby="workflow-title">
+      <section id="workflow" className="lp-section" aria-labelledby="workflow-title">
         <div className="lp-section-inner">
           <div className="lp-section-head">
             <div className="lp-section-badge"><GitBranch size={12} aria-hidden="true" />Workflow</div>
@@ -458,7 +525,7 @@ export const HomePage: React.FC = () => {
       {/* ═══════════════════════════════════════
           SPRINT SHOWCASE
       ═══════════════════════════════════════ */}
-      <section id="sprints" className="lp-section" aria-labelledby="sprints-title">
+      <section id="sprints" className="lp-section lp-section--alt" aria-labelledby="sprints-title">
         <div className="lp-section-inner">
           <SprintShowcase onNavigate={() => handleProtectedNavigation('/projects')} />
         </div>
@@ -467,7 +534,7 @@ export const HomePage: React.FC = () => {
       {/* ═══════════════════════════════════════
           ANALYTICS SHOWCASE
       ═══════════════════════════════════════ */}
-      <section id="analytics" className="lp-section lp-section--alt" aria-labelledby="analytics-title">
+      <section id="analytics" className="lp-section" aria-labelledby="analytics-title">
         <div className="lp-section-inner">
           <div className="lp-section-head">
             <div className="lp-section-badge"><BarChart3 size={12} aria-hidden="true" />Analytics</div>
@@ -519,9 +586,112 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* ═══════════════════════════════════════
+          ROLE-BASED WORKFLOW  [ENHANCEMENT 2]
+      ═══════════════════════════════════════ */}
+      <section id="roles" className="lp-section lp-section--alt" aria-labelledby="roles-title">
+        <div className="lp-section-inner">
+          <div className="lp-section-head">
+            <div className="lp-section-badge"><Shield size={12} aria-hidden="true" />Roles</div>
+            <h2 id="roles-title" className="lp-section-title">
+              Built for Every Role in Your<br />Software Team
+            </h2>
+            <p className="lp-section-sub">
+              BugTracker provides focused workflows and permissions for every member of the development lifecycle.
+            </p>
+          </div>
+          <div className="lp-roles-grid">
+            <RoleCard
+              icon={<Crown size={26} />}
+              accent="#f59e0b"
+              role="Administrator"
+              subtitle="Full system control"
+              badge="Control Center"
+              capabilities={[
+                'Manage users and permissions',
+                'Create and manage projects',
+                'Plan and oversee all sprints',
+                'Monitor system analytics',
+                'Review complete audit logs',
+                'Manage team workflows',
+              ]}
+            />
+            <RoleCard
+              icon={<Code2 size={26} />}
+              accent="#6366f1"
+              role="Developer"
+              subtitle="Focus on building"
+              capabilities={[
+                'View and manage assigned issues',
+                'Update issue status and progress',
+                'Resolve defects and document fixes',
+                'Track personal workload',
+                'Participate in active sprints',
+                'Collaborate via issue comments',
+              ]}
+            />
+            <RoleCard
+              icon={<TestTube size={26} />}
+              accent="#22c55e"
+              role="Tester"
+              subtitle="Quality assurance"
+              capabilities={[
+                'Report detailed bug reports',
+                'Track and monitor reported issues',
+                'Add comments and attachments',
+                'Verify issue resolutions',
+                'Escalate critical defects',
+                'Manage testing workflows',
+              ]}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          REAL-TIME NOTIFICATIONS  [ENHANCEMENT 3]
+      ═══════════════════════════════════════ */}
+      <section id="realtime" className="lp-section" aria-labelledby="realtime-title">
+        <div className="lp-section-inner">
+          <div className="lp-realtime-layout">
+            {/* Left: copy */}
+            <div className="lp-realtime-copy">
+              <div className="lp-section-badge" style={{ marginBottom: '1.25rem' }}>
+                <Wifi size={12} aria-hidden="true" />Real-Time
+              </div>
+              <h2 id="realtime-title" className="lp-section-title" style={{ textAlign: 'left' }}>
+                Stay Updated<br />
+                <span className="lp-gradient-text">in Real Time</span>
+              </h2>
+              <p className="lp-realtime-body">
+                Important project events are delivered instantly so your team always knows what changed.
+                BugTracker's notification infrastructure keeps everyone in sync.
+              </p>
+              <ul className="lp-realtime-list">
+                {[
+                  'Sprint start and completion events',
+                  'Issue assignment and resolution alerts',
+                  'Sprint health status updates',
+                  'New issue and comment notifications',
+                ].map((item) => (
+                  <li key={item}><CheckCircle2 size={15} aria-hidden="true" /><span>{item}</span></li>
+                ))}
+              </ul>
+              <div className="lp-live-badge" aria-label="Live capability preview">
+                <span className="lp-live-dot" aria-hidden="true" />
+                <span>LIVE — Capability Preview</span>
+              </div>
+            </div>
+
+            {/* Right: notification panel */}
+            <NotificationPanel />
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
           ORBIT SECTION
       ═══════════════════════════════════════ */}
-      <section className="lp-section lp-orbit-section" aria-label="BugTracker capabilities orbit">
+      <section className="lp-section lp-section--alt lp-orbit-section" aria-label="BugTracker capabilities orbit">
         <div className="lp-section-inner lp-orbit-inner">
           <div className="lp-section-head">
             <div className="lp-section-badge"><Zap size={12} aria-hidden="true" />Platform</div>
@@ -558,7 +728,7 @@ export const HomePage: React.FC = () => {
       {/* ═══════════════════════════════════════
           WHY BUGTRACKER
       ═══════════════════════════════════════ */}
-      <section id="why" className="lp-section lp-section--alt" aria-labelledby="why-title">
+      <section id="why" className="lp-section" aria-labelledby="why-title">
         <div className="lp-section-inner">
           <div className="lp-section-head">
             <div className="lp-section-badge"><Shield size={12} aria-hidden="true" />Why BugTracker</div>
@@ -586,6 +756,26 @@ export const HomePage: React.FC = () => {
                 <div className="lp-why-icon" style={{ color: accent, background: `${accent}18` }}>{icon}</div>
                 <h3 className="lp-why-heading">{heading}</h3>
                 <p className="lp-why-body">{body}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* ENHANCEMENT 6: Capability Highlights */}
+          <div className="lp-capabilities">
+            {[
+              { emoji: '🐞', title: 'Intelligent Issue Tracking', desc: 'Track defects with severity, priority, assignments, comments, and attachments.' },
+              { emoji: '🏃', title: 'Advanced Sprint Management', desc: 'Plan sprints, track capacity, monitor health, manage rollovers, and generate sprint reports.' },
+              { emoji: '📊', title: 'Actionable Analytics', desc: 'Monitor resolution trends, team workload, project metrics, and sprint performance.' },
+              { emoji: '🔐', title: 'Role-Based Security', desc: 'Controlled workflows for administrators, developers, testers, and reporters.' },
+              { emoji: '🔔', title: 'Real-Time Updates', desc: 'Important system and sprint events delivered through real-time notification infrastructure.' },
+              { emoji: '📝', title: 'Complete Audit Trail', desc: 'Traceable activity records maintained for all important system operations.' },
+            ].map(({ emoji, title, desc }) => (
+              <div key={title} className="lp-capability-item">
+                <span className="lp-capability-emoji" aria-hidden="true">{emoji}</span>
+                <div>
+                  <div className="lp-capability-title">{title}</div>
+                  <div className="lp-capability-desc">{desc}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -849,6 +1039,294 @@ const SprintShowcase: React.FC<SprintShowcaseProps> = ({ onNavigate }) => {
           Explore Sprint Management
           <ArrowRight size={17} />
         </button>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Product Demo Sub-component [ENHANCEMENT 1] ─────────────────── */
+type DemoTab = 'issues' | 'sprint' | 'analytics';
+
+const ProductDemo: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<DemoTab>('issues');
+  const { ref, inView } = useInView(0.1);
+
+  const tabs: { id: DemoTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'issues', label: 'Issue Tracking', icon: <Bug size={15} /> },
+    { id: 'sprint', label: 'Sprint Planning', icon: <Activity size={15} /> },
+    { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={15} /> },
+  ];
+
+  return (
+    <div
+      ref={ref as React.Ref<HTMLDivElement>}
+      className={`lp-demo${inView ? ' lp-demo--visible' : ''}`}
+    >
+      {/* Tab bar */}
+      <div
+        className="lp-demo-tabs"
+        role="tablist"
+        aria-label="Product demo tabs"
+      >
+        {tabs.map(({ id, label, icon }) => (
+          <button
+            key={id}
+            role="tab"
+            type="button"
+            id={`tab-${id}`}
+            aria-selected={activeTab === id}
+            aria-controls={`tabpanel-${id}`}
+            className={`lp-demo-tab${activeTab === id ? ' lp-demo-tab--active' : ''}`}
+            onClick={() => setActiveTab(id)}
+          >
+            {icon}
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Panel */}
+      <div className="lp-demo-panel">
+        {/* Browser chrome */}
+        <div className="lp-demo-chrome">
+          <div className="lp-demo-dots" aria-hidden="true">
+            <span style={{ background: '#ef4444' }} />
+            <span style={{ background: '#f97316' }} />
+            <span style={{ background: '#22c55e' }} />
+          </div>
+          <span className="lp-demo-url">
+            BugTracker · {activeTab === 'issues' ? 'Issues' : activeTab === 'sprint' ? 'Sprint Dashboard' : 'Analytics'}
+          </span>
+          <span className="lp-chart-demo-tag">DEMO</span>
+        </div>
+
+        {/* Tab panels */}
+        <div
+          role="tabpanel"
+          id={`tabpanel-${activeTab}`}
+          aria-labelledby={`tab-${activeTab}`}
+          className="lp-demo-content"
+          key={activeTab}
+        >
+          {activeTab === 'issues' && <DemoIssuePanel />}
+          {activeTab === 'sprint' && <DemoSprintPanel />}
+          {activeTab === 'analytics' && <DemoAnalyticsPanel />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DemoIssuePanel: React.FC = () => (
+  <div className="lp-demo-issues">
+    {/* Filter bar */}
+    <div className="lp-demo-filter-bar">
+      <div className="lp-demo-filter-pill active">All Issues</div>
+      <div className="lp-demo-filter-pill">Open</div>
+      <div className="lp-demo-filter-pill">In Progress</div>
+      <div className="lp-demo-filter-pill">Resolved</div>
+    </div>
+    {/* Issue rows */}
+    {demoIssues.map((issue, i) => (
+      <div
+        key={issue.key}
+        className="lp-demo-issue-row"
+        style={{ animationDelay: `${i * 0.07}s` }}
+      >
+        <div className="lp-demo-issue-key">{issue.key}</div>
+        <div className="lp-demo-issue-title">{issue.title}</div>
+        <span
+          className="lp-demo-badge"
+          style={{ background: `${issue.severityColor}18`, color: issue.severityColor, border: `1px solid ${issue.severityColor}35` }}
+        >
+          {issue.severity}
+        </span>
+        <span
+          className="lp-demo-badge"
+          style={{ background: `${issue.statusColor}18`, color: issue.statusColor, border: `1px solid ${issue.statusColor}35` }}
+        >
+          {issue.status}
+        </span>
+        <div className="lp-demo-issue-avatar">{issue.assignee}</div>
+      </div>
+    ))}
+  </div>
+);
+
+const DemoSprintPanel: React.FC = () => (
+  <div className="lp-demo-sprint">
+    {/* Sprint header */}
+    <div className="lp-demo-sprint-hdr">
+      <div>
+        <div className="lp-demo-sprint-name">Sprint Alpha</div>
+        <div className="lp-demo-sprint-dates">Sep 1 – Sep 14, 2026</div>
+      </div>
+      <span className="lp-fc-tag lp-fc-tag--green">ON TRACK</span>
+    </div>
+    {/* Progress */}
+    <div className="lp-demo-sprint-prog-wrap">
+      <div className="lp-demo-sprint-prog-bar">
+        <div className="lp-demo-sprint-prog-fill" />
+      </div>
+      <span className="lp-demo-sprint-prog-val">72%</span>
+    </div>
+    {/* Stats */}
+    <div className="lp-demo-sprint-stats">
+      {[
+        { val: '24', label: 'Total', color: '' },
+        { val: '17', label: 'Completed', color: '#22c55e' },
+        { val: '7', label: 'Remaining', color: '#f59e0b' },
+        { val: '250h', label: 'Capacity', color: '' },
+        { val: '89pts', label: 'Est. Effort', color: '' },
+      ].map(({ val, label, color }) => (
+        <div key={label} className="lp-demo-sprint-stat">
+          <span className="lp-demo-sprint-stat-val" style={color ? { color } : {}}>{val}</span>
+          <span className="lp-demo-sprint-stat-l">{label}</span>
+        </div>
+      ))}
+    </div>
+    {/* Team workload */}
+    <div className="lp-demo-workload-title">Team Workload</div>
+    <div className="lp-demo-workload">
+      {demoTeamWorkload.map(({ name, initials, issues, accent }) => (
+        <div key={name} className="lp-demo-workload-card">
+          <div className="lp-demo-workload-avatar" style={{ background: `linear-gradient(135deg, ${accent}, ${accent}99)` }}>{initials}</div>
+          <div className="lp-demo-workload-name">{name}</div>
+          <div className="lp-demo-workload-issues" style={{ color: accent }}>{issues} Issues</div>
+          <div className="lp-demo-workload-bar-wrap">
+            <div className="lp-demo-workload-bar" style={{ width: `${(issues / 8) * 100}%`, background: accent }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const DemoAnalyticsPanel: React.FC = () => (
+  <div className="lp-demo-analytics">
+    <div className="lp-demo-analytics-metrics">
+      {[
+        { val: '98%', label: 'Resolution Rate', accent: '#6366f1' },
+        { val: '24', label: 'Issues Resolved', accent: '#22c55e' },
+        { val: '12', label: 'Active Issues', accent: '#f59e0b' },
+        { val: '2.4d', label: 'Avg Resolution Time', accent: '#a855f7' },
+      ].map(({ val, label, accent }) => (
+        <div key={label} className="lp-demo-metric" style={{ '--accent': accent } as React.CSSProperties}>
+          <div className="lp-demo-metric-val" style={{ color: accent }}>{val}</div>
+          <div className="lp-demo-metric-label">{label}</div>
+        </div>
+      ))}
+    </div>
+    <div className="lp-demo-analytics-chart">
+      <div className="lp-chart-header" style={{ marginBottom: '0.75rem' }}>
+        <span className="lp-chart-title">Resolution Rate Trend</span>
+        <span className="lp-chart-demo-tag">SAMPLE DATA</span>
+      </div>
+      <ResponsiveContainer width="100%" height={120}>
+        <LineChart data={resolutionData}>
+          <Line type="monotone" dataKey="v" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: '#6366f1' }} />
+          <Tooltip
+            contentStyle={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 8, fontSize: 11 }}
+            formatter={(v: number) => [`${v}%`, 'Rate']}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  </div>
+);
+
+/* ─── Role Card [ENHANCEMENT 2] ──────────────────────────────────── */
+interface RoleCardProps {
+  icon: React.ReactNode;
+  accent: string;
+  role: string;
+  subtitle: string;
+  badge?: string;
+  capabilities: string[];
+}
+const RoleCard: React.FC<RoleCardProps> = ({ icon, accent, role, subtitle, badge, capabilities }) => {
+  const { ref, inView } = useInView(0.1);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientY - rect.top) / rect.height - 0.5) * 8;
+    const y = -((e.clientX - rect.left) / rect.width - 0.5) * 8;
+    setTilt({ x, y });
+  };
+
+  return (
+    <div
+      ref={ref as React.Ref<HTMLDivElement>}
+      className={`lp-role-card${inView ? ' lp-role-card--visible' : ''}`}
+      style={{
+        '--accent': accent,
+        transform: `perspective(700px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+      } as React.CSSProperties}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setTilt({ x: 0, y: 0 })}
+    >
+      {badge && (
+        <div className="lp-role-badge-top" style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc)` }}>
+          {badge}
+        </div>
+      )}
+      <div className="lp-role-icon" style={{ color: accent, background: `${accent}18` }}>
+        {icon}
+      </div>
+      <h3 className="lp-role-name">{role}</h3>
+      <p className="lp-role-subtitle">{subtitle}</p>
+      <ul className="lp-role-caps">
+        {capabilities.map((cap) => (
+          <li key={cap}>
+            <CheckCircle2 size={13} aria-hidden="true" style={{ color: accent, flexShrink: 0 }} />
+            <span>{cap}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+/* ─── Notification Panel [ENHANCEMENT 3] ─────────────────────────── */
+const NotificationPanel: React.FC = () => {
+  const { ref, inView } = useInView(0.15);
+  return (
+    <div
+      ref={ref as React.Ref<HTMLDivElement>}
+      className={`lp-notif-panel${inView ? ' lp-notif-panel--visible' : ''}`}
+      aria-label="Example real-time notifications"
+    >
+      <div className="lp-notif-header">
+        <Bell size={15} aria-hidden="true" />
+        <span>Notifications</span>
+        <div className="lp-notif-live">
+          <span className="lp-live-dot lp-live-dot--sm" aria-hidden="true" />
+          LIVE PREVIEW
+        </div>
+      </div>
+      <div className="lp-notif-list">
+        {demoNotifications.map(({ icon, title, body, time, accent, unread }, i) => (
+          <div
+            key={title}
+            className={`lp-notif-item${unread ? ' lp-notif-item--unread' : ''}`}
+            style={{
+              animationDelay: inView ? `${i * 0.12}s` : '0s',
+              borderLeftColor: unread ? accent : 'transparent',
+            }}
+          >
+            <div className="lp-notif-icon" style={{ background: `${accent}18`, color: accent }}>{icon}</div>
+            <div className="lp-notif-body">
+              <div className="lp-notif-title">{title}{unread && <span className="lp-notif-dot" style={{ background: accent }} />}</div>
+              <div className="lp-notif-msg">{body}</div>
+              <div className="lp-notif-time">{time}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="lp-notif-footer">
+        <BookOpen size={12} aria-hidden="true" />
+        Example real-time events — live notifications available after sign-in
       </div>
     </div>
   );
