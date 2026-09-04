@@ -1,65 +1,149 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   BarChart3,
   Bug,
   CheckCircle2,
-  ChevronRight,
-  ClipboardList,
+  ChevronDown,
   FolderOpen,
   LayoutDashboard,
   LogIn,
   Menu,
-  MessageSquare,
-  Search,
+  Bell,
   Shield,
   ShieldCheck,
-  Star,
   TrendingUp,
-  User,
-  Users,
   X,
   Zap,
+  Activity,
+  GitBranch,
+  Target,
+  FileText,
+  Clock,
+  CheckSquare,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import {
+  LineChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts';
 import './HomePage.css';
 
+/* ─── Intersection Observer Hook ─────────────────────────────────── */
+function useInView(threshold = 0.15) {
+  const ref = useRef<HTMLElement>(null);
+  const [inView, setInView] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setInView(true); observer.disconnect(); } },
+      { threshold }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return { ref, inView };
+}
+
+/* ─── Animated Counter ────────────────────────────────────────────── */
+function AnimatedCounter({ target, suffix = '', duration = 2000 }: { target: number; suffix?: string; duration?: number }) {
+  const [count, setCount] = useState(0);
+  const { ref, inView } = useInView(0.3);
+
+  useEffect(() => {
+    if (!inView) return;
+    let start = 0;
+    const step = target / (duration / 16);
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= target) { setCount(target); clearInterval(timer); }
+      else setCount(Math.floor(start));
+    }, 16);
+    return () => clearInterval(timer);
+  }, [inView, target, duration]);
+
+  return <span ref={ref as React.Ref<HTMLSpanElement>}>{count}{suffix}</span>;
+}
+
+/* ─── Mini resolution chart data ─────────────────────────────────── */
+const resolutionData = [
+  { d: 'W1', v: 62 }, { d: 'W2', v: 71 }, { d: 'W3', v: 68 },
+  { d: 'W4', v: 79 }, { d: 'W5', v: 85 }, { d: 'W6', v: 91 },
+  { d: 'W7', v: 88 }, { d: 'W8', v: 95 }, { d: 'W9', v: 98 },
+];
+
+/* ─── Burndown mini chart ─────────────────────────────────────────── */
+const burndownData = [
+  { d: 'D1', ideal: 38, actual: 38 }, { d: 'D2', ideal: 32, actual: 34 },
+  { d: 'D3', ideal: 26, actual: 29 }, { d: 'D4', ideal: 20, actual: 22 },
+  { d: 'D5', ideal: 14, actual: 18 }, { d: 'D6', ideal: 8, actual: 12 },
+  { d: 'D7', ideal: 2, actual: 7 },
+];
+
+/* ─── Orbit items ─────────────────────────────────────────────────── */
+const orbitItems = [
+  { icon: '🐞', label: 'Issues', angle: 0 },
+  { icon: '🏃', label: 'Sprints', angle: 51.4 },
+  { icon: '📊', label: 'Analytics', angle: 102.8 },
+  { icon: '🔔', label: 'Alerts', angle: 154.2 },
+  { icon: '📁', label: 'Projects', angle: 205.6 },
+  { icon: '👥', label: 'Teams', angle: 257.1 },
+  { icon: '📄', label: 'Reports', angle: 308.5 },
+];
+
+/* ══════════════════════════════════════════════════════════════════
+   HOMEPAGE COMPONENT
+══════════════════════════════════════════════════════════════════ */
 export const HomePage: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState('home');
+
+  /* Navbar scroll effect */
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => window.removeEventListener('scroll', handler);
+  }, []);
+
+  /* Active section highlight */
+  useEffect(() => {
+    const sectionIds = ['features', 'workflow', 'analytics', 'sprints'];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => { if (e.isIntersecting) setActiveSection(e.target.id); });
+      },
+      { rootMargin: '-40% 0px -50% 0px' }
+    );
+    sectionIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (id === 'home') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  /**
-   * Protected Navigation Guard:
-   * Unauthenticated users → /login
-   * Authenticated users → destination
-   */
   const handleProtectedNavigation = (path: string) => {
-    if (!user || !isAuthenticated) {
-      navigate('/login');
-      return;
-    }
+    if (!user || !isAuthenticated) { navigate('/login'); return; }
     navigate(path);
   };
 
-  const handleLogin = () => {
-    setMobileMenuOpen(false);
-    navigate('/login');
-  };
-
-  const handleRegister = () => {
-    setMobileMenuOpen(false);
-    navigate('/register');
-  };
+  const handleLogin = () => { setMobileMenuOpen(false); navigate('/login'); };
+  const handleRegister = () => { setMobileMenuOpen(false); navigate('/register'); };
 
   const getDashboardPath = () => {
     if (!user) return '/login';
@@ -72,670 +156,702 @@ export const HomePage: React.FC = () => {
     return <Navigate to={getDashboardPath()} replace />;
   }
 
+  const navLinks = [
+    { id: 'home', label: 'Home' },
+    { id: 'features', label: 'Features' },
+    { id: 'workflow', label: 'Workflow' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'sprints', label: 'Sprints' },
+  ];
+
   return (
-    <div className="home-page">
-      {/* ===== NAVBAR ===== */}
-      <header className="home-nav-wrapper">
-        <div className="home-nav-container">
+    <div className="lp-root">
+      {/* ═══════════════════════════════════════
+          ANIMATED BACKGROUND
+      ═══════════════════════════════════════ */}
+      <div className="lp-bg" aria-hidden="true">
+        <div className="lp-bg-grid" />
+        <div className="lp-blob lp-blob-1" />
+        <div className="lp-blob lp-blob-2" />
+        <div className="lp-blob lp-blob-3" />
+        <div className="lp-particles">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div key={i} className="lp-particle" style={{
+              left: `${(i * 17 + 7) % 100}%`,
+              top: `${(i * 23 + 11) % 100}%`,
+              animationDelay: `${(i * 0.4) % 6}s`,
+              animationDuration: `${4 + (i % 4)}s`,
+            }} />
+          ))}
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════
+          NAVBAR
+      ═══════════════════════════════════════ */}
+      <header className={`lp-nav${scrolled ? ' lp-nav--scrolled' : ''}`} role="banner">
+        <div className="lp-nav-inner">
+          {/* Brand */}
           <button
             type="button"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="home-brand"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            className="lp-brand"
+            onClick={() => scrollToSection('home')}
+            aria-label="BugTracker home"
           >
-            <div className="brand-logo">
-              <Bug size={20} />
+            <div className="lp-brand-logo" aria-hidden="true">
+              <Bug size={18} />
             </div>
-            <span className="brand-title">BugTracker</span>
+            <span className="lp-brand-name">BugTracker</span>
           </button>
 
-          {/* Desktop Nav Links */}
-          <nav className="home-nav-links">
-            <button type="button" onClick={() => scrollToSection('features')} className="home-nav-link">
-              Features
-            </button>
-            <button type="button" onClick={() => scrollToSection('how-it-works')} className="home-nav-link">
-              How it Works
-            </button>
-            <button type="button" onClick={() => scrollToSection('roles')} className="home-nav-link">
-              Roles
-            </button>
-            {isAuthenticated && (
+          {/* Desktop nav */}
+          <nav className="lp-nav-links" aria-label="Main navigation">
+            {navLinks.map(({ id, label }) => (
               <button
+                key={id}
                 type="button"
-                onClick={() => handleProtectedNavigation('/dashboard')}
-                className="home-nav-link"
+                className={`lp-nav-link${activeSection === id ? ' lp-nav-link--active' : ''}`}
+                onClick={() => scrollToSection(id)}
               >
-                Dashboard
+                {label}
               </button>
-            )}
+            ))}
           </nav>
 
-          {/* Auth Buttons */}
-          <div className="home-nav-actions">
+          {/* Desktop actions */}
+          <div className="lp-nav-actions">
             {isAuthenticated && user ? (
-              <>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Hi, {user.full_name.split(' ')[0]}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => navigate(getDashboardPath())}
-                >
-                  <LayoutDashboard size={14} />
-                  Dashboard
-                </button>
-              </>
+              <button type="button" className="lp-btn lp-btn--primary" onClick={() => navigate(getDashboardPath())}>
+                <LayoutDashboard size={15} />
+                Dashboard
+              </button>
             ) : (
               <>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={handleLogin}>
-                  <LogIn size={14} />
+                <button type="button" className="lp-btn lp-btn--ghost" onClick={handleLogin}>
+                  <LogIn size={15} />
                   Sign In
                 </button>
-                <button type="button" className="btn btn-primary btn-sm" onClick={handleRegister}>
+                <button type="button" className="lp-btn lp-btn--primary" onClick={handleRegister}>
                   Get Started
-                  <ArrowRight size={14} />
+                  <ArrowRight size={15} />
                 </button>
               </>
             )}
           </div>
 
-          {/* Mobile menu toggle */}
+          {/* Mobile hamburger */}
           <button
             type="button"
-            className="home-mobile-menu-btn"
+            className="lp-hamburger"
             onClick={() => setMobileMenuOpen((o) => !o)}
-            aria-label="Toggle navigation menu"
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
           >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="home-mobile-menu">
-            <button type="button" onClick={() => scrollToSection('features')} className="home-mobile-link">
-              Features
-            </button>
-            <button type="button" onClick={() => scrollToSection('how-it-works')} className="home-mobile-link">
-              How it Works
-            </button>
-            <button type="button" onClick={() => scrollToSection('roles')} className="home-mobile-link">
-              Roles
-            </button>
-            {isAuthenticated ? (
-              <button
-                type="button"
-                onClick={() => { setMobileMenuOpen(false); navigate('/dashboard'); }}
-                className="home-mobile-link"
-              >
-                Dashboard
+          <div className="lp-mobile-menu" role="navigation" aria-label="Mobile navigation">
+            {navLinks.map(({ id, label }) => (
+              <button key={id} type="button" className="lp-mobile-link" onClick={() => scrollToSection(id)}>
+                {label}
               </button>
-            ) : (
-              <>
-                <button type="button" onClick={handleLogin} className="home-mobile-link">
-                  Sign In
-                </button>
-                <button type="button" onClick={handleRegister} className="home-mobile-link home-mobile-link-primary">
-                  Create Account
-                </button>
-              </>
-            )}
+            ))}
+            <div className="lp-mobile-divider" />
+            <button type="button" className="lp-mobile-link" onClick={handleLogin}>Sign In</button>
+            <button type="button" className="lp-mobile-link lp-mobile-link--primary" onClick={handleRegister}>
+              Get Started
+            </button>
           </div>
         )}
       </header>
 
-      {/* ===== HERO ===== */}
-      <section className="home-hero">
-        <div className="home-hero-badge">
-          <Zap size={13} />
-          <span>Professional Bug Tracking System</span>
-        </div>
+      {/* ═══════════════════════════════════════
+          HERO
+      ═══════════════════════════════════════ */}
+      <section className="lp-hero" aria-label="Hero">
+        {/* Left */}
+        <div className="lp-hero-left">
+          <div className="lp-hero-badge">
+            <Zap size={12} aria-hidden="true" />
+            <span>INTELLIGENT SOFTWARE MANAGEMENT</span>
+          </div>
 
-        <h1 className="home-hero-title">
-          Track, Manage &amp;
-          <br />
-          <span className="home-hero-highlight">Resolve Defects</span>
-          <br />
-          With Your Team
-        </h1>
+          <h1 className="lp-hero-title">
+            Track Bugs.<br />
+            <span className="lp-gradient-text">Ship Better</span><br />
+            Software.
+          </h1>
 
-        <p className="home-hero-subtitle">
-          BugTracker streamlines the entire defect lifecycle — from issue submission to
-          resolution. Empowering teams with real-time tracking, smart assignment, and
-          clear role-based workflows.
-        </p>
+          <p className="lp-hero-subtitle">
+            BugTracker brings issues, projects, Agile sprints, analytics, and
+            real-time collaboration into one powerful workspace.
+          </p>
 
-        <div className="home-hero-cta">
-          {isAuthenticated ? (
-            <button
-              type="button"
-              className="btn btn-primary home-cta-primary"
-              onClick={() => navigate('/dashboard')}
-            >
-              <LayoutDashboard size={18} />
-              Go to Dashboard
-              <ArrowRight size={16} />
+          <div className="lp-hero-cta">
+            <button type="button" className="lp-btn lp-btn--primary lp-btn--lg" onClick={handleRegister}>
+              Get Started
+              <ArrowRight size={18} />
             </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="btn btn-primary home-cta-primary"
-                onClick={handleRegister}
-              >
-                Create Free Account
-                <ArrowRight size={18} />
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary home-cta-secondary"
-                onClick={handleLogin}
-              >
-                <LogIn size={16} />
-                Sign In
-              </button>
-            </>
-          )}
+            <button type="button" className="lp-btn lp-btn--outline lp-btn--lg" onClick={() => scrollToSection('features')}>
+              Explore Features
+              <ChevronDown size={18} />
+            </button>
+          </div>
+
+          <div className="lp-hero-trust">
+            <div className="lp-trust-item"><CheckCircle2 size={14} aria-hidden="true" /><span>Agile Sprint Planning</span></div>
+            <div className="lp-trust-item"><CheckCircle2 size={14} aria-hidden="true" /><span>Real-Time Analytics</span></div>
+            <div className="lp-trust-item"><CheckCircle2 size={14} aria-hidden="true" /><span>Role-Based Workflows</span></div>
+          </div>
         </div>
 
-        <div className="home-hero-stats">
-          {[
-            { value: '3', label: 'Role Types' },
-            { value: '100%', label: 'Real Data' },
-            { value: 'Live', label: 'Updates' },
-          ].map(({ value, label }) => (
-            <div key={label} className="home-hero-stat">
-              <div className="home-hero-stat-value">{value}</div>
-              <div className="home-hero-stat-label">{label}</div>
+        {/* Right — 3D floating dashboard cards */}
+        <div className="lp-hero-visual" aria-hidden="true">
+          <div className="lp-3d-scene">
+            {/* Sprint card */}
+            <div className="lp-float-card lp-float-card--sprint">
+              <div className="lp-fc-header">
+                <Activity size={13} />
+                <span>Sprint Alpha</span>
+                <span className="lp-fc-tag lp-fc-tag--green">ON TRACK</span>
+              </div>
+              <div className="lp-fc-label">Sprint Progress</div>
+              <div className="lp-fc-progress-wrap">
+                <div className="lp-fc-progress-bar">
+                  <div className="lp-fc-progress-fill" style={{ width: '72%' }} />
+                </div>
+                <span className="lp-fc-prog-val">72%</span>
+              </div>
+              <div className="lp-fc-row">
+                <span className="lp-fc-sub">17 / 24 issues done</span>
+              </div>
             </div>
-          ))}
+
+            {/* Issue card */}
+            <div className="lp-float-card lp-float-card--issue">
+              <div className="lp-fc-header">
+                <Bug size={13} />
+                <span className="lp-fc-mono">BUG-1024</span>
+                <span className="lp-fc-tag lp-fc-tag--red">CRITICAL</span>
+              </div>
+              <div className="lp-fc-issue-title">Auth token refresh loop</div>
+              <div className="lp-fc-row">
+                <div className="lp-fc-avatar">AK</div>
+                <span className="lp-fc-sub">Assigned to Ajay K.</span>
+              </div>
+            </div>
+
+            {/* Analytics card */}
+            <div className="lp-float-card lp-float-card--analytics">
+              <div className="lp-fc-header">
+                <TrendingUp size={13} />
+                <span>Resolution Rate</span>
+              </div>
+              <div className="lp-fc-big-num">+24%</div>
+              <div className="lp-fc-sparkline">
+                <ResponsiveContainer width="100%" height={36}>
+                  <LineChart data={resolutionData}>
+                    <Line type="monotone" dataKey="v" stroke="#6366f1" strokeWidth={2} dot={false} />
+                    <Tooltip contentStyle={{ display: 'none' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Notification card */}
+            <div className="lp-float-card lp-float-card--notify">
+              <div className="lp-fc-header">
+                <Bell size={13} />
+                <span>Notification</span>
+              </div>
+              <div className="lp-fc-notify-msg">
+                <CheckCircle2 size={14} className="lp-fc-notify-icon" />
+                Sprint completed successfully!
+              </div>
+            </div>
+
+            {/* Glow orb */}
+            <div className="lp-scene-glow" />
+          </div>
         </div>
       </section>
 
-      {/* ===== FEATURES ===== */}
-      <section id="features" className="home-section">
-        <div className="home-section-inner">
-          <div className="home-section-header">
-            <div className="home-section-badge">
-              <Star size={13} />
-              Features
-            </div>
-            <h2 className="home-section-title">Everything You Need to Track Defects</h2>
-            <p className="home-section-subtitle">
-              A complete defect management platform with powerful tools for every team member.
+      {/* ═══════════════════════════════════════
+          FEATURES
+      ═══════════════════════════════════════ */}
+      <section id="features" className="lp-section" aria-labelledby="features-title">
+        <div className="lp-section-inner">
+          <div className="lp-section-head">
+            <div className="lp-section-badge"><Layers size={12} aria-hidden="true" />Features</div>
+            <h2 id="features-title" className="lp-section-title">
+              Everything Your Engineering<br />Team Needs
+            </h2>
+            <p className="lp-section-sub">
+              From bug reporting to sprint delivery, manage the complete software
+              development lifecycle.
             </p>
           </div>
 
-          <div className="home-features-grid">
+          <div className="lp-features-grid">
             {[
               {
-                icon: <Bug size={22} />,
-                color: 'var(--primary)',
-                bg: 'rgba(99,102,241,0.15)',
-                title: 'Issue Reporting',
-                desc: 'Report defects with full details — severity, priority, environment, steps to reproduce, and attachments.',
+                emoji: '🐞', icon: <Bug size={20} />, accent: '#6366f1',
+                title: 'Intelligent Issue Tracking',
+                desc: 'Track bugs, tasks, and feature requests with powerful filtering, priority management, and severity classification.',
                 action: () => handleProtectedNavigation('/issues'),
               },
               {
-                icon: <FolderOpen size={22} />,
-                color: '#22c55e',
-                bg: 'rgba(34,197,94,0.15)',
-                title: 'Project Management',
-                desc: 'Organize issues by project. Create projects, manage their lifecycle, and track all related defects.',
+                emoji: '🏃', icon: <GitBranch size={20} />, accent: '#22c55e',
+                title: 'Agile Sprint Management',
+                desc: 'Plan sprints, assign backlog issues, track progress, manage capacity, and safely roll over unfinished work.',
                 action: () => handleProtectedNavigation('/projects'),
               },
               {
-                icon: <Shield size={22} />,
-                color: '#f97316',
-                bg: 'rgba(249,115,22,0.15)',
-                title: 'Role-Based Access',
-                desc: 'Three distinct roles — Admin, Tester, and User — each with appropriate permissions and views.',
-                action: () => scrollToSection('roles'),
-              },
-              {
-                icon: <BarChart3 size={22} />,
-                color: '#a855f7',
-                bg: 'rgba(168,85,247,0.15)',
-                title: 'Analytics & Reports',
-                desc: 'Real-time dashboards with issue trends, severity distribution, status breakdowns, and CSV export.',
+                emoji: '📊', icon: <BarChart3 size={20} />, accent: '#a855f7',
+                title: 'Real-Time Analytics',
+                desc: 'Monitor issue trends, resolution performance, developer workload, sprint health, and project progress.',
                 action: () => handleProtectedNavigation('/analytics'),
               },
               {
-                icon: <MessageSquare size={22} />,
-                color: '#06b6d4',
-                bg: 'rgba(6,182,212,0.15)',
-                title: 'Comments & Notes',
-                desc: 'Collaborate directly on issues with threaded comments, audit history, and update notifications.',
-                action: () => handleProtectedNavigation('/issues'),
+                emoji: '📉', icon: <Activity size={20} />, accent: '#0ea5e9',
+                title: 'Burndown Tracking',
+                desc: 'Visualize sprint progress with ideal versus actual burndown data to keep delivery on schedule.',
+                action: () => scrollToSection('sprints'),
               },
               {
-                icon: <TrendingUp size={22} />,
-                color: '#eab308',
-                bg: 'rgba(234,179,8,0.15)',
-                title: 'Live Notifications',
-                desc: 'WebSocket-powered real-time alerts when issues are assigned, updated, or resolved.',
+                emoji: '🔔', icon: <Bell size={20} />, accent: '#f59e0b',
+                title: 'Real-Time Notifications',
+                desc: 'Stay informed about important issue and sprint activities through live notifications.',
                 action: () => handleProtectedNavigation('/notifications'),
               },
-            ].map(({ icon, color, bg, title, desc, action }) => (
-              <button
-                key={title}
-                type="button"
-                className="home-feature-card"
-                onClick={action}
-              >
-                <div
-                  className="home-feature-icon"
-                  style={{ background: bg, color }}
-                >
-                  {icon}
-                </div>
-                <h3 className="home-feature-title">{title}</h3>
-                <p className="home-feature-desc">{desc}</p>
-                <div className="home-feature-arrow" style={{ color }}>
-                  <ChevronRight size={16} />
-                </div>
-              </button>
+              {
+                emoji: '🔐', icon: <ShieldCheck size={20} />, accent: '#ef4444',
+                title: 'Role-Based Access',
+                desc: 'Secure workflows with dedicated permissions for Admins, Developers, Testers, and Users.',
+                action: () => scrollToSection('why'),
+              },
+            ].map(({ emoji, icon, accent, title, desc, action }) => (
+              <FeatureCard key={title} emoji={emoji} icon={icon} accent={accent} title={title} desc={desc} onClick={action} />
             ))}
           </div>
         </div>
       </section>
 
-      {/* ===== HOW IT WORKS ===== */}
-      <section id="how-it-works" className="home-section home-section-alt">
-        <div className="home-section-inner">
-          <div className="home-section-header">
-            <div className="home-section-badge">
-              <ClipboardList size={13} />
-              Workflow
-            </div>
-            <h2 className="home-section-title">How BugTracker Works</h2>
-            <p className="home-section-subtitle">
-              A clear, structured workflow from issue submission to final resolution.
+      {/* ═══════════════════════════════════════
+          WORKFLOW
+      ═══════════════════════════════════════ */}
+      <section id="workflow" className="lp-section lp-section--alt" aria-labelledby="workflow-title">
+        <div className="lp-section-inner">
+          <div className="lp-section-head">
+            <div className="lp-section-badge"><GitBranch size={12} aria-hidden="true" />Workflow</div>
+            <h2 id="workflow-title" className="lp-section-title">From Backlog to Release</h2>
+            <p className="lp-section-sub">A structured path from planning to deployment, every sprint.</p>
+          </div>
+
+          <WorkflowTimeline />
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          SPRINT SHOWCASE
+      ═══════════════════════════════════════ */}
+      <section id="sprints" className="lp-section" aria-labelledby="sprints-title">
+        <div className="lp-section-inner">
+          <SprintShowcase onNavigate={() => handleProtectedNavigation('/projects')} />
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          ANALYTICS SHOWCASE
+      ═══════════════════════════════════════ */}
+      <section id="analytics" className="lp-section lp-section--alt" aria-labelledby="analytics-title">
+        <div className="lp-section-inner">
+          <div className="lp-section-head">
+            <div className="lp-section-badge"><BarChart3 size={12} aria-hidden="true" />Analytics</div>
+            <h2 id="analytics-title" className="lp-section-title">See Everything, Fix Faster</h2>
+            <p className="lp-section-sub">
+              Sample data shown for demonstration. Your real metrics will appear after sign-in.
             </p>
           </div>
 
-          <div className="home-workflow">
+          <div className="lp-analytics-grid">
+            {/* Counter stats */}
+            <div className="lp-analytics-stats">
+              {[
+                { target: 98, suffix: '%', label: 'Resolution Rate', accent: '#6366f1', icon: <TrendingUp size={18} /> },
+                { target: 24, suffix: '', label: 'Active Issues', accent: '#22c55e', icon: <Bug size={18} /> },
+                { target: 12, suffix: '', label: 'Projects', accent: '#a855f7', icon: <FolderOpen size={18} /> },
+                { target: 86, suffix: '%', label: 'Sprint Completion', accent: '#0ea5e9', icon: <Target size={18} /> },
+              ].map(({ target, suffix, label, accent, icon }) => (
+                <div key={label} className="lp-stat-card" style={{ '--accent': accent } as React.CSSProperties}>
+                  <div className="lp-stat-icon" style={{ color: accent }}>{icon}</div>
+                  <div className="lp-stat-num" style={{ color: accent }}>
+                    <AnimatedCounter target={target} suffix={suffix} />
+                  </div>
+                  <div className="lp-stat-label">{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Chart */}
+            <div className="lp-analytics-chart-card">
+              <div className="lp-chart-header">
+                <span className="lp-chart-title">Resolution Rate Trend</span>
+                <span className="lp-chart-demo-tag">DEMO DATA</span>
+              </div>
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={resolutionData}>
+                  <Line type="monotone" dataKey="v" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: '#6366f1' }} />
+                  <Tooltip
+                    contentStyle={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
+                    labelStyle={{ color: '#94a3b8' }}
+                    formatter={(v: number) => [`${v}%`, 'Rate']}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="lp-chart-footer">Weekly resolution rate across all projects (sample data)</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          ORBIT SECTION
+      ═══════════════════════════════════════ */}
+      <section className="lp-section lp-orbit-section" aria-label="BugTracker capabilities orbit">
+        <div className="lp-section-inner lp-orbit-inner">
+          <div className="lp-section-head">
+            <div className="lp-section-badge"><Zap size={12} aria-hidden="true" />Platform</div>
+            <h2 className="lp-section-title">One Platform, Every Capability</h2>
+          </div>
+          <div className="lp-orbit-wrapper" aria-hidden="true">
+            {/* Center */}
+            <div className="lp-orbit-center">
+              <div className="lp-orbit-logo">
+                <Bug size={30} />
+              </div>
+              <span className="lp-orbit-center-label">BugTracker</span>
+            </div>
+
+            {/* Orbit ring */}
+            <div className="lp-orbit-ring lp-orbit-ring-1">
+              {orbitItems.map(({ icon, label, angle }) => (
+                <div
+                  key={label}
+                  className="lp-orbit-item"
+                  style={{ '--angle': `${angle}deg` } as React.CSSProperties}
+                >
+                  <div className="lp-orbit-item-inner">
+                    <span className="lp-orbit-item-emoji">{icon}</span>
+                    <span className="lp-orbit-item-label">{label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          WHY BUGTRACKER
+      ═══════════════════════════════════════ */}
+      <section id="why" className="lp-section lp-section--alt" aria-labelledby="why-title">
+        <div className="lp-section-inner">
+          <div className="lp-section-head">
+            <div className="lp-section-badge"><Shield size={12} aria-hidden="true" />Why BugTracker</div>
+            <h2 id="why-title" className="lp-section-title">Built for Modern Software Teams</h2>
+          </div>
+          <div className="lp-why-grid">
             {[
               {
-                step: '01',
-                color: 'var(--primary)',
-                bg: 'rgba(99,102,241,0.12)',
-                icon: <User size={20} />,
-                who: 'User',
-                title: 'Submit an Issue',
-                desc: 'A team member encounters a problem and submits a detailed bug report — including severity, priority, environment info, and steps to reproduce.',
+                icon: <Layers size={28} />, accent: '#6366f1',
+                heading: 'One Platform',
+                body: 'Manage projects, issues, sprints, analytics, and collaboration in one unified workspace. No context switching.',
               },
               {
-                step: '02',
-                color: '#f97316',
-                bg: 'rgba(249,115,22,0.12)',
-                icon: <Shield size={20} />,
-                who: 'Admin',
-                title: 'Review & Assign',
-                desc: 'The Admin reviews incoming issues, prioritizes them, and assigns each one to a qualified Tester for investigation.',
+                icon: <Activity size={28} />, accent: '#22c55e',
+                heading: 'Real-Time Visibility',
+                body: 'Understand exactly what your team is building and where work is getting blocked with live dashboards.',
               },
               {
-                step: '03',
-                color: '#22c55e',
-                bg: 'rgba(34,197,94,0.12)',
-                icon: <Search size={20} />,
-                who: 'Tester',
-                title: 'Investigate & Update',
-                desc: 'The assigned Tester investigates the defect, updates the status (In Progress → In Review), and provides a detailed resolution summary.',
+                icon: <Target size={28} />, accent: '#a855f7',
+                heading: 'Smarter Delivery',
+                body: 'Use sprint health, workload analysis, and analytics to continuously improve team delivery performance.',
               },
-              {
-                step: '04',
-                color: '#a855f7',
-                bg: 'rgba(168,85,247,0.12)',
-                icon: <ShieldCheck size={20} />,
-                who: 'Admin',
-                title: 'Review Resolution',
-                desc: 'Admin reviews the Tester\'s findings and resolution, validates the fix, and confirms or escalates as needed.',
-              },
-              {
-                step: '05',
-                color: '#06b6d4',
-                bg: 'rgba(6,182,212,0.12)',
-                icon: <CheckCircle2 size={20} />,
-                who: 'User',
-                title: 'See Final Status',
-                desc: 'The original reporter sees the resolved status, resolution summary, and can reopen the issue if the problem persists.',
-              },
-            ].map(({ step, color, bg, icon, who, title, desc }, idx, arr) => (
-              <div key={step} className="home-workflow-item">
-                <div className="home-workflow-step">
-                  <div
-                    className="home-workflow-icon"
-                    style={{ background: bg, color, border: `1.5px solid ${color}30` }}
-                  >
-                    {icon}
-                  </div>
-                  <div className="home-workflow-step-num" style={{ color }}>
-                    {step}
-                  </div>
-                </div>
-                <div className="home-workflow-content">
-                  <div className="home-workflow-who" style={{ color, background: bg }}>
-                    {who}
-                  </div>
-                  <h3 className="home-workflow-title">{title}</h3>
-                  <p className="home-workflow-desc">{desc}</p>
-                </div>
-                {idx < arr.length - 1 && <div className="home-workflow-connector" />}
+            ].map(({ icon, accent, heading, body }) => (
+              <div key={heading} className="lp-why-card" style={{ '--accent': accent } as React.CSSProperties}>
+                <div className="lp-why-icon" style={{ color: accent, background: `${accent}18` }}>{icon}</div>
+                <h3 className="lp-why-heading">{heading}</h3>
+                <p className="lp-why-body">{body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ===== ROLES ===== */}
-      <section id="roles" className="home-section">
-        <div className="home-section-inner">
-          <div className="home-section-header">
-            <div className="home-section-badge">
-              <Users size={13} />
-              Roles
-            </div>
-            <h2 className="home-section-title">Three Roles, One Workflow</h2>
-            <p className="home-section-subtitle">
-              Every team member has a clear, focused role in the defect resolution process.
-            </p>
-          </div>
-
-          <div className="home-roles-grid">
-            {/* USER */}
-            <div className="home-role-card">
-              <div
-                className="home-role-icon-wrap"
-                style={{ background: 'rgba(99,102,241,0.15)', color: 'var(--primary)' }}
-              >
-                <User size={26} />
-              </div>
-              <h3 className="home-role-title">User</h3>
-              <p className="home-role-subtitle">Issue Reporter</p>
-              <ul className="home-role-features">
-                <li><CheckCircle2 size={14} /> Submit detailed bug reports</li>
-                <li><CheckCircle2 size={14} /> Track issue status in real time</li>
-                <li><CheckCircle2 size={14} /> Add comments and attachments</li>
-                <li><CheckCircle2 size={14} /> Reopen resolved issues</li>
-                <li><CheckCircle2 size={14} /> Receive status notifications</li>
-              </ul>
-              {!isAuthenticated && (
-                <button
-                  type="button"
-                  className="btn btn-primary home-role-btn"
-                  onClick={handleRegister}
-                >
-                  Register as User
-                  <ArrowRight size={14} />
-                </button>
-              )}
-            </div>
-
-            {/* ADMIN */}
-            <div className="home-role-card home-role-card-featured">
-              <div className="home-role-badge-top">Control Center</div>
-              <div
-                className="home-role-icon-wrap"
-                style={{ background: 'rgba(249,115,22,0.15)', color: '#f97316' }}
-              >
-                <Shield size={26} />
-              </div>
-              <h3 className="home-role-title">Admin</h3>
-              <p className="home-role-subtitle">System Administrator</p>
-              <ul className="home-role-features">
-                <li><CheckCircle2 size={14} /> Full system visibility</li>
-                <li><CheckCircle2 size={14} /> Review and triage all issues</li>
-                <li><CheckCircle2 size={14} /> Assign issues to Testers</li>
-                <li><CheckCircle2 size={14} /> Monitor team performance</li>
-                <li><CheckCircle2 size={14} /> Access analytics &amp; reports</li>
-                <li><CheckCircle2 size={14} /> Manage projects &amp; users</li>
-              </ul>
-              {!isAuthenticated && (
-                <button
-                  type="button"
-                  className="btn btn-secondary home-role-btn"
-                  onClick={handleLogin}
-                >
-                  Admin Sign In
-                  <ArrowRight size={14} />
-                </button>
-              )}
-            </div>
-
-            {/* TESTER */}
-            <div className="home-role-card">
-              <div
-                className="home-role-icon-wrap"
-                style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}
-              >
-                <ShieldCheck size={26} />
-              </div>
-              <h3 className="home-role-title">Tester</h3>
-              <p className="home-role-subtitle">Issue Investigator</p>
-              <ul className="home-role-features">
-                <li><CheckCircle2 size={14} /> Receive assigned issues</li>
-                <li><CheckCircle2 size={14} /> Investigate and reproduce bugs</li>
-                <li><CheckCircle2 size={14} /> Update investigation progress</li>
-                <li><CheckCircle2 size={14} /> Resolve or escalate issues</li>
-                <li><CheckCircle2 size={14} /> Provide resolution summaries</li>
-              </ul>
-              {!isAuthenticated && (
-                <button
-                  type="button"
-                  className="btn btn-primary home-role-btn"
-                  style={{ background: '#22c55e', borderColor: '#22c55e' }}
-                  onClick={handleRegister}
-                >
-                  Register as Tester
-                  <ArrowRight size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== STATIC DASHBOARD PREVIEW ===== */}
-      <section className="home-section home-section-alt">
-        <div className="home-section-inner">
-          <div className="home-section-header">
-            <h2 className="home-section-title">Powerful Dashboard Interface</h2>
-            <p className="home-section-subtitle">
-              A clean, data-rich interface built for every role in your team.
-            </p>
-          </div>
-
-          {/* Static visual preview — no real data loaded */}
-          <div className="home-dashboard-preview">
-            <div className="home-preview-topbar">
-              <div className="home-preview-dots">
-                <span style={{ background: '#ef4444' }} />
-                <span style={{ background: '#f97316' }} />
-                <span style={{ background: '#22c55e' }} />
-              </div>
-              <div className="home-preview-url">BugTracker · Dashboard</div>
-            </div>
-            <div className="home-preview-body">
-              {/* Sidebar */}
-              <div className="home-preview-sidebar">
-                <div className="home-preview-brand">
-                  <Bug size={16} />
-                  <span>BugTracker</span>
-                </div>
-                {[
-                  { icon: <LayoutDashboard size={13} />, label: 'Dashboard', active: true },
-                  { icon: <Bug size={13} />, label: 'Issues' },
-                  { icon: <FolderOpen size={13} />, label: 'Projects' },
-                  { icon: <BarChart3 size={13} />, label: 'Analytics' },
-                ].map(({ icon, label, active }) => (
-                  <div
-                    key={label}
-                    className={`home-preview-nav-item ${active ? 'active' : ''}`}
-                  >
-                    {icon}
-                    <span>{label}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Main content */}
-              <div className="home-preview-main">
-                {/* Stats row */}
-                <div className="home-preview-stats">
-                  {[
-                    { label: 'Total Issues', value: '—', color: '#6366f1' },
-                    { label: 'In Progress', value: '—', color: '#f97316' },
-                    { label: 'Resolved', value: '—', color: '#22c55e' },
-                    { label: 'Critical', value: '—', color: '#ef4444' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="home-preview-stat-card">
-                      <div className="home-preview-stat-val" style={{ color }}>
-                        {value}
-                      </div>
-                      <div className="home-preview-stat-label">{label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Chart placeholder */}
-                <div className="home-preview-chart-row">
-                  <div className="home-preview-chart">
-                    <div className="home-preview-chart-title">Issue Trends</div>
-                    <div className="home-preview-chart-bars">
-                      {[40, 65, 45, 80, 55, 70, 90, 60, 75, 85, 50, 95].map((h, i) => (
-                        <div
-                          key={i}
-                          className="home-preview-bar"
-                          style={{ height: `${h}%`, opacity: 0.6 + i * 0.03 }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="home-preview-list">
-                    <div className="home-preview-list-title">Recent Issues</div>
-                    {['Critical login bug', 'UI alignment issue', 'API timeout error', 'Auth token refresh'].map((title) => (
-                      <div key={title} className="home-preview-list-item">
-                        <div className="home-preview-list-dot" />
-                        <span>{title}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Sign-in overlay for unauthenticated */}
-            {!isAuthenticated && (
-              <div className="home-preview-overlay">
-                <div className="home-preview-overlay-card">
-                  <Bug size={28} style={{ color: 'var(--primary)' }} />
-                  <p style={{ fontWeight: '600', margin: '0.5rem 0 0.25rem' }}>
-                    Sign in to access your dashboard
-                  </p>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-                    Real data from your workspace
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={handleLogin}
-                    style={{ marginTop: '0.75rem' }}
-                  >
-                    <LogIn size={14} />
-                    Sign In
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== CTA ===== */}
-      <section className="home-cta-section">
-        <div className="home-cta-inner">
-          <div className="home-cta-icon">
-            <Bug size={32} />
-          </div>
-          <h2 className="home-cta-title">
-            {isAuthenticated
-              ? `Welcome back, ${user?.full_name.split(' ')[0]}!`
-              : 'Ready to Start Tracking?'}
+      {/* ═══════════════════════════════════════
+          FINAL CTA
+      ═══════════════════════════════════════ */}
+      <section className="lp-cta-section" aria-labelledby="cta-title">
+        <div className="lp-cta-bg-glow" aria-hidden="true" />
+        <div className="lp-cta-inner">
+          <div className="lp-cta-badge"><Zap size={12} aria-hidden="true" />Ready when you are</div>
+          <h2 id="cta-title" className="lp-cta-title">
+            Ready to Build Better<br />
+            <span className="lp-gradient-text">Software?</span>
           </h2>
-          <p className="home-cta-desc">
-            {isAuthenticated
-              ? 'Your workspace is ready. Jump back into your defect dashboard.'
-              : 'Join your team on BugTracker today. No mock data — real workflows, real results.'}
+          <p className="lp-cta-body">
+            Bring your team, projects, issues, and sprints together in one intelligent workspace.
           </p>
-          <div className="home-cta-buttons">
-            {isAuthenticated ? (
-              <button
-                type="button"
-                className="btn home-cta-btn"
-                onClick={() => navigate('/dashboard')}
-              >
-                <LayoutDashboard size={18} />
-                Open Dashboard
-                <ArrowRight size={16} />
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="btn home-cta-btn"
-                  onClick={handleRegister}
-                >
-                  Create Free Account
-                  <ArrowRight size={18} />
-                </button>
-                <button
-                  type="button"
-                  className="btn home-cta-btn-outline"
-                  onClick={handleLogin}
-                >
-                  <LogIn size={16} />
-                  Sign In
-                </button>
-              </>
-            )}
+          <div className="lp-cta-actions">
+            <button type="button" className="lp-btn lp-btn--primary lp-btn--lg" onClick={handleRegister}>
+              Get Started Free
+              <ArrowRight size={18} />
+            </button>
+            <button type="button" className="lp-btn lp-btn--outline lp-btn--lg" onClick={() => handleProtectedNavigation('/dashboard')}>
+              <LayoutDashboard size={18} />
+              View Dashboard
+            </button>
           </div>
         </div>
       </section>
 
-      {/* ===== FOOTER ===== */}
-      <footer className="home-footer">
-        <div className="home-footer-inner">
-          <div className="home-footer-brand">
-            <div className="brand-logo" style={{ width: '28px', height: '28px' }}>
-              <Bug size={16} />
+      {/* ═══════════════════════════════════════
+          FOOTER
+      ═══════════════════════════════════════ */}
+      <footer className="lp-footer" role="contentinfo">
+        <div className="lp-footer-inner">
+          <div className="lp-footer-brand-col">
+            <div className="lp-brand lp-footer-brand">
+              <div className="lp-brand-logo" aria-hidden="true"><Bug size={16} /></div>
+              <span className="lp-brand-name">BugTracker</span>
             </div>
-            <span className="brand-title" style={{ fontSize: '0.95rem' }}>BugTracker</span>
+            <p className="lp-footer-tagline">
+              Intelligent bug tracking and agile sprint management for modern engineering teams.
+            </p>
           </div>
-          <div className="home-footer-links">
-            <button type="button" className="home-footer-link" onClick={() => scrollToSection('features')}>
-              Features
-            </button>
-            <button type="button" className="home-footer-link" onClick={() => scrollToSection('how-it-works')}>
-              Workflow
-            </button>
-            <button type="button" className="home-footer-link" onClick={() => scrollToSection('roles')}>
-              Roles
-            </button>
-            <button type="button" className="home-footer-link" onClick={handleLogin}>
-              Sign In
-            </button>
-            <button type="button" className="home-footer-link" onClick={handleRegister}>
-              Register
-            </button>
+
+          <div className="lp-footer-links-col">
+            <div className="lp-footer-group">
+              <div className="lp-footer-group-title">Product</div>
+              <button type="button" className="lp-footer-link" onClick={() => scrollToSection('features')}>Features</button>
+              <button type="button" className="lp-footer-link" onClick={() => handleProtectedNavigation('/issues')}>Issues</button>
+              <button type="button" className="lp-footer-link" onClick={() => scrollToSection('sprints')}>Sprints</button>
+              <button type="button" className="lp-footer-link" onClick={() => scrollToSection('analytics')}>Analytics</button>
+            </div>
+
+            <div className="lp-footer-group">
+              <div className="lp-footer-group-title">Platform</div>
+              <button type="button" className="lp-footer-link" onClick={() => handleProtectedNavigation('/projects')}>Projects</button>
+              <button type="button" className="lp-footer-link" onClick={() => handleProtectedNavigation('/notifications')}>Notifications</button>
+              <button type="button" className="lp-footer-link" onClick={() => handleProtectedNavigation('/analytics')}>Reports</button>
+              <button type="button" className="lp-footer-link" onClick={() => scrollToSection('why')}>Security</button>
+            </div>
+
+            <div className="lp-footer-group">
+              <div className="lp-footer-group-title">Resources</div>
+              <button type="button" className="lp-footer-link" onClick={handleLogin}>Documentation</button>
+              <button type="button" className="lp-footer-link" onClick={handleLogin}>API Docs</button>
+              <button type="button" className="lp-footer-link" onClick={handleLogin}>GitHub</button>
+            </div>
           </div>
-          <div className="home-footer-copy">
-            &copy; {new Date().getFullYear()} BugTracker. Professional defect management.
+        </div>
+
+        <div className="lp-footer-bottom">
+          <span>© {new Date().getFullYear()} BugTracker. All rights reserved.</span>
+          <div className="lp-footer-bottom-links">
+            <button type="button" className="lp-footer-link" onClick={handleLogin}>Privacy</button>
+            <button type="button" className="lp-footer-link" onClick={handleLogin}>Terms</button>
           </div>
         </div>
       </footer>
     </div>
   );
 };
+
+/* ─── Feature Card Sub-component ─────────────────────────────────── */
+interface FeatureCardProps {
+  emoji: string;
+  icon: React.ReactNode;
+  accent: string;
+  title: string;
+  desc: string;
+  onClick: () => void;
+}
+const FeatureCard: React.FC<FeatureCardProps> = ({ icon, accent, title, desc, onClick }) => {
+  const { ref, inView } = useInView(0.1);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientY - rect.top) / rect.height - 0.5) * 10;
+    const y = -((e.clientX - rect.left) / rect.width - 0.5) * 10;
+    setTilt({ x, y });
+  };
+  const handleMouseLeave = () => setTilt({ x: 0, y: 0 });
+
+  return (
+    <button
+      ref={ref as React.Ref<HTMLButtonElement>}
+      type="button"
+      className={`lp-feature-card${inView ? ' lp-feature-card--visible' : ''}`}
+      onClick={onClick}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        '--accent': accent,
+        transform: `perspective(600px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+      } as React.CSSProperties}
+    >
+      <div className="lp-feature-icon-wrap" style={{ color: accent, background: `${accent}18` }}>
+        {icon}
+      </div>
+      <h3 className="lp-feature-title">{title}</h3>
+      <p className="lp-feature-desc">{desc}</p>
+      <div className="lp-feature-arrow" style={{ color: accent }}>
+        <ArrowRight size={15} aria-hidden="true" />
+      </div>
+    </button>
+  );
+};
+
+/* ─── Workflow Timeline Sub-component ────────────────────────────── */
+const workflowSteps = [
+  { icon: <CheckSquare size={18} />, label: 'BACKLOG', desc: 'All issues and feature requests collected and prioritized', accent: '#6366f1' },
+  { icon: <Layers size={18} />, label: 'SPRINT PLANNING', desc: 'Team selects backlog items, estimates effort, assigns capacity', accent: '#8b5cf6' },
+  { icon: <Activity size={18} />, label: 'ACTIVE SPRINT', desc: 'Developers and testers work through sprint issues in real-time', accent: '#a855f7' },
+  { icon: <Bug size={18} />, label: 'ISSUE RESOLUTION', desc: 'Bugs investigated, fixed, reviewed, and marked resolved', accent: '#22c55e' },
+  { icon: <BarChart3 size={18} />, label: 'ANALYTICS', desc: 'Sprint velocity, burndown, and resolution metrics reviewed', accent: '#0ea5e9' },
+  { icon: <FileText size={18} />, label: 'RELEASE', desc: 'Sprint closed, report generated, next sprint begins', accent: '#f59e0b' },
+];
+
+const WorkflowTimeline: React.FC = () => {
+  const { ref, inView } = useInView(0.1);
+  return (
+    <div ref={ref as React.Ref<HTMLDivElement>} className="lp-workflow">
+      {workflowSteps.map(({ icon, label, desc, accent }, i) => (
+        <div
+          key={label}
+          className={`lp-wf-item${inView ? ' lp-wf-item--visible' : ''}`}
+          style={{ transitionDelay: inView ? `${i * 0.1}s` : '0s' }}
+        >
+          <div className="lp-wf-icon" style={{ color: accent, background: `${accent}18`, border: `1.5px solid ${accent}40` }}>
+            {icon}
+          </div>
+          {i < workflowSteps.length - 1 && (
+            <div className={`lp-wf-connector${inView ? ' lp-wf-connector--animated' : ''}`}
+              style={{ '--delay': `${i * 0.12 + 0.3}s` } as React.CSSProperties} aria-hidden="true" />
+          )}
+          <div className="lp-wf-content">
+            <div className="lp-wf-label" style={{ color: accent }}>{label}</div>
+            <p className="lp-wf-desc">{desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ─── Sprint Showcase Sub-component ──────────────────────────────── */
+interface SprintShowcaseProps { onNavigate: () => void; }
+const SprintShowcase: React.FC<SprintShowcaseProps> = ({ onNavigate }) => {
+  const { ref, inView } = useInView(0.15);
+  return (
+    <div
+      ref={ref as React.Ref<HTMLDivElement>}
+      className={`lp-sprint-showcase${inView ? ' lp-sprint-showcase--visible' : ''}`}
+    >
+      {/* Left: Sprint UI preview */}
+      <div className="lp-sprint-preview">
+        <div className="lp-sp-header">
+          <div className="lp-sp-dots" aria-hidden="true">
+            <span style={{ background: '#ef4444' }} />
+            <span style={{ background: '#f97316' }} />
+            <span style={{ background: '#22c55e' }} />
+          </div>
+          <span className="lp-sp-url">BugTracker · Sprint Dashboard</span>
+        </div>
+
+        <div className="lp-sp-body">
+          <div className="lp-sp-title-row">
+            <span className="lp-sp-sprint-name">Sprint Alpha</span>
+            <span className="lp-sp-health"><span className="lp-sp-dot" />ON TRACK</span>
+          </div>
+
+          <div className="lp-sp-progress-wrap">
+            <div className="lp-sp-prog-bar">
+              <div className="lp-sp-prog-fill" style={{ width: '72%' }} />
+            </div>
+            <span className="lp-sp-prog-val">72%</span>
+          </div>
+
+          <div className="lp-sp-stats-grid">
+            <div className="lp-sp-stat"><span className="lp-sp-stat-val">24</span><span className="lp-sp-stat-l">Total</span></div>
+            <div className="lp-sp-stat"><span className="lp-sp-stat-val lp-sp-stat-green">17</span><span className="lp-sp-stat-l">Done</span></div>
+            <div className="lp-sp-stat"><span className="lp-sp-stat-val lp-sp-stat-orange">7</span><span className="lp-sp-stat-l">Left</span></div>
+            <div className="lp-sp-stat"><span className="lp-sp-stat-val">240h</span><span className="lp-sp-stat-l">Capacity</span></div>
+          </div>
+
+          {/* Mini burndown */}
+          <div className="lp-sp-chart-label">
+            <Activity size={11} aria-hidden="true" />
+            Burndown Chart
+            <span className="lp-chart-demo-tag">DEMO</span>
+          </div>
+          <ResponsiveContainer width="100%" height={90}>
+            <LineChart data={burndownData}>
+              <Line type="monotone" dataKey="ideal" stroke="#334155" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+              <Line type="monotone" dataKey="actual" stroke="#6366f1" strokeWidth={2} dot={false} />
+              <Tooltip
+                contentStyle={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 8, fontSize: 11 }}
+                formatter={(v: number, name: string) => [`${v} pts`, name]}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+          <div className="lp-sp-legend">
+            <span><span className="lp-sp-legend-dot" style={{ background: '#334155' }} />Ideal</span>
+            <span><span className="lp-sp-legend-dot" style={{ background: '#6366f1' }} />Actual</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Right: copy */}
+      <div className="lp-sprint-copy">
+        <div className="lp-section-badge" style={{ marginBottom: '1.25rem' }}>
+          <Clock size={12} aria-hidden="true" />Sprints
+        </div>
+        <h2 id="sprints-title" className="lp-section-title" style={{ textAlign: 'left' }}>
+          Plan Smarter.<br />
+          <span className="lp-gradient-text">Deliver Faster.</span>
+        </h2>
+        <p className="lp-sprint-copy-body">
+          BugTracker's sprint management gives your team complete visibility into every iteration — from planning to retrospective.
+        </p>
+        <ul className="lp-sprint-features">
+          {[
+            'Sprint planning with capacity tracking',
+            'Backlog assignment and issue ordering',
+            'Real-time sprint health indicators',
+            'Ideal vs. actual burndown analytics',
+            'Safe issue rollover between sprints',
+            'PDF sprint reports for stakeholders',
+          ].map((f) => (
+            <li key={f}>
+              <CheckCircle2 size={15} aria-hidden="true" />
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+        <button type="button" className="lp-btn lp-btn--primary lp-btn--lg" onClick={onNavigate}>
+          Explore Sprint Management
+          <ArrowRight size={17} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;
