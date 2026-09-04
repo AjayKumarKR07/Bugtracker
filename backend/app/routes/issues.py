@@ -10,6 +10,10 @@ RBAC summary:
   PATCH  /issues/{id}/status            → TESTER (assigned)
   PATCH  /issues/{id}/resolve           → TESTER (assigned)
   PATCH  /issues/{id}/reopen            → USER (own) | TESTER (own) | ADMIN
+
+  Smart features (Milestone 3):
+  POST   /issues/calculate-priority     → ALL authenticated
+  GET    /issues/{id}/suggest-assignee  → ADMIN only
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
@@ -32,9 +36,50 @@ from app.schemas.issue import (
 )
 from pydantic import BaseModel
 from app.schemas.audit import AuditLogResponse
+from app.schemas.smart import PriorityCalcRequest, PriorityCalcResponse, DeveloperMatchResponse
 from app.services import issue_service
+from app.services import smart_service
 
 router = APIRouter(prefix="/issues", tags=["Issues"])
+
+
+# --------------------------------------------------------------------------- #
+# Smart Priority Calculator (STATIC — before dynamic routes)                   #
+# --------------------------------------------------------------------------- #
+
+@router.post(
+    "/calculate-priority",
+    response_model=PriorityCalcResponse,
+    summary="Smart Priority Calculator (mentor formula: severity_weight × category_urgency_weight)",
+    description=(
+        "Mentor formula: priority_score = severity_weight × category_urgency_weight.\n"
+        "Severity: CRITICAL=4, MAJOR=3, MINOR=2, TRIVIAL=1.\n"
+        "Category: Security/Database=3, API/Backend=2, UI/Colors/Typo=1.\n"
+        "Thresholds: >=10→URGENT, 7-9→HIGH, 4-6→MEDIUM, <4→LOW."
+    ),
+)
+async def calculate_priority(
+    body: PriorityCalcRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PriorityCalcResponse:
+    """Compute a recommended Priority using the mentor's exact formula."""
+    return await smart_service.calculate_priority(body, db)
+
+
+@router.post(
+    "/triage-recommendation",
+    response_model=PriorityCalcResponse,
+    summary="[Alias] Triage recommendation — same as /calculate-priority",
+    description="Mentor-required alias for POST /issues/calculate-priority.",
+)
+async def triage_recommendation(
+    body: PriorityCalcRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PriorityCalcResponse:
+    """Mentor-compatible alias for the Smart Priority Calculator."""
+    return await smart_service.calculate_priority(body, db)
 
 
 @router.post(
@@ -379,3 +424,24 @@ async def bulk_assign_sprint(
     )
     return {"message": f"Successfully updated {updated_count} issues."}
 
+
+# --------------------------------------------------------------------------- #
+# Smart Developer Matcher (DYNAMIC — after static routes)                      #
+# --------------------------------------------------------------------------- #
+
+@router.get(
+    "/{issue_id}/suggest-assignee",
+    response_model=DeveloperMatchResponse,
+    summary="Smart Developer Matcher — ranked assignee suggestions",
+    description=(
+        "Return a ranked list of TESTER/DEVELOPER users for the given issue, "
+        "scored by resolution rate, current workload, and average resolution speed."
+    ),
+)
+async def suggest_assignee(
+    issue_id: int,
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+) -> DeveloperMatchResponse:
+    """Return ranked assignee suggestions for an issue. **ADMIN only.**"""
+    return await smart_service.suggest_assignee(issue_id, db)

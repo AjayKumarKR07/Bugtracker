@@ -98,3 +98,77 @@ export interface AnalyticsReportDataResponse {
   developer_performance: DeveloperAnalyticsItem[];
   generated_at: string;
 }
+
+// -------------------------------------------------------------------------- //
+// Quality Metrics — Milestone 2
+// -------------------------------------------------------------------------- //
+
+export interface QualityMetricsResponse {
+  fix_rate: number;
+  mttr_hours: number | null;
+  defect_leakage_rate: number;
+  backlog_health_score: number;
+  open_critical_count: number;
+  avg_age_open_days: number;
+}
+
+// -------------------------------------------------------------------------- //
+// Smart Features — Milestone 3 (Mentor formula)
+// -------------------------------------------------------------------------- //
+
+// Priority Calculator — mentor formula: severity_weight × category_urgency_weight
+export interface PriorityCalcRequest {
+  severity: string;   // CRITICAL | MAJOR | MINOR | TRIVIAL
+  category: string;   // Security | Database | API | Backend | UI | Colors | Typo
+}
+
+export interface PriorityCalcResponse {
+  priority_score: number;
+  priority: string;
+  severity_weight: number;
+  category_urgency_weight: number;
+  explanation: string;
+  // Legacy fields for backward compat
+  recommended_priority: string;
+  score: number;
+  reasoning: string[];
+  confidence: string;
+}
+
+// Developer Matcher — mentor spec
+export interface DeveloperSuggestion {
+  developer_id: number;
+  developer_name: string;
+  email: string;
+  role: string;
+  match_percentage: number;
+  matched_skills: string[];
+  active_task_count: number;
+  explanation: string;
+  // Legacy fields
+  user_id: number;
+  full_name: string;
+  open_issues: number;
+  resolved_issues: number;
+  resolution_rate: number;
+  average_resolution_time_hours: number | null;
+  match_score: number;
+  reasons: string[];
+}
+
+export interface DeveloperMatchResponse {
+  issue_id: number;
+  issue_key: string;
+  suggestions: DeveloperSuggestion[];
+}
+
+// Plotly chart data
+export interface PlotlyChartsData {
+  defect_trends: {
+    dates: string[];
+    created: number[];
+    resolved: number[];
+  };
+  severity_distribution: Record<string, number>;
+  workflow_pipeline: Record<string, number>;
+}

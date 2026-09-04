@@ -748,3 +748,158 @@ async def export_issues_csv(
             "Content-Type": "text/csv; charset=utf-8",
         },
     )
+
+
+# --------------------------------------------------------------------------- #
+# I. Quality Metrics — Milestone 2                                             #
+# --------------------------------------------------------------------------- #
+
+async def get_quality_metrics(
+    db: AsyncSession,
+    current_user: User,
+    project_id: int | None = None,
+) -> "QualityMetricsResponse":  # noqa: F821 — imported below to avoid circular
+    """
+    Compute Fix Rate, MTTR, Defect Leakage Rate, and Backlog Health Score.
+
+    Definitions
+    -----------
+    fix_rate:
+        (resolved + closed) / total * 100.  Measures what fraction of all
+        known issues have been resolved.
+
+    mttr_hours:
+        Average epoch-seconds between created_at and resolved_at for all
+        issues that have a resolved_at timestamp, converted to hours.
+        Returns None when no issues have been resolved yet.
+
+    defect_leakage_rate:
+        Percentage of CRITICAL/BLOCKER issues that were ever reopened.
+        Proxy: count of issues in REOPENED status with severity in
+        (CRITICAL, BLOCKER) / total critical+blocker issues * 100.
+
+    backlog_health_score:
+        Composite score 0–100 where 100 = perfectly healthy backlog.
+        Formula: 100 − (critical_open_weight + age_weight)
+          critical_open_weight = min(40, open_critical * 4)
+          age_weight           = min(40, avg_age_days * 0.5)
+        The remaining 20 pts are deducted if fix_rate < 50 (scale 0–20).
+    """
+    from app.schemas.analytics import QualityMetricsResponse
+
+    # Base query scope
+    base_q = select(Issue)
+    if current_user.role == UserRole.USER:
+        base_q = base_q.where(Issue.reporter_id == current_user.id)
+    elif current_user.role in (UserRole.TESTER, UserRole.DEVELOPER):
+        base_q = base_q.where(Issue.assignee_id == current_user.id)
+    if project_id is not None:
+        base_q = base_q.where(Issue.project_id == project_id)
+
+    # ── Total / resolved / closed counts ──────────────────────────────────────
+    counts_result = await db.execute(
+        base_q.with_only_columns(
+            func.count().label("total"),
+            func.count(case((Issue.status == IssueStatus.RESOLVED, 1))).label("resolved"),
+            func.count(case((Issue.status == IssueStatus.CLOSED, 1))).label("closed"),
+            func.count(
+                case((
+                    Issue.status.in_([IssueStatus.REPORTED, IssueStatus.TRIAGED,
+                                      IssueStatus.ASSIGNED, IssueStatus.REOPENED,
+                                      IssueStatus.IN_DEVELOPMENT, IssueStatus.IN_REVIEW,
+                                      IssueStatus.IN_TESTING]),
+                    1,
+                ))
+            ).label("open"),
+            func.count(
+                case((
+                    Issue.severity.in_([Severity.CRITICAL, Severity.BLOCKER]),
+                    1,
+                ))
+            ).label("total_critical"),
+            func.count(
+                case((
+                    Issue.severity.in_([Severity.CRITICAL, Severity.BLOCKER]),
+                    Issue.status.in_([IssueStatus.REPORTED, IssueStatus.TRIAGED,
+                                      IssueStatus.ASSIGNED, IssueStatus.REOPENED,
+                                      IssueStatus.IN_DEVELOPMENT, IssueStatus.IN_REVIEW,
+                                      IssueStatus.IN_TESTING]),
+                    1,
+                ))
+            ).label("open_critical"),
+            func.count(
+                case((
+                    Issue.severity.in_([Severity.CRITICAL, Severity.BLOCKER]),
+                    Issue.status == IssueStatus.REOPENED,
+                    1,
+                ))
+            ).label("reopened_critical"),
+        )
+    )
+    row = counts_result.one()
+
+    total: int = row.total or 0
+    resolved: int = row.resolved or 0
+    closed: int = row.closed or 0
+    open_cnt: int = row.open or 0
+    total_critical: int = row.total_critical or 0
+    open_critical: int = row.open_critical or 0
+    reopened_critical: int = row.reopened_critical or 0
+
+    # ── Fix Rate ──────────────────────────────────────────────────────────────
+    fix_rate = round((resolved + closed) / total * 100, 2) if total > 0 else 0.0
+
+    # ── MTTR ──────────────────────────────────────────────────────────────────
+    mttr_result = await db.execute(
+        base_q.with_only_columns(
+            func.avg(
+                case((
+                    Issue.resolved_at.isnot(None),
+                    func.extract("epoch", Issue.resolved_at - Issue.created_at) / 3600.0,
+                ))
+            ).label("avg_hours")
+        ).where(Issue.resolved_at.isnot(None))
+    )
+    mttr_row = mttr_result.one()
+    mttr_hours: float | None = None
+    if mttr_row.avg_hours is not None:
+        mttr_hours = round(float(mttr_row.avg_hours), 2)
+
+    # ── Defect Leakage Rate ───────────────────────────────────────────────────
+    defect_leakage_rate = (
+        round(reopened_critical / total_critical * 100, 2)
+        if total_critical > 0 else 0.0
+    )
+
+    # ── Average Age of Open Issues ────────────────────────────────────────────
+    age_result = await db.execute(
+        base_q.with_only_columns(
+            func.avg(
+                func.extract("epoch", func.now() - Issue.created_at) / 86400.0
+            ).label("avg_days")
+        ).where(
+            Issue.status.in_([
+                IssueStatus.REPORTED, IssueStatus.TRIAGED, IssueStatus.ASSIGNED,
+                IssueStatus.REOPENED, IssueStatus.IN_DEVELOPMENT,
+                IssueStatus.IN_REVIEW, IssueStatus.IN_TESTING,
+            ])
+        )
+    )
+    age_row = age_result.one()
+    avg_age_open_days: float = round(float(age_row.avg_days), 2) if age_row.avg_days else 0.0
+
+    # ── Backlog Health Score ──────────────────────────────────────────────────
+    critical_weight = min(40.0, open_critical * 4.0)
+    age_weight = min(40.0, avg_age_open_days * 0.5)
+    fix_rate_penalty = max(0.0, (50.0 - fix_rate) / 50.0 * 20.0) if fix_rate < 50 else 0.0
+    backlog_health_score = round(max(0.0, 100.0 - critical_weight - age_weight - fix_rate_penalty), 2)
+
+    return QualityMetricsResponse(
+        fix_rate=fix_rate,
+        mttr_hours=mttr_hours,
+        defect_leakage_rate=defect_leakage_rate,
+        backlog_health_score=backlog_health_score,
+        open_critical_count=open_critical,
+        avg_age_open_days=avg_age_open_days,
+    )
+

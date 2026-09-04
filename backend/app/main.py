@@ -23,7 +23,9 @@ from app.routes.analytics import router as analytics_router
 from app.routes.attachments import router as attachments_router
 from app.routes.audit import router as audit_router
 from app.routes.auth import router as auth_router
+from app.routes.collaboration import router as collaboration_router
 from app.routes.comments import router as comments_router
+from app.routes.export import router as export_router
 from app.routes.health import router as health_router
 from app.routes.issues import router as issues_router
 from app.routes.notifications import router as notifications_router
@@ -31,6 +33,7 @@ from app.routes.projects import router as projects_router
 from app.routes.users import router as users_router
 from app.routes.websocket import router as ws_router
 from app.routes.sprints import router as sprints_router
+from app.routes.webhooks import router as webhooks_router
 
 
 class RootResponse(BaseModel):
@@ -85,6 +88,9 @@ app.include_router(notifications_router)
 app.include_router(ws_router)
 app.include_router(analytics_router)
 app.include_router(sprints_router)
+app.include_router(webhooks_router)
+app.include_router(collaboration_router)
+app.include_router(export_router)
 
 
 # -----------------------------------------------------------------

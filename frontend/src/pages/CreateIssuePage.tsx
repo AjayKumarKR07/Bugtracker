@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { attachmentsApi } from '../api/attachments';
+import { analyticsApi } from '../api/analytics';
 import { getApiErrorMessage } from '../api/client';
 import { issuesApi } from '../api/issues';
 import { projectsApi } from '../api/projects';
@@ -31,6 +32,30 @@ export const CreateIssuePage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Smart Priority Calculator
+  const [isCalcLoading, setIsCalcLoading] = useState(false);
+  const [calcHint, setCalcHint] = useState<string | null>(null);
+
+  const handleSmartCalculate = async () => {
+    setIsCalcLoading(true);
+    setCalcHint(null);
+    try {
+      const res = await analyticsApi.calculatePriority({
+        severity: formSeverity,
+        category: formType === 'BUG' ? 'Backend'
+          : formType === 'FEATURE_REQUEST' ? 'UI'
+          : formType === 'TECHNICAL_DEBT' ? 'API'
+          : 'Backend',
+      });
+      setFormPriority(res.priority as Priority);
+      setCalcHint(`⚡ Smart: ${res.priority} (score: ${res.priority_score}, ${res.severity_weight}×${res.category_urgency_weight})`);
+    } catch {
+      setCalcHint('Could not calculate — using manual selection.');
+    } finally {
+      setIsCalcLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -216,7 +241,19 @@ export const CreateIssuePage: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="rep-prio">Priority</label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                <label className="form-label" htmlFor="rep-prio" style={{ margin: 0 }}>Priority</label>
+                <button
+                  type="button"
+                  onClick={handleSmartCalculate}
+                  disabled={isCalcLoading || isSubmitting}
+                  className="btn btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', backgroundColor: '#fbbf2420', color: '#fbbf24', border: '1px solid #fbbf2440', borderRadius: '6px' }}
+                  title="Auto-fill priority using Smart Priority Calculator"
+                >
+                  {isCalcLoading ? '...' : '⚡ Smart Calculate'}
+                </button>
+              </div>
               <select
                 id="rep-prio"
                 className="form-select"
@@ -229,6 +266,9 @@ export const CreateIssuePage: React.FC = () => {
                 <option value="HIGH">HIGH</option>
                 <option value="URGENT">URGENT</option>
               </select>
+              {calcHint && (
+                <span style={{ fontSize: '0.72rem', color: '#fbbf24', marginTop: '0.25rem', display: 'block' }}>{calcHint}</span>
+              )}
             </div>
           </div>
 

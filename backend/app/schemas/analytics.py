@@ -175,3 +175,29 @@ class AnalyticsReportDataResponse(BaseModel):
     generated_at: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# Quality Metrics Schema (Milestone 2)                                         #
+# --------------------------------------------------------------------------- #
+
+class QualityMetricsResponse(BaseModel):
+    """
+    Computed quality KPIs for the system or a project.
+
+    - fix_rate:             % of issues that have been resolved or closed
+    - mttr_hours:           Mean Time To Resolve (hours); None if no resolved issues
+    - defect_leakage_rate:  % of critical/blocker issues that were reopened after resolution
+    - backlog_health_score: Composite score 0–100 (100 = healthy, 0 = critical backlog)
+    - open_critical_count:  Number of CRITICAL or BLOCKER issues still open
+    - avg_age_open_days:    Average age of currently open issues in days
+    """
+
+    fix_rate: float
+    mttr_hours: float | None = None
+    defect_leakage_rate: float
+    backlog_health_score: float
+    open_critical_count: int
+    avg_age_open_days: float
+
+    model_config = ConfigDict(from_attributes=True)

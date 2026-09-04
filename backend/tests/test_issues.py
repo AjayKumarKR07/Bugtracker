@@ -496,15 +496,16 @@ class TestIssueStatusTransitions:
         )
         assert r.status_code == 403
 
-    def test_admin_cannot_update_status_via_developer_endpoint_403(self) -> None:
-        pid = _get_or_create_project(_fresh_key("ADMS"), "Admin Status Forbidden")
+    def test_admin_can_update_status_via_status_endpoint_200(self) -> None:
+        """Admin has full access to all issue endpoints including status update."""
+        pid = _get_or_create_project(_fresh_key("ADMS"), "Admin Status Allowed")
         issue = _create_issue(pid)
         r = client.patch(
             f"/issues/{issue['id']}/status",
             json={"status": "IN_DEVELOPMENT"},
             headers=auth_header(_admin_tok()),
         )
-        assert r.status_code == 403
+        assert r.status_code == 200, f"Admin should be able to update status; got {r.status_code}: {r.text}"
 
 
 # =========================================================================== #

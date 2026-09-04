@@ -155,3 +155,19 @@ async def remove_issue_from_sprint(
 ):
     """Remove an issue from a sprint. ADMIN only."""
     return await sprint_service.remove_issue_from_sprint(db, sprint_id, issue_id, actor=current_user)
+
+
+# --------------------------------------------------------------------------- #
+# Mentor-required alias: /sprints/{id}/add-issue/{issue_id}                    #
+# (existing route uses /sprints/{id}/issues/{issue_id})                        #
+# --------------------------------------------------------------------------- #
+
+@router.post("/{sprint_id}/add-issue/{issue_id}", response_model=IssueDetailResponse)
+async def add_issue_to_sprint_alias(
+    sprint_id: int,
+    issue_id: int,
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """[Alias] Add an issue to a sprint using mentor-required path format. ADMIN only."""
+    return await sprint_service.add_issue_to_sprint(db, sprint_id, issue_id, actor=current_user)

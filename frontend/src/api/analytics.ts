@@ -1,10 +1,15 @@
 import { apiClient } from './client';
 import type {
   DeveloperAnalyticsResponse,
+  DeveloperMatchResponse,
   IssueStatusDistributionResponse,
   IssueTrendResponse,
+  PlotlyChartsData,
+  PriorityCalcRequest,
+  PriorityCalcResponse,
   ProjectAnalyticsListResponse,
   ProjectAnalyticsResponse,
+  QualityMetricsResponse,
   SeverityDistributionResponse,
   PriorityDistributionResponse,
   SystemAnalyticsResponse,
@@ -124,6 +129,41 @@ export const analyticsApi = {
       '/analytics/report/download',
       { params: { period } }
     );
+    return response.data;
+  },
+
+  getQualityMetrics: async (params?: { project_id?: number }): Promise<QualityMetricsResponse> => {
+    const response = await apiClient.get<QualityMetricsResponse>(
+      '/analytics/quality-metrics',
+      { params }
+    );
+    return response.data;
+  },
+
+  calculatePriority: async (body: PriorityCalcRequest): Promise<PriorityCalcResponse> => {
+    const response = await apiClient.post<PriorityCalcResponse>(
+      '/issues/calculate-priority',
+      body
+    );
+    return response.data;
+  },
+
+  suggestAssignee: async (issueId: number): Promise<DeveloperMatchResponse> => {
+    const response = await apiClient.get<DeveloperMatchResponse>(
+      `/issues/${issueId}/suggest-assignee`
+    );
+    return response.data;
+  },
+
+  getPlotlyCharts: async (): Promise<PlotlyChartsData> => {
+    const response = await apiClient.get<PlotlyChartsData>('/analytics/plotly-charts');
+    return response.data;
+  },
+
+  simulateWebhook: async (commitMessage: string, commitId: string = 'sim-001'): Promise<any> => {
+    const response = await apiClient.post('/webhooks/git', {
+      commits: [{ id: commitId, message: commitMessage }],
+    });
     return response.data;
   },
 };

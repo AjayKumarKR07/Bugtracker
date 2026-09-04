@@ -33,6 +33,7 @@ from app.schemas.analytics import (
     PriorityDistributionResponse,
     SystemAnalyticsResponse,
     AnalyticsReportDataResponse,
+    QualityMetricsResponse,
 )
 from app.services import analytics_service
 
@@ -352,3 +353,109 @@ async def download_report_data(
         developer_performance=developers.items,
         generated_at=end_date.isoformat(),
     )
+
+
+# --------------------------------------------------------------------------- #
+# 10. Quality Metrics (Milestone 2)                                            #
+# --------------------------------------------------------------------------- #
+
+@router.get(
+    "/quality-metrics",
+    response_model=QualityMetricsResponse,
+    summary="Quality Metrics: Fix Rate, MTTR, Defect Leakage, Backlog Health",
+    description=(
+        "Computes four quality KPIs from live data:\n"
+        "- **Fix Rate**: % of all issues that are resolved or closed\n"
+        "- **MTTR**: Mean Time To Resolve in hours\n"
+        "- **Defect Leakage Rate**: % of critical/blocker issues that were reopened\n"
+        "- **Backlog Health Score**: composite 0–100 score (100 = healthy)\n\n"
+        "Respects RBAC — ADMINs see system-wide metrics, others see their own scope."
+    ),
+)
+async def quality_metrics(
+    project_id: int | None = Query(None, description="Filter by project ID"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> QualityMetricsResponse:
+    """Return Fix Rate, MTTR, Defect Leakage, and Backlog Health Score."""
+    return await analytics_service.get_quality_metrics(
+        db=db,
+        current_user=current_user,
+        project_id=project_id,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 11. Defect Trends — last 14 days (Mentor requirement)                        #
+# --------------------------------------------------------------------------- #
+
+@router.get(
+    "/defect-trends",
+    summary="Defect trends — last 14 days (new vs resolved per day)",
+    description=(
+        "Returns day-by-day counts of new bugs reported and bugs resolved "
+        "over the last 14 days. Used by the Plotly Defect Trend Line Chart."
+    ),
+)
+async def defect_trends(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return 14-day defect trend data for Plotly charts."""
+    from datetime import timedelta, timezone
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=14)
+    trends = await analytics_service.get_issue_trends(
+        db, current_user, "day", None, start_date, end_date
+    )
+    return {
+        "dates": [item.date for item in trends.items],
+        "created": [item.created_count for item in trends.items],
+        "resolved": [item.resolved_count for item in trends.items],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# 12. Plotly Chart Data — all charts in one call (Mentor requirement)           #
+# --------------------------------------------------------------------------- #
+
+@router.get(
+    "/plotly-charts",
+    summary="All Plotly chart data in one response",
+    description=(
+        "Aggregated chart data for the Milestone 3 Plotly dashboard:\n"
+        "- defect_trends: 14-day new vs resolved\n"
+        "- severity_distribution: counts per severity level\n"
+        "- workflow_pipeline: issue counts per status\n"
+    ),
+)
+async def plotly_charts_data(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return all Plotly chart data in a single request."""
+    from datetime import timedelta, timezone
+    import asyncio as _asyncio
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=14)
+    trends, severity_dist, status_dist = await _asyncio.gather(
+        analytics_service.get_issue_trends(db, current_user, "day", None, start_date, end_date),
+        analytics_service.get_severity_distribution(db, current_user, None, None, None),
+        analytics_service.get_status_distribution(db, current_user, None, None, None),
+    )
+    return {
+        "defect_trends": {
+            "dates": [item.date for item in trends.items],
+            "created": [item.created_count for item in trends.items],
+            "resolved": [item.resolved_count for item in trends.items],
+        },
+        "severity_distribution": {
+            k: v for k, v in severity_dist.__dict__.items()
+            if not k.startswith("_")
+        },
+        "workflow_pipeline": {
+            k: v for k, v in status_dist.__dict__.items()
+            if not k.startswith("_")
+        },
+    }
+
