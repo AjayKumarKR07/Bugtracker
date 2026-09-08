@@ -1,30 +1,22 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Activity,
   AlertCircle,
-  AlertTriangle,
   ArrowRight,
-  ArrowUpRight,
-  Bell,
   Bug,
   CheckCheck,
   CheckCircle2,
   Clock,
-  Download,
   Eye,
   FileDown,
-  FilePlus2,
-  FolderGit2,
   HeartPulse,
   PieChart,
+  PlusCircle,
   RefreshCw,
   RotateCcw,
   Search,
-  Shield,
-  SlidersHorizontal,
   Sparkles,
-  TrendingUp,
   X,
   Zap,
 } from 'lucide-react';
@@ -42,184 +34,169 @@ import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 import type {
   IssueStatusDistributionResponse,
-  IssueTrendResponse,
   PriorityDistributionResponse,
   ProjectAnalyticsResponse,
   SeverityDistributionResponse,
-  SystemAnalyticsResponse,
 } from '../types/analytics';
 import type { Issue, IssueStatus, Priority, Severity } from '../types/issue';
 import type { Project } from '../types/project';
-import { getRoleLabel } from '../types/auth';
 import { formatDate, formatRelativeTime } from '../utils/formatters';
-import { generateAnalyticsPdfReport, generateIssuesPdfReport } from '../utils/pdfGenerator';
+import { generateAnalyticsPdfReport } from '../utils/pdfGenerator';
 
-type DashboardDensity = 'comfortable' | 'compact';
-type TrendRange = '7d' | '30d' | '90d' | 'all';
-type FilterChip =
-  | 'ALL'
-  | 'OPEN'
-  | 'AWAITING_REVIEW'
-  | 'ASSIGNED'
-  | 'IN_PROGRESS'
-  | 'RESOLVED'
-  | 'CLOSED'
-  | 'REOPENED'
-  | 'HIGH_SEVERITY'
-  | 'URGENT';
+// ─────────────────────────────────────────────────────────────────────────────
+// Active open statuses (excluding RESOLVED and CLOSED)
+// ─────────────────────────────────────────────────────────────────────────────
+const ACTIVE_OPEN_STATUSES: IssueStatus[] = [
+  'REPORTED',
+  'TRIAGED',
+  'ASSIGNED',
+  'IN_DEVELOPMENT',
+  'IN_REVIEW',
+  'IN_TESTING',
+  'REOPENED',
+];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Metric Card Component
+// ─────────────────────────────────────────────────────────────────────────────
+interface MetricCardProps {
+  label: string;
+  value: number | string;
+  icon: React.ReactNode;
+  iconClass: string;
+  valueColor?: string;
+  subtitle?: string;
+  badge?: string;
+  badgeColor?: string;
+  onClick?: () => void;
+}
+
+const MetricCard: React.FC<MetricCardProps> = ({
+  label,
+  value,
+  icon,
+  iconClass,
+  valueColor,
+  subtitle,
+  badge,
+  badgeColor,
+  onClick,
+}) => (
+  <div
+    className="metric-card"
+    onClick={onClick}
+    style={onClick ? { cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' } : undefined}
+  >
+    <div className="metric-info" style={{ flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+        <span className="metric-label">{label}</span>
+        {badge && (
+          <span
+            style={{
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              padding: '0.12rem 0.45rem',
+              borderRadius: '999px',
+              backgroundColor: badgeColor || 'rgba(99,102,241,0.2)',
+              color: badgeColor ? '#fff' : '#818cf8',
+            }}
+          >
+            {badge}
+          </span>
+        )}
+      </div>
+      <span className="metric-value" style={valueColor ? { color: valueColor } : undefined}>
+        {value}
+      </span>
+      {subtitle && (
+        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+          {subtitle}
+        </span>
+      )}
+    </div>
+    <div className={`metric-icon-box ${iconClass}`}>{icon}</div>
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────────────────────
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const { notifications: liveNotifications, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications: liveNotifications } = useNotifications();
 
-  const isUser = user?.role === 'USER';
-  const isTester = user?.role === 'TESTER' || user?.role === 'DEVELOPER';
-  const isAdmin = user?.role === 'ADMIN';
-
-  // --- Real Data State from PostgreSQL ---
-  const [systemStats, setSystemStats] = useState<SystemAnalyticsResponse | null>(null);
+  // ── Real Data State from PostgreSQL ──
+  const [userIssues, setUserIssues] = useState<Issue[]>([]);
+  const [totalIssueCount, setTotalIssueCount] = useState<number>(0);
   const [statusDist, setStatusDist] = useState<IssueStatusDistributionResponse | null>(null);
   const [severityDist, setSeverityDist] = useState<SeverityDistributionResponse | null>(null);
   const [priorityDist, setPriorityDist] = useState<PriorityDistributionResponse | null>(null);
-  const [userIssues, setUserIssues] = useState<Issue[]>([]);
-  const [projectAnalytics, setProjectAnalytics] = useState<ProjectAnalyticsResponse[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [trendData, setTrendData] = useState<IssueTrendResponse | null>(null);
-  const [trendRange, setTrendRange] = useState<TrendRange>('30d');
-  const [totalIssueCount, setTotalIssueCount] = useState<number>(0);
+  const [projectAnalytics, setProjectAnalytics] = useState<ProjectAnalyticsResponse[]>([]);
+
+  // ── UI / Loading State ──
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
+  const [isActionSubmitting, setIsActionSubmitting] = useState<boolean>(false);
 
-  // --- UI Preferences State (Persisted in localStorage) ---
-  const [density, setDensity] = useState<DashboardDensity>(() => {
-    return (localStorage.getItem('bugtracker_dashboard_density') as DashboardDensity) || 'comfortable';
-  });
-  const [selectedChip, setSelectedChip] = useState<FilterChip>(() => {
-    return (localStorage.getItem('bugtracker_dashboard_default_filter') as FilterChip) || 'ALL';
-  });
+  // ── Reopen Modal State ──
+  const [reopenModalIssue, setReopenModalIssue] = useState<Issue | null>(null);
+  const [reopenReason, setReopenReason] = useState<string>('');
 
-  // --- Search & Multi-Filter State ---
+  // ── Filter & Search State for My Recent Issues ──
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<IssueStatus | 'ALL'>('ALL');
-  const [projectFilter, setProjectFilter] = useState<string>('ALL');
   const [severityFilter, setSeverityFilter] = useState<Severity | 'ALL'>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'ALL'>('ALL');
 
-  // --- Action Modal State (for quick Reopen from Dashboard) ---
-  const [reopenModalIssue, setReopenModalIssue] = useState<Issue | null>(null);
-  const [reopenReason, setReopenReason] = useState<string>('');
-  const [isActionSubmitting, setIsActionSubmitting] = useState<boolean>(false);
-  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
-
-  // Project map for instant key/name lookups
+  // Project map for instant lookups
   const projectMap = useMemo(() => {
     const map = new Map<number, Project>();
     projects.forEach((p) => map.set(p.id, p));
     return map;
   }, [projects]);
 
-  // Load Dashboard Data from Real PostgreSQL Backend
+  // ─────────────────────────────────────────────────────────────────
+  // Data Loading (Live PostgreSQL Data)
+  // ─────────────────────────────────────────────────────────────────
   const loadDashboardData = useCallback(async (isSilent = false) => {
     if (!isSilent) setIsLoading(true);
     else setIsRefreshing(true);
     setError(null);
 
     try {
-      // 1. Fetch user's scoped issues list
-      const issuesRes = await issuesApi.list({ page_size: 100 });
+      const [issuesRes, distRes, sevRes, priRes, projsList, projAnalyticsRes] = await Promise.all([
+        issuesApi.list({ page_size: 100 }),
+        analyticsApi.getStatusDistribution().catch(() => null),
+        analyticsApi.getSeverityDistribution().catch(() => null),
+        analyticsApi.getPriorityDistribution().catch(() => null),
+        projectsApi.list({ page_size: 100 }).catch(() => ({ items: [], total: 0 })),
+        analyticsApi.getAllProjectsAnalytics().catch(() => ({ items: [], total: 0 })),
+      ]);
+
       setUserIssues(issuesRes.items || []);
       setTotalIssueCount(issuesRes.total || 0);
-
-      // 2. Fetch scoped status, severity, and priority distributions
-      const [distRes, sevRes, priRes] = await Promise.all([
-        analyticsApi.getStatusDistribution(),
-        analyticsApi.getSeverityDistribution(),
-        analyticsApi.getPriorityDistribution(),
-      ]);
       setStatusDist(distRes);
       setSeverityDist(sevRes);
       setPriorityDist(priRes);
-
-      // 3. Fetch Project Analytics for My Projects breakdown
-      try {
-        const projRes = await analyticsApi.getAllProjectsAnalytics();
-        setProjectAnalytics(projRes.items || []);
-      } catch {
-        // Fallback gracefully
-      }
-
-      // 4. Fetch Projects for dropdown filtering
-      try {
-        const projsList = await projectsApi.list({ page_size: 50 });
-        setProjects(projsList.items || []);
-      } catch {
-        // Soft fail
-      }
-
-      // 5. Global overview for Admin role
-      if (isAdmin) {
-        try {
-          const sysRes = await analyticsApi.getSystemOverview();
-          setSystemStats(sysRes);
-        } catch {
-          // Soft fail
-        }
-      }
+      setProjects(projsList.items || []);
+      setProjectAnalytics(projAnalyticsRes.items || []);
     } catch (err: unknown) {
       setError(getApiErrorMessage(err));
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [isAdmin]);
-
-  // Fetch Activity Trends based on selected range
-  const loadTrends = useCallback(async () => {
-    try {
-      let interval: 'day' | 'week' | 'month' = 'day';
-      let startDate: string | undefined = undefined;
-      const now = new Date();
-
-      if (trendRange === '7d') {
-        interval = 'day';
-        const d = new Date();
-        d.setDate(now.getDate() - 7);
-        startDate = d.toISOString();
-      } else if (trendRange === '30d') {
-        interval = 'day';
-        const d = new Date();
-        d.setDate(now.getDate() - 30);
-        startDate = d.toISOString();
-      } else if (trendRange === '90d') {
-        interval = 'week';
-        const d = new Date();
-        d.setDate(now.getDate() - 90);
-        startDate = d.toISOString();
-      } else {
-        interval = 'month';
-      }
-
-      const res = await analyticsApi.getTrends({
-        interval,
-        start_date: startDate,
-      });
-      setTrendData(res);
-    } catch {
-      // Soft fail for trends
-    }
-  }, [trendRange]);
+  }, []);
 
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  useEffect(() => {
-    loadTrends();
-  }, [loadTrends]);
-
-  // Real-Time auto-refresh on WebSocket notifications
+  // Real-Time auto-refresh on WebSocket notifications without polling
   const lastNotificationIdRef = useRef<number | null>(null);
   const latestNotificationId = liveNotifications[0]?.id;
   useEffect(() => {
@@ -231,133 +208,158 @@ export const DashboardPage: React.FC = () => {
     }
   }, [latestNotificationId, loadDashboardData]);
 
-  // Preferences Handlers
-  const handleDensityChange = (newDensity: DashboardDensity) => {
-    setDensity(newDensity);
-    localStorage.setItem('bugtracker_dashboard_density', newDensity);
-  };
+  // Realtime window listeners
+  useEffect(() => {
+    const handleRealtime = () => {
+      loadDashboardData(true);
+    };
+    window.addEventListener('app:realtime_notification', handleRealtime);
+    window.addEventListener('app:ws_reconnected', handleRealtime);
+    return () => {
+      window.removeEventListener('app:realtime_notification', handleRealtime);
+      window.removeEventListener('app:ws_reconnected', handleRealtime);
+    };
+  }, [loadDashboardData]);
 
-  const handleDefaultFilterChange = (newFilter: FilterChip) => {
-    setSelectedChip(newFilter);
-    localStorage.setItem('bugtracker_dashboard_default_filter', newFilter);
-  };
-
-  // Quick Action: Confirm Resolution from Dashboard
-  const handleConfirmClose = async (issueId: number) => {
-    if (!window.confirm('Confirm that this defect has been resolved satisfactorily?')) return;
-    setIsActionSubmitting(true);
-    try {
-      await issuesApi.close(issueId);
-      setActionSuccessMsg('Issue confirmed and closed successfully!');
-      setTimeout(() => setActionSuccessMsg(null), 4000);
-      await loadDashboardData(true);
-    } catch (err: unknown) {
-      alert('Failed to close issue: ' + getApiErrorMessage(err));
-    } finally {
-      setIsActionSubmitting(false);
-    }
-  };
-
-  // Quick Action: Submit Reopen
-  const handleReopenSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reopenModalIssue) return;
-    setIsActionSubmitting(true);
-    try {
-      await issuesApi.reopen(reopenModalIssue.id, { reason: reopenReason.trim() || undefined });
-      setReopenModalIssue(null);
-      setReopenReason('');
-      setActionSuccessMsg(`Issue ${reopenModalIssue.issue_key} has been reopened for further investigation.`);
-      setTimeout(() => setActionSuccessMsg(null), 4000);
-      await loadDashboardData(true);
-    } catch (err: unknown) {
-      alert('Failed to reopen issue: ' + getApiErrorMessage(err));
-    } finally {
-      setIsActionSubmitting(false);
-    }
-  };
-
-  // --- Real Core Metric Calculations (STEP 3 B) ---
+  // ─────────────────────────────────────────────────────────────────
+  // Status Counts & Core Metrics (Calculated from real backend data)
+  // ─────────────────────────────────────────────────────────────────
   const awaitingReviewCount = statusDist
     ? (statusDist.REPORTED || 0) + (statusDist.TRIAGED || 0)
-    : 0;
+    : userIssues.filter((i) => i.status === 'REPORTED' || i.status === 'TRIAGED').length;
 
-  const assignedToTesterCount = statusDist ? statusDist.ASSIGNED || 0 : 0;
+  const assignedToTesterCount = statusDist
+    ? statusDist.ASSIGNED || 0
+    : userIssues.filter((i) => i.status === 'ASSIGNED').length;
 
   const inProgressCount = statusDist
     ? (statusDist.IN_DEVELOPMENT || 0) +
       (statusDist.IN_REVIEW || 0) +
       (statusDist.IN_TESTING || 0)
-    : 0;
+    : userIssues.filter(
+        (i) =>
+          i.status === 'IN_DEVELOPMENT' ||
+          i.status === 'IN_REVIEW' ||
+          i.status === 'IN_TESTING'
+      ).length;
 
-  const resolvedCount = statusDist ? statusDist.RESOLVED || 0 : 0;
-  const closedCount = statusDist ? statusDist.CLOSED || 0 : 0;
-  const reopenedCount = statusDist ? statusDist.REOPENED || 0 : 0;
+  const resolvedCount = statusDist
+    ? statusDist.RESOLVED || 0
+    : userIssues.filter((i) => i.status === 'RESOLVED').length;
 
-  // Open issues = Total minus (Resolved + Closed)
-  const openIssuesCount = Math.max(0, totalIssueCount - (resolvedCount + closedCount));
+  const closedCount = statusDist
+    ? statusDist.CLOSED || 0
+    : userIssues.filter((i) => i.status === 'CLOSED').length;
 
-  // Safe resolution rate = ((resolved + closed) / total) * 100
+  const reopenedCount = statusDist
+    ? statusDist.REOPENED || 0
+    : userIssues.filter((i) => i.status === 'REOPENED').length;
+
+  // Open Issues: Calculated strictly from actual active statuses returned by backend, excluding RESOLVED and CLOSED
+  const openIssuesCount = useMemo(() => {
+    if (statusDist) {
+      return (
+        (statusDist.REPORTED || 0) +
+        (statusDist.TRIAGED || 0) +
+        (statusDist.ASSIGNED || 0) +
+        (statusDist.IN_DEVELOPMENT || 0) +
+        (statusDist.IN_REVIEW || 0) +
+        (statusDist.IN_TESTING || 0) +
+        (statusDist.REOPENED || 0)
+      );
+    }
+    return userIssues.filter((i) => ACTIVE_OPEN_STATUSES.includes(i.status)).length;
+  }, [statusDist, userIssues]);
+
+  // Resolution Rate = ((resolved + closed) / total) * 100
   const resolutionRate =
     totalIssueCount > 0
       ? Math.round(((resolvedCount + closedCount) / totalIssueCount) * 100)
       : 0;
 
-  // --- STEP 3 A: Live Dynamic Summary Header ---
-  const smartSummaryText = useMemo(() => {
-    if (totalIssueCount === 0) {
-      return 'Welcome to your defect dashboard! Report your first issue to track investigation and resolution.';
-    }
-    if (resolvedCount > 0) {
-      return `⚡ You have ${resolvedCount} resolved issue${resolvedCount > 1 ? 's' : ''} awaiting your confirmation.`;
-    }
-    if (openIssuesCount > 0) {
-      return `You have ${awaitingReviewCount} issue${awaitingReviewCount > 1 ? 's' : ''} awaiting review and ${assignedToTesterCount + inProgressCount} currently being investigated.`;
-    }
-    return 'All your reported issues are currently resolved or closed.';
-  }, [totalIssueCount, resolvedCount, openIssuesCount, awaitingReviewCount, assignedToTesterCount, inProgressCount]);
-
-  // --- STEP 3 C: Action Required Section (Resolved awaiting confirmation + Reopened) ---
+  // ─────────────────────────────────────────────────────────────────
+  // Action Required Issues (Resolved awaiting confirmation or Reopened)
+  // ─────────────────────────────────────────────────────────────────
   const actionRequiredIssues = useMemo(() => {
     return userIssues.filter((iss) => iss.status === 'RESOLVED' || iss.status === 'REOPENED');
   }, [userIssues]);
 
-  // --- STEP 3 D: Needs Attention (Ranked by priority) ---
-  const needsAttentionIssues = useMemo(() => {
-    return userIssues
-      .filter((iss) => {
-        if (iss.status === 'RESOLVED') return true;
-        if (iss.status === 'REOPENED') return true;
-        if (iss.severity === 'BLOCKER' || iss.severity === 'CRITICAL') return !['CLOSED'].includes(iss.status);
-        if (iss.priority === 'URGENT') return !['CLOSED'].includes(iss.status);
-        const ageHours = (Date.now() - new Date(iss.created_at).getTime()) / (1000 * 60 * 60);
-        return ageHours > 168 && !['CLOSED'].includes(iss.status);
-      })
-      .sort((a, b) => {
-        // Priority weight ranking
-        const getWeight = (i: Issue) => {
-          if (i.status === 'RESOLVED') return 100;
-          if (i.severity === 'BLOCKER') return 90;
-          if (i.severity === 'CRITICAL') return 80;
-          if (i.priority === 'URGENT') return 70;
-          if (i.status === 'REOPENED') return 60;
-          return 50;
-        };
-        return getWeight(b) - getWeight(a);
-      })
-      .slice(0, 5);
-  }, [userIssues]);
+  // ─────────────────────────────────────────────────────────────────
+  // Quick Actions: Confirm Resolution & Reopen
+  // ─────────────────────────────────────────────────────────────────
+  const handleConfirmClose = async (issueId: number) => {
+    setIsActionSubmitting(true);
+    setActionErrorMsg(null);
+    try {
+      await issuesApi.close(issueId);
+      setActionSuccessMsg('Issue verified and closed successfully!');
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+      await loadDashboardData(true);
+    } catch (err: unknown) {
+      setActionErrorMsg('Failed to confirm resolution: ' + getApiErrorMessage(err));
+      setTimeout(() => setActionErrorMsg(null), 5000);
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
 
-  // --- STEP 3 E: Recent Issues (Most recently updated) ---
-  const recentIssues = useMemo(() => {
-    return [...userIssues]
-      .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
-      .slice(0, 6);
-  }, [userIssues]);
+  const handleReopenSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reopenModalIssue) return;
+    setIsActionSubmitting(true);
+    setActionErrorMsg(null);
+    try {
+      await issuesApi.reopen(reopenModalIssue.id, { reason: reopenReason.trim() || undefined });
+      const key = reopenModalIssue.issue_key;
+      setReopenModalIssue(null);
+      setReopenReason('');
+      setActionSuccessMsg(`Issue ${key} has been reopened for renewed testing.`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+      await loadDashboardData(true);
+    } catch (err: unknown) {
+      setActionErrorMsg('Failed to reopen issue: ' + getApiErrorMessage(err));
+      setTimeout(() => setActionErrorMsg(null), 5000);
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
 
-  // --- STEP 5: Issue Aging (Open issues in 5 buckets) ---
+  // ─────────────────────────────────────────────────────────────────
+  // Filtered Recent Issues
+  // ─────────────────────────────────────────────────────────────────
+  const filteredIssues = useMemo(() => {
+    return userIssues.filter((issue) => {
+      // Status filter
+      if (statusFilter !== 'ALL' && issue.status !== statusFilter) return false;
+      // Severity filter
+      if (severityFilter !== 'ALL' && issue.severity !== severityFilter) return false;
+      // Priority filter
+      if (priorityFilter !== 'ALL' && issue.priority !== priorityFilter) return false;
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchKey = issue.issue_key.toLowerCase().includes(q);
+        const matchTitle = issue.title.toLowerCase().includes(q);
+        const matchProj = (projectMap.get(issue.project_id)?.name || '').toLowerCase().includes(q);
+        return matchKey || matchTitle || matchProj;
+      }
+      return true;
+    });
+  }, [userIssues, statusFilter, severityFilter, priorityFilter, searchQuery, projectMap]);
+
+  // Recent issues sorted by creation/update descending
+  const recentIssuesList = useMemo(() => {
+    return [...filteredIssues].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [filteredIssues]);
+
+  // ─────────────────────────────────────────────────────────────────
+  // Personal Issue Aging (User-Specific Open Issues in 5 Buckets)
+  // ─────────────────────────────────────────────────────────────────
   const agingStats = useMemo(() => {
-    const openList = userIssues.filter((i) => !['RESOLVED', 'CLOSED'].includes(i.status));
+    const openList = userIssues.filter((i) => ACTIVE_OPEN_STATUSES.includes(i.status));
     const now = Date.now();
     const buckets = {
       today: 0,
@@ -391,32 +393,34 @@ export const DashboardPage: React.FC = () => {
     };
   }, [userIssues]);
 
-  // --- STEP 6: Deterministic Issue Health Score ---
+  // ─────────────────────────────────────────────────────────────────
+  // Personal Issue Health Score (User-Specific Metric)
+  // ─────────────────────────────────────────────────────────────────
   const healthScoreInfo = useMemo(() => {
     if (totalIssueCount === 0) {
       return {
         score: 100,
         status: 'Optimal',
         color: '#34d399',
-        reasons: ['No open defects found in your account.', 'Defect tracking environment in optimal state.'],
+        reasons: ['No reported defects currently open.', 'All defect workflows in healthy state.'],
       };
     }
 
     let score = 100;
     const reasons: string[] = [];
 
-    // -15 for each open critical/blocker issue
+    // -15 for each open critical/blocker issue reported by this user
     const openCritical = userIssues.filter(
-      (i) => !['RESOLVED', 'CLOSED'].includes(i.status) && (i.severity === 'CRITICAL' || i.severity === 'BLOCKER')
+      (i) => ACTIVE_OPEN_STATUSES.includes(i.status) && (i.severity === 'CRITICAL' || i.severity === 'BLOCKER')
     ).length;
     if (openCritical > 0) {
       score -= openCritical * 15;
       reasons.push(`${openCritical} open Critical/Blocker defect${openCritical > 1 ? 's' : ''} (-${openCritical * 15})`);
     }
 
-    // -10 for each open urgent issue
+    // -10 for each open urgent issue reported by this user
     const openUrgent = userIssues.filter(
-      (i) => !['RESOLVED', 'CLOSED'].includes(i.status) && i.priority === 'URGENT'
+      (i) => ACTIVE_OPEN_STATUSES.includes(i.status) && i.priority === 'URGENT'
     ).length;
     if (openUrgent > 0) {
       score -= openUrgent * 10;
@@ -437,7 +441,7 @@ export const DashboardPage: React.FC = () => {
     }
 
     const clampedScore = Math.max(0, Math.min(100, score));
-    let statusLabel = 'Excellent';
+    let statusLabel = 'Optimal';
     let statusColor = '#34d399';
 
     if (clampedScore < 50) {
@@ -463,71 +467,24 @@ export const DashboardPage: React.FC = () => {
     };
   }, [totalIssueCount, userIssues, agingStats, resolutionRate, resolvedCount, closedCount]);
 
-  // --- STEP 4 D: Scoped Project Breakdown ---
-  const myProjectsBreakdown = useMemo(() => {
-    // Only projects where the logged-in user has reported issues
-    return projectAnalytics.filter((p) => p.total_issues > 0);
-  }, [projectAnalytics]);
-
-  // --- STEP 7: Search and Multi-Filtering ---
-  const filteredIssues = useMemo(() => {
-    return userIssues.filter((issue) => {
-      // 1. Quick Chip Filter
-      if (selectedChip === 'OPEN' && ['RESOLVED', 'CLOSED'].includes(issue.status)) return false;
-      if (selectedChip === 'AWAITING_REVIEW' && !['REPORTED', 'TRIAGED'].includes(issue.status)) return false;
-      if (selectedChip === 'ASSIGNED' && issue.status !== 'ASSIGNED') return false;
-      if (selectedChip === 'IN_PROGRESS' && !['IN_DEVELOPMENT', 'IN_REVIEW', 'IN_TESTING'].includes(issue.status)) return false;
-      if (selectedChip === 'RESOLVED' && issue.status !== 'RESOLVED') return false;
-      if (selectedChip === 'CLOSED' && issue.status !== 'CLOSED') return false;
-      if (selectedChip === 'REOPENED' && issue.status !== 'REOPENED') return false;
-      if (selectedChip === 'HIGH_SEVERITY' && !['BLOCKER', 'CRITICAL'].includes(issue.severity)) return false;
-      if (selectedChip === 'URGENT' && issue.priority !== 'URGENT') return false;
-
-      // 2. Dropdown Filters
-      if (statusFilter !== 'ALL' && issue.status !== statusFilter) return false;
-      if (projectFilter !== 'ALL' && String(issue.project_id) !== projectFilter) return false;
-      if (severityFilter !== 'ALL' && issue.severity !== severityFilter) return false;
-      if (priorityFilter !== 'ALL' && issue.priority !== priorityFilter) return false;
-
-      // 3. Search query filter (Issue key, Title, Description)
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchKey = issue.issue_key.toLowerCase().includes(q);
-        const matchTitle = issue.title.toLowerCase().includes(q);
-        return matchKey || matchTitle;
-      }
-
-      return true;
-    });
-  }, [userIssues, selectedChip, statusFilter, projectFilter, severityFilter, priorityFilter, searchQuery]);
-
-  // Export handlers (STEP 10)
+  // Export PDF Handler
   const handleExportPdf = () => {
     generateAnalyticsPdfReport({
       user,
       statusDist,
       severityDist,
+      priorityDist,
       projectAnalytics,
-      systemOverview: systemStats,
     });
   };
 
-  const handleExportIssuesPdf = () => {
-    generateIssuesPdfReport(filteredIssues, user, `Filter: ${selectedChip}`, projects);
-  };
-
-  const handleExportCsv = async () => {
-    try {
-      await analyticsApi.exportIssuesCsv();
-    } catch (err: unknown) {
-      alert(getApiErrorMessage(err));
-    }
-  };
-
+  // ─────────────────────────────────────────────────────────────────
+  // Loading & Error States
+  // ─────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div style={{ padding: '3rem 0' }}>
-        <LoadingSpinner message="Aggregating live defect analytics..." />
+      <div style={{ padding: '3.5rem 0', display: 'flex', justifyContent: 'center' }}>
+        <LoadingSpinner message="Loading your personal dashboard..." />
       </div>
     );
   }
@@ -537,13 +494,13 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Toast Notification Alert */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2.5rem' }}>
+      {/* ── Toast Alerts ── */}
       {actionSuccessMsg && (
         <div
           style={{
-            backgroundColor: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid rgba(16, 185, 129, 0.4)',
+            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
             color: '#34d399',
             padding: '0.75rem 1.25rem',
             borderRadius: 'var(--radius-md)',
@@ -554,24 +511,52 @@ export const DashboardPage: React.FC = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <CheckCircle2 size={18} />
+            <CheckCircle2 size={16} />
             <span>{actionSuccessMsg}</span>
           </div>
           <button
             onClick={() => setActionSuccessMsg(null)}
-            style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer' }}
+            style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', padding: 0 }}
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
       )}
 
-      {/* STEP 3 A: Live Dynamic Summary Header */}
+      {actionErrorMsg && (
+        <div
+          style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            color: '#f87171',
+            padding: '0.75rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.9rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={16} />
+            <span>{actionErrorMsg}</span>
+          </div>
+          <button
+            onClick={() => setActionErrorMsg(null)}
+            style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 0 }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
+      {/* ── TOP HEADER / WELCOME AREA ── */}
       <div
         className="card"
         style={{
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.16) 0%, rgba(168, 85, 247, 0.1) 100%)',
-          border: '1px solid rgba(99, 102, 241, 0.3)',
+          background:
+            'linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(168, 85, 247, 0.08) 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.25)',
           padding: '1.25rem 1.5rem',
         }}
       >
@@ -581,139 +566,83 @@ export const DashboardPage: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '1.25rem',
+            gap: '1rem',
           }}
         >
-          <div style={{ flex: '1', minWidth: '280px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-              <span className="badge" style={{ backgroundColor: 'var(--primary-subtle)', color: '#818cf8', fontWeight: '600' }}>
-                <Sparkles size={13} /> {getRoleLabel(user?.role ?? 'USER')} PORTAL
+          <div style={{ flex: 1, minWidth: '260px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.55rem',
+                marginBottom: '0.4rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span
+                className="badge"
+                style={{
+                  backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  color: '#818cf8',
+                  fontWeight: '600',
+                  fontSize: '0.75rem',
+                }}
+              >
+                <Sparkles size={13} /> USER PORTAL
               </span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{user?.email}</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {user?.email}
+              </span>
             </div>
 
-            <h1 style={{ fontSize: '1.65rem', fontWeight: '700', color: '#fff', margin: '0 0 0.35rem 0' }}>
+            <h1
+              style={{
+                fontSize: '1.65rem',
+                fontWeight: '700',
+                color: '#fff',
+                margin: '0 0 0.35rem 0',
+              }}
+            >
               Welcome back, {user?.full_name}!
             </h1>
 
-            {/* Dynamic Summary Text */}
-            <p
-              style={{
-                color: resolvedCount > 0 ? '#34d399' : 'var(--text-secondary)',
-                fontSize: '0.925rem',
-                margin: 0,
-                fontWeight: resolvedCount > 0 ? '600' : 'normal',
-                lineHeight: 1.4,
-              }}
-            >
-              {smartSummaryText}
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+              Track your reported defects and respond to verification requests.
             </p>
           </div>
 
-          {/* Action Header Buttons & Layout Density Controls */}
           <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              onClick={() => handleDensityChange(density === 'comfortable' ? 'compact' : 'comfortable')}
-              className="btn btn-secondary btn-sm"
-              title={`Toggle Density (Currently ${density})`}
-            >
-              <SlidersHorizontal size={14} />
-              <span>{density === 'comfortable' ? 'Compact' : 'Comfortable'}</span>
-            </button>
-
             <button
               onClick={() => loadDashboardData(true)}
               className="btn btn-secondary btn-sm"
               disabled={isRefreshing}
-              title="Refresh Dashboard Metrics"
+              title="Refresh Dashboard"
             >
               <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+              <span>{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
             </button>
 
             <button
-              className="btn btn-secondary btn-sm"
               onClick={handleExportPdf}
+              className="btn btn-secondary btn-sm"
               disabled={userIssues.length === 0}
               title="Download Personal PDF Report"
             >
-              <FileDown size={15} />
+              <FileDown size={14} />
               <span>Export PDF</span>
             </button>
 
-            {isUser && (
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => navigate('/create-issue')}
-                style={{ fontWeight: '600' }}
-              >
-                <FilePlus2 size={16} />
-                <span>Create New Issue</span>
-              </button>
-            )}
-
-            {isTester && (
-              <Link to="/issues" className="btn btn-primary btn-sm">
-                <Bug size={16} />
-                <span>My Assigned Issues</span>
-              </Link>
-            )}
-
-            {isAdmin && (
-              <Link to="/admin" className="btn btn-primary btn-sm">
-                <Shield size={16} />
-                <span>Admin Panel</span>
-              </Link>
-            )}
+            <Link to="/create-issue" className="btn btn-primary btn-sm">
+              <PlusCircle size={15} />
+              <span>Create New Issue</span>
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* Admin Global Summary Metric Cards (If Admin Role) */}
-      {isAdmin && systemStats && (
-        <div className="metrics-grid">
-          <div className="metric-card">
-            <div className="metric-info">
-              <span className="metric-label">Total Users</span>
-              <span className="metric-value">{systemStats.total_users}</span>
-            </div>
-            <div className="metric-icon-box metric-icon-purple">
-              <Shield size={20} />
-            </div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-info">
-              <span className="metric-label">Active Projects</span>
-              <span className="metric-value">{systemStats.active_projects}</span>
-            </div>
-            <div className="metric-icon-box metric-icon-indigo">
-              <FolderGit2 size={20} />
-            </div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-info">
-              <span className="metric-label">Global Defects</span>
-              <span className="metric-value">{systemStats.total_issues}</span>
-            </div>
-            <div className="metric-icon-box metric-icon-amber">
-              <Bug size={20} />
-            </div>
-          </div>
-          <div className="metric-card">
-            <div className="metric-info">
-              <span className="metric-label">Critical / Blocker</span>
-              <span className="metric-value" style={{ color: '#f87171' }}>{systemStats.critical_issues}</span>
-            </div>
-            <div className="metric-icon-box metric-icon-rose">
-              <AlertTriangle size={20} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 3 C: Action Required Section (⚡ ACTION REQUIRED) */}
-      {actionRequiredIssues.length > 0 && (
-        <div
+      {/* ── 1. ACTION REQUIRED SECTION (Top priority) ── */}
+      {actionRequiredIssues.length > 0 ? (
+        <section
           className="card"
           style={{
             border: '1px solid rgba(245, 158, 11, 0.4)',
@@ -721,19 +650,34 @@ export const DashboardPage: React.FC = () => {
             padding: '1.25rem',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '1rem',
+              flexWrap: 'wrap',
+              gap: '0.5rem',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Zap size={18} color="#f59e0b" />
               <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-                ⚡ Action Required ({actionRequiredIssues.length})
+                Action Required ({actionRequiredIssues.length})
               </h2>
             </div>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Defects waiting for your verification & response
+              Defects waiting for your verification &amp; confirmation
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '0.85rem',
+            }}
+          >
             {actionRequiredIssues.map((issue) => (
               <div
                 key={issue.id}
@@ -749,147 +693,762 @@ export const DashboardPage: React.FC = () => {
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', color: 'var(--primary)', fontSize: '0.85rem' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.4rem',
+                    }}
+                  >
+                    <Link
+                      to={`/issues/${issue.id}`}
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: '700',
+                        color: 'var(--primary)',
+                        fontSize: '0.85rem',
+                        textDecoration: 'none',
+                      }}
+                    >
                       {issue.issue_key}
-                    </span>
+                    </Link>
                     <StatusBadge status={issue.status} />
                   </div>
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>
+
+                  <h3
+                    style={{
+                      fontSize: '0.92rem',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      margin: '0 0 0.35rem 0',
+                    }}
+                  >
                     {issue.title}
                   </h3>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
                     {issue.status === 'RESOLVED'
-                      ? 'The tester marked this defect resolved. Has the problem been verified on your end?'
+                      ? 'The tester marked this defect resolved. Please verify the fix in your environment.'
                       : 'This defect was reopened and is awaiting renewed inspection.'}
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)' }}>
-                  {issue.status === 'RESOLVED' && isUser && (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '0.5rem',
+                    flexWrap: 'wrap',
+                    paddingTop: '0.55rem',
+                    borderTop: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  {issue.status === 'RESOLVED' && (
                     <>
                       <button
                         onClick={() => handleConfirmClose(issue.id)}
                         disabled={isActionSubmitting}
                         className="btn btn-primary btn-sm"
-                        style={{ backgroundColor: '#10b981', borderColor: '#10b981', flex: '1', justifyContent: 'center' }}
+                        style={{
+                          backgroundColor: '#10b981',
+                          borderColor: '#10b981',
+                          flex: 1,
+                          justifyContent: 'center',
+                          fontSize: '0.78rem',
+                        }}
+                        title="Confirm fix is working and close defect"
                       >
-                        <CheckCircle2 size={14} />
+                        <CheckCircle2 size={13} />
                         <span>Confirm Resolution</span>
                       </button>
+
                       <button
                         onClick={() => setReopenModalIssue(issue)}
                         disabled={isActionSubmitting}
                         className="btn btn-outline-danger btn-sm"
-                        style={{ flex: '1', justifyContent: 'center' }}
+                        style={{ flex: 1, justifyContent: 'center', fontSize: '0.78rem' }}
+                        title="Reopen defect if problem still persists"
                       >
-                        <RotateCcw size={14} />
+                        <RotateCcw size={13} />
                         <span>Reopen Issue</span>
                       </button>
                     </>
                   )}
+
                   <Link
                     to={`/issues/${issue.id}`}
                     className="btn btn-secondary btn-sm"
-                    style={{ justifyContent: 'center' }}
+                    style={{ justifyContent: 'center', fontSize: '0.78rem' }}
                   >
-                    <Eye size={14} />
+                    <Eye size={13} />
                     <span>View Details</span>
                   </Link>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* STEP 3 B: Core Live Metrics Cards (All 9 Metrics) */}
-      <div className="metrics-grid">
-        <div className="metric-card">
-          <div className="metric-info">
-            <span className="metric-label">{isUser ? '1. My Submitted Issues' : 'Tracked Issues'}</span>
-            <span className="metric-value">{totalIssueCount}</span>
-          </div>
-          <div className="metric-icon-box metric-icon-purple">
-            <Bug size={20} />
-          </div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-info">
-            <span className="metric-label">8. Open Issues</span>
-            <span className="metric-value" style={{ color: '#fbbf24' }}>{openIssuesCount}</span>
-          </div>
-          <div className="metric-icon-box metric-icon-amber">
-            <AlertCircle size={20} />
-          </div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-info">
-            <span className="metric-label">4. In Progress</span>
-            <span className="metric-value">{inProgressCount}</span>
-          </div>
-          <div className="metric-icon-box metric-icon-indigo">
-            <Activity size={20} />
-          </div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-info">
-            <span className="metric-label">9. Resolution Rate</span>
-            <span className="metric-value" style={{ color: '#34d399' }}>
-              {resolutionRate}%
+        </section>
+      ) : (
+        <section
+          className="card"
+          style={{
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            backgroundColor: 'rgba(16, 185, 129, 0.04)',
+            padding: '1rem 1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+          }}
+        >
+          <CheckCircle2 size={20} color="#34d399" style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: '0.88rem', fontWeight: '600', color: '#34d399', display: 'block' }}>
+              You&apos;re all caught up!
+            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              None of your reported defects currently require your confirmation or follow-up.
             </span>
           </div>
-          <div className="metric-icon-box metric-icon-emerald">
-            <CheckCheck size={20} />
-          </div>
-        </div>
-      </div>
+        </section>
+      )}
 
-      {/* STEP 3 B (cont.): Detailed 6-Status Metric Strip */}
+      {/* ── 2. LIVE KPI CARDS (Clean labels without numbers) ── */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: '0.75rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+          gap: '0.85rem',
         }}
       >
-        <div className="card" style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>2. Awaiting Review</span>
-          <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#fbbf24' }}>{awaitingReviewCount}</span>
-        </div>
+        <MetricCard
+          label="My Submitted Issues"
+          value={totalIssueCount}
+          icon={<Bug size={20} />}
+          iconClass="metric-icon-purple"
+          subtitle="Total defects reported by you"
+          onClick={() => {
+            const el = document.getElementById('my-recent-issues');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
 
-        <div className="card" style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>3. Assigned to Tester</span>
-          <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#818cf8' }}>{assignedToTesterCount}</span>
-        </div>
+        <MetricCard
+          label="Open Issues"
+          value={openIssuesCount}
+          icon={<AlertCircle size={20} />}
+          iconClass="metric-icon-amber"
+          valueColor={openIssuesCount > 0 ? '#fbbf24' : undefined}
+          subtitle="Active under investigation"
+          badge={openIssuesCount > 0 ? 'Active' : undefined}
+          badgeColor="#f59e0b"
+          onClick={() => {
+            setStatusFilter('ALL');
+            const el = document.getElementById('my-recent-issues');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
 
-        <div className="card" style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>4. In Progress</span>
-          <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#38bdf8' }}>{inProgressCount}</span>
-        </div>
+        <MetricCard
+          label="In Progress"
+          value={inProgressCount}
+          icon={<Activity size={20} />}
+          iconClass="metric-icon-indigo"
+          subtitle="Development &amp; QA testing"
+          onClick={() => {
+            setStatusFilter('IN_PROGRESS' as IssueStatus);
+            const el = document.getElementById('my-recent-issues');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
 
-        <div className="card" style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>5. Resolved</span>
-          <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#34d399' }}>{resolvedCount}</span>
-        </div>
+        <MetricCard
+          label="Resolved"
+          value={resolvedCount}
+          icon={<CheckCircle2 size={20} />}
+          iconClass="metric-icon-emerald"
+          valueColor={resolvedCount > 0 ? '#34d399' : undefined}
+          subtitle="Awaiting your confirmation"
+          badge={resolvedCount > 0 ? 'Needs You' : undefined}
+          badgeColor="#10b981"
+          onClick={() => {
+            setStatusFilter('RESOLVED');
+            const el = document.getElementById('my-recent-issues');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
 
-        <div className="card" style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>6. Closed</span>
-          <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#94a3b8' }}>{closedCount}</span>
-        </div>
-
-        <div className="card" style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>7. Reopened</span>
-          <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#f87171' }}>{reopenedCount}</span>
-        </div>
+        <MetricCard
+          label="Resolution Rate"
+          value={`${resolutionRate}%`}
+          icon={<CheckCheck size={20} />}
+          iconClass="metric-icon-cyan"
+          valueColor={resolutionRate >= 75 ? '#34d399' : '#818cf8'}
+          subtitle={`${resolvedCount + closedCount} of ${totalIssueCount} resolved`}
+        />
       </div>
 
-      {/* Multi-Card Analytics Row: Health Score, Issue Aging & Distribution Overview */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
-        {/* STEP 6: Deterministic Issue Health Score */}
+      {/* ── 3. MY RECENT ISSUES (Table with Search & Filter) ── */}
+      <section
+        id="my-recent-issues"
+        className="card"
+        style={{
+          border: '1px solid rgba(99, 102, 241, 0.3)',
+          padding: '1.25rem',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            marginBottom: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <Bug size={18} style={{ color: '#818cf8' }} />
+            <h2
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: '700',
+                color: 'var(--text-primary)',
+                margin: 0,
+              }}
+            >
+              My Recent Issues
+            </h2>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                background: 'rgba(99, 102, 241, 0.2)',
+                color: '#818cf8',
+                padding: '0.15rem 0.55rem',
+                borderRadius: '999px',
+              }}
+            >
+              {filteredIssues.length}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <Link to="/create-issue" className="btn btn-primary btn-sm">
+              <PlusCircle size={14} />
+              <span>Create New Issue</span>
+            </Link>
+
+            <Link
+              to="/issues"
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: '#a5b4fc' }}
+            >
+              <span>View All My Issues</span>
+              <ArrowRight size={13} />
+            </Link>
+          </div>
+        </div>
+
+        {/* Search & Dropdown Filter Controls */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '0.65rem',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            marginBottom: '1rem',
+            padding: '0.65rem',
+            backgroundColor: 'var(--bg-surface-elevated)',
+            borderRadius: '8px',
+            border: '1px solid var(--border-subtle)',
+          }}
+        >
+          {/* Search Input */}
+          <div style={{ position: 'relative', flex: '1', minWidth: '180px' }}>
+            <Search
+              size={14}
+              style={{
+                position: 'absolute',
+                left: '0.65rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-muted)',
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Search by key or title…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                paddingLeft: '2rem',
+                paddingRight: '0.75rem',
+                paddingTop: '0.35rem',
+                paddingBottom: '0.35rem',
+                fontSize: '0.82rem',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-muted)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-primary)',
+              }}
+            />
+          </div>
+
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as IssueStatus | 'ALL')}
+            style={{
+              padding: '0.35rem 0.65rem',
+              fontSize: '0.8rem',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-muted)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              minWidth: '130px',
+            }}
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="REPORTED">Reported</option>
+            <option value="TRIAGED">Triaged</option>
+            <option value="ASSIGNED">Assigned</option>
+            <option value="IN_DEVELOPMENT">In Development</option>
+            <option value="IN_REVIEW">In Review</option>
+            <option value="IN_TESTING">In Testing</option>
+            <option value="RESOLVED">Resolved</option>
+            <option value="CLOSED">Closed</option>
+            <option value="REOPENED">Reopened</option>
+          </select>
+
+          {/* Severity Filter */}
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value as Severity | 'ALL')}
+            style={{
+              padding: '0.35rem 0.65rem',
+              fontSize: '0.8rem',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-muted)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              minWidth: '120px',
+            }}
+          >
+            <option value="ALL">All Severities</option>
+            <option value="BLOCKER">Blocker</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="MAJOR">Major</option>
+            <option value="MINOR">Minor</option>
+          </select>
+
+          {/* Priority Filter */}
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value as Priority | 'ALL')}
+            style={{
+              padding: '0.35rem 0.65rem',
+              fontSize: '0.8rem',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-muted)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              minWidth: '120px',
+            }}
+          >
+            <option value="ALL">All Priorities</option>
+            <option value="URGENT">Urgent</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+
+          {(searchQuery || statusFilter !== 'ALL' || severityFilter !== 'ALL' || priorityFilter !== 'ALL') && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('ALL');
+                setSeverityFilter('ALL');
+                setPriorityFilter('ALL');
+              }}
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: '0.75rem', padding: '0.3rem 0.55rem' }}
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+
+        {/* High-density Recent Issues Table */}
+        {recentIssuesList.length === 0 ? (
+          <div
+            style={{
+              padding: '2.5rem 1rem',
+              textAlign: 'center',
+              backgroundColor: 'var(--bg-surface-elevated)',
+              borderRadius: '8px',
+              border: '1px dashed var(--border-subtle)',
+            }}
+          >
+            <Bug size={32} style={{ opacity: 0.35, marginBottom: '0.5rem', color: '#818cf8' }} />
+            <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+              {searchQuery || statusFilter !== 'ALL' || severityFilter !== 'ALL' || priorityFilter !== 'ALL'
+                ? 'No defects match your active search and filter criteria.'
+                : 'You have not submitted any defects yet.'}
+            </p>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr>
+                  {['Issue Key', 'Title', 'Project', 'Severity', 'Priority', 'Status', 'Last Updated', 'Action'].map(
+                    (col) => (
+                      <th
+                        key={col}
+                        style={{
+                          textAlign: 'left',
+                          padding: '0.5rem 0.75rem',
+                          color: 'var(--text-muted)',
+                          fontWeight: '600',
+                          fontSize: '0.74rem',
+                          borderBottom: '1px solid var(--border-subtle)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {col}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {recentIssuesList.slice(0, 8).map((issue) => {
+                  const isResolved = issue.status === 'RESOLVED';
+                  const project = projectMap.get(issue.project_id);
+
+                  return (
+                    <tr
+                      key={issue.id}
+                      style={{
+                        borderBottom: '1px solid var(--border-subtle)',
+                        backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.03)' : 'transparent',
+                        transition: 'background 0.15s ease',
+                      }}
+                      onMouseEnter={(e) =>
+                        ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                          'var(--bg-surface-hover)')
+                      }
+                      onMouseLeave={(e) =>
+                        ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                          isResolved ? 'rgba(16, 185, 129, 0.03)' : 'transparent')
+                      }
+                    >
+                      {/* Issue Key */}
+                      <td style={{ padding: '0.6rem 0.75rem', whiteSpace: 'nowrap' }}>
+                        <Link
+                          to={`/issues/${issue.id}`}
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontWeight: '700',
+                            color: 'var(--primary)',
+                            fontSize: '0.82rem',
+                            textDecoration: 'none',
+                          }}
+                        >
+                          {issue.issue_key}
+                        </Link>
+                      </td>
+
+                      {/* Title */}
+                      <td
+                        style={{
+                          padding: '0.6rem 0.75rem',
+                          maxWidth: '260px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <Link
+                          to={`/issues/${issue.id}`}
+                          style={{
+                            color: 'var(--text-primary)',
+                            fontWeight: isResolved ? '600' : '500',
+                            textDecoration: 'none',
+                          }}
+                          title={issue.title}
+                        >
+                          {issue.title}
+                        </Link>
+                      </td>
+
+                      {/* Project */}
+                      <td
+                        style={{
+                          padding: '0.6rem 0.75rem',
+                          whiteSpace: 'nowrap',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        {project?.name || project?.project_key || `Project #${issue.project_id}`}
+                      </td>
+
+                      {/* Severity */}
+                      <td style={{ padding: '0.6rem 0.75rem', whiteSpace: 'nowrap' }}>
+                        <SeverityBadge severity={issue.severity} />
+                      </td>
+
+                      {/* Priority */}
+                      <td style={{ padding: '0.6rem 0.75rem', whiteSpace: 'nowrap' }}>
+                        <PriorityBadge priority={issue.priority} />
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ padding: '0.6rem 0.75rem', whiteSpace: 'nowrap' }}>
+                        <StatusBadge status={issue.status} />
+                      </td>
+
+                      {/* Last Updated */}
+                      <td
+                        style={{
+                          padding: '0.6rem 0.75rem',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.76rem',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={formatDate(issue.updated_at || issue.created_at)}
+                      >
+                        {formatRelativeTime(issue.updated_at || issue.created_at)}
+                      </td>
+
+                      {/* Action */}
+                      <td style={{ padding: '0.6rem 0.75rem', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                          {isResolved && (
+                            <>
+                              <button
+                                onClick={() => handleConfirmClose(issue.id)}
+                                disabled={isActionSubmitting}
+                                className="btn btn-primary btn-sm"
+                                style={{
+                                  backgroundColor: '#10b981',
+                                  borderColor: '#10b981',
+                                  fontSize: '0.72rem',
+                                  padding: '0.2rem 0.5rem',
+                                }}
+                                title="Confirm resolution"
+                              >
+                                <CheckCircle2 size={11} />
+                                <span>Confirm</span>
+                              </button>
+
+                              <button
+                                onClick={() => setReopenModalIssue(issue)}
+                                disabled={isActionSubmitting}
+                                className="btn btn-outline-danger btn-sm"
+                                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                                title="Reopen issue"
+                              >
+                                <RotateCcw size={11} />
+                                <span>Reopen</span>
+                              </button>
+                            </>
+                          )}
+
+                          <Link
+                            to={`/issues/${issue.id}`}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                            title="View full issue details"
+                          >
+                            <Eye size={12} />
+                            <span>View Issue</span>
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {recentIssuesList.length > 8 && (
+              <div
+                style={{
+                  padding: '0.75rem',
+                  textAlign: 'center',
+                  borderTop: '1px solid var(--border-subtle)',
+                }}
+              >
+                <Link
+                  to="/issues"
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--primary)',
+                    fontWeight: '600',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                  }}
+                >
+                  <span>View all {recentIssuesList.length} issues in My Issues</span>
+                  <ArrowRight size={13} />
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ── 4. MY ISSUE STATUS (Workflow Guide + 6-Status Grid) ── */}
+      <section className="card" style={{ padding: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
+            My Issue Status
+          </h2>
+          {/* Visual Workflow Guide */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span style={{ color: '#fbbf24', fontWeight: 600 }}>Submitted</span>
+            <span>→</span>
+            <span style={{ color: '#818cf8', fontWeight: 600 }}>Review</span>
+            <span>→</span>
+            <span style={{ color: '#38bdf8', fontWeight: 600 }}>Testing</span>
+            <span>→</span>
+            <span style={{ color: '#34d399', fontWeight: 600 }}>Resolved</span>
+            <span>→</span>
+            <span style={{ color: '#94a3b8', fontWeight: 600 }}>Closed</span>
+          </div>
+        </div>
+
+        {/* 6-Status Metric Grid with Live Counts */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '0.75rem',
+          }}
+        >
+          <div
+            className="card"
+            style={{ padding: '0.85rem 1rem', textAlign: 'center', cursor: 'pointer' }}
+            onClick={() => {
+              setStatusFilter('REPORTED');
+              document.getElementById('my-recent-issues')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+              Awaiting Review
+            </span>
+            <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#fbbf24' }}>
+              {awaitingReviewCount}
+            </span>
+          </div>
+
+          <div
+            className="card"
+            style={{ padding: '0.85rem 1rem', textAlign: 'center', cursor: 'pointer' }}
+            onClick={() => {
+              setStatusFilter('ASSIGNED');
+              document.getElementById('my-recent-issues')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+              Assigned to Tester
+            </span>
+            <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#818cf8' }}>
+              {assignedToTesterCount}
+            </span>
+          </div>
+
+          <div
+            className="card"
+            style={{ padding: '0.85rem 1rem', textAlign: 'center', cursor: 'pointer' }}
+            onClick={() => {
+              setStatusFilter('IN_PROGRESS' as IssueStatus);
+              document.getElementById('my-recent-issues')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+              In Progress
+            </span>
+            <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#38bdf8' }}>
+              {inProgressCount}
+            </span>
+          </div>
+
+          <div
+            className="card"
+            style={{ padding: '0.85rem 1rem', textAlign: 'center', cursor: 'pointer' }}
+            onClick={() => {
+              setStatusFilter('RESOLVED');
+              document.getElementById('my-recent-issues')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+              Resolved
+            </span>
+            <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#34d399' }}>
+              {resolvedCount}
+            </span>
+          </div>
+
+          <div
+            className="card"
+            style={{ padding: '0.85rem 1rem', textAlign: 'center', cursor: 'pointer' }}
+            onClick={() => {
+              setStatusFilter('CLOSED');
+              document.getElementById('my-recent-issues')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+              Closed
+            </span>
+            <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#94a3b8' }}>
+              {closedCount}
+            </span>
+          </div>
+
+          <div
+            className="card"
+            style={{ padding: '0.85rem 1rem', textAlign: 'center', cursor: 'pointer' }}
+            onClick={() => {
+              setStatusFilter('REOPENED');
+              document.getElementById('my-recent-issues')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+              Reopened
+            </span>
+            <span style={{ fontSize: '1.35rem', fontWeight: '700', color: '#f87171' }}>
+              {reopenedCount}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 5. PERSONAL ANALYTICS (Health Score, Aging, Distribution) ── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '1.25rem',
+        }}
+      >
+        {/* Personal Issue Health Score */}
         <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
@@ -937,27 +1496,27 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <p style={{ fontSize: '0.725rem', color: 'var(--text-muted)', margin: '1rem 0 0 0', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.5rem' }}>
-            Deterministic score calculated from open critical issues, urgent defects, aging, and resolution rate.
+            Personal defect health score based on your active defects and resolution progress.
           </p>
         </div>
 
-        {/* STEP 5: Issue Aging Breakdown */}
+        {/* Open Issue Aging Analysis */}
         <div className="card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Clock size={18} color="#818cf8" />
               <span style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-                ⏳ Issue Aging Analysis
+                ⏳ Open Issue Aging
               </span>
             </div>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              {agingStats.totalOpen} Open Issues
+              {agingStats.totalOpen} Active Issues
             </span>
           </div>
 
           {agingStats.totalOpen === 0 ? (
             <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <CheckCircle2 size={28} color="#34d399" style={{ margin: '0 auto 0.5rem' }} />
+              <CheckCircle2 size={26} color="#34d399" style={{ margin: '0 auto 0.5rem' }} />
               <span>Zero open defects currently aging.</span>
             </div>
           ) : (
@@ -979,7 +1538,7 @@ export const DashboardPage: React.FC = () => {
           )}
         </div>
 
-        {/* STEP 4 A/B/C: Personal Analytics Overview (Status, Priority & Severity Distribution) */}
+        {/* Personal Distribution Overview */}
         <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
@@ -991,7 +1550,7 @@ export const DashboardPage: React.FC = () => {
 
             {totalIssueCount === 0 ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', padding: '1.5rem 0', textAlign: 'center' }}>
-                No issue distribution recorded yet.
+                No defect distributions recorded yet.
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -1047,681 +1606,55 @@ export const DashboardPage: React.FC = () => {
               </div>
             )}
           </div>
-
-          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.5rem', marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Tracked Projects:</span>
-            <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{myProjectsBreakdown.length}</span>
-          </div>
         </div>
       </div>
 
-      {/* Activity Trends Chart */}
-      <div className="card" style={{ padding: '1.25rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <TrendingUp size={18} color="#818cf8" />
-            <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-              📈 My Defect Activity & Resolution Velocity
-            </h2>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.35rem' }}>
-            {(['7d', '30d', '90d', 'all'] as TrendRange[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setTrendRange(r)}
-                style={{
-                  padding: '0.2rem 0.65rem',
-                  fontSize: '0.75rem',
-                  fontWeight: '600',
-                  borderRadius: 'var(--radius-sm)',
-                  backgroundColor: trendRange === r ? 'var(--primary)' : 'var(--bg-surface-elevated)',
-                  color: trendRange === r ? '#fff' : 'var(--text-secondary)',
-                  border: '1px solid',
-                  borderColor: trendRange === r ? 'var(--primary)' : 'var(--border-subtle)',
-                  cursor: 'pointer',
-                }}
-              >
-                {r === '7d' ? '7 Days' : r === '30d' ? '30 Days' : r === '90d' ? '90 Days' : 'All Time'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {!trendData || trendData.items.length === 0 ? (
-          <div style={{ padding: '2.5rem 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            Not enough historical defect activity for this period.
-          </div>
-        ) : (
-          <div>
-            <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1rem', fontSize: '0.825rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ width: '10px', height: '10px', backgroundColor: '#6366f1', borderRadius: '2px' }} />
-                <span style={{ color: 'var(--text-secondary)' }}>Reported:</span>
-                <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{trendData.total_created}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ width: '10px', height: '10px', backgroundColor: '#10b981', borderRadius: '2px' }} />
-                <span style={{ color: 'var(--text-secondary)' }}>Resolved:</span>
-                <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{trendData.total_resolved}</span>
-              </div>
-            </div>
-
-            {/* Visual Bar Timeline */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem', height: '120px', padding: '0.5rem 0', borderBottom: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
-              {trendData.items.slice(-14).map((item) => {
-                const maxVal = Math.max(1, ...trendData.items.map((i) => Math.max(i.created_count, i.resolved_count)));
-                const createdHeight = Math.round((item.created_count / maxVal) * 90);
-                const resolvedHeight = Math.round((item.resolved_count / maxVal) * 90);
-
-                return (
-                  <div key={item.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: '32px', height: '100%', justifyContent: 'flex-end' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '90px' }}>
-                      <div
-                        style={{ width: '10px', height: `${Math.max(4, createdHeight)}px`, backgroundColor: '#6366f1', borderRadius: '2px 2px 0 0' }}
-                        title={`${item.date}: ${item.created_count} reported`}
-                      />
-                      <div
-                        style={{ width: '10px', height: `${Math.max(4, resolvedHeight)}px`, backgroundColor: '#10b981', borderRadius: '2px 2px 0 0' }}
-                        title={`${item.date}: ${item.resolved_count} resolved`}
-                      />
-                    </div>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.4rem', whiteSpace: 'nowrap' }}>
-                      {item.date.slice(5)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* STEP 3 D & E: Needs Attention & Recent Issues Two-Column Section */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.25rem' }}>
-        {/* STEP 3 D: 🚨 Needs Attention */}
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-            <AlertTriangle size={18} color="#ef4444" />
-            <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-              🚨 Needs Attention
-            </h2>
-          </div>
-
-          {needsAttentionIssues.length === 0 ? (
-            <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <CheckCircle2 size={24} color="#34d399" style={{ margin: '0 auto 0.4rem' }} />
-              <span>All critical issues and resolutions are in order.</span>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              {needsAttentionIssues.map((issue) => (
-                <div
-                  key={issue.id}
-                  style={{
-                    padding: '0.75rem',
-                    backgroundColor: 'var(--bg-surface-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '0.8rem', color: 'var(--primary)' }}>
-                        {issue.issue_key}
-                      </span>
-                      <SeverityBadge severity={issue.severity} />
-                      <StatusBadge status={issue.status} />
-                    </div>
-                    <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {issue.title}
-                    </p>
-                  </div>
-
-                  <Link to={`/issues/${issue.id}`} className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
-                    <span>Inspect</span>
-                    <ArrowRight size={12} />
-                  </Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* STEP 3 E: 🔄 Recently Updated Issues */}
-        <div className="card" style={{ padding: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-            <Activity size={18} color="#818cf8" />
-            <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-              🔄 Recent Issues
-            </h2>
-          </div>
-
-          {recentIssues.length === 0 ? (
-            <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              No updated defect activity recorded.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              {recentIssues.map((issue) => (
-                <div
-                  key={issue.id}
-                  style={{
-                    padding: '0.75rem',
-                    backgroundColor: 'var(--bg-surface-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '0.8rem', color: 'var(--primary)' }}>
-                        {issue.issue_key}
-                      </span>
-                      <StatusBadge status={issue.status} />
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                        {formatRelativeTime(issue.updated_at || issue.created_at)}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {issue.title}
-                    </p>
-                  </div>
-
-                  <Link to={`/issues/${issue.id}`} className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
-                    <Eye size={14} />
-                  </Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* STEP 7: Main Defect Registry with Advanced Search, Filter Chips & Dense/Comfortable Table */}
-      <div className="card">
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <Bug size={18} color="#818cf8" />
-            <h2 className="card-title">My Defect Registry ({filteredIssues.length})</h2>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              onClick={handleExportIssuesPdf}
-              className="btn btn-secondary btn-sm"
-              title="Download Issues List PDF"
-              disabled={filteredIssues.length === 0}
-            >
-              <FileDown size={14} />
-              <span>Export Issues PDF</span>
-            </button>
-            <button
-              onClick={handleExportCsv}
-              className="btn btn-secondary btn-sm"
-              title="Download CSV"
-            >
-              <Download size={14} />
-              <span>Export CSV</span>
-            </button>
-            <Link to="/issues" className="btn btn-secondary btn-sm">
-              <span>Full Issue Page</span>
-              <ArrowUpRight size={14} />
-            </Link>
-          </div>
-        </div>
-
-        {/* STEP 7: Advanced Search & Multi-Filter Bar */}
-        <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
-            <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Search issue key, title, description..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="form-input"
-              style={{ paddingLeft: '2.25rem', height: '36px', fontSize: '0.85rem' }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          {/* Project Filter */}
-          {projects.length > 0 && (
-            <select
-              value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              className="form-input"
-              style={{ width: '160px', height: '36px', fontSize: '0.85rem' }}
-            >
-              <option value="ALL">All Projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={String(p.id)}>
-                  {p.project_key} — {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as IssueStatus | 'ALL')}
-            className="form-input"
-            style={{ width: '140px', height: '36px', fontSize: '0.85rem' }}
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="REPORTED">Reported</option>
-            <option value="TRIAGED">Triaged</option>
-            <option value="ASSIGNED">Assigned</option>
-            <option value="IN_DEVELOPMENT">In Development</option>
-            <option value="IN_REVIEW">In Review</option>
-            <option value="IN_TESTING">In Testing</option>
-            <option value="RESOLVED">Resolved</option>
-            <option value="CLOSED">Closed</option>
-            <option value="REOPENED">Reopened</option>
-          </select>
-
-          {/* Severity Filter */}
-          <select
-            value={severityFilter}
-            onChange={(e) => setSeverityFilter(e.target.value as Severity | 'ALL')}
-            className="form-input"
-            style={{ width: '140px', height: '36px', fontSize: '0.85rem' }}
-          >
-            <option value="ALL">All Severities</option>
-            <option value="BLOCKER">Blocker</option>
-            <option value="CRITICAL">Critical</option>
-            <option value="MAJOR">Major</option>
-            <option value="MINOR">Minor</option>
-          </select>
-
-          {/* Priority Filter */}
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value as Priority | 'ALL')}
-            className="form-input"
-            style={{ width: '130px', height: '36px', fontSize: '0.85rem' }}
-          >
-            <option value="ALL">All Priorities</option>
-            <option value="URGENT">Urgent</option>
-            <option value="HIGH">High</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="LOW">Low</option>
-          </select>
-        </div>
-
-        {/* STEP 7: Quick Filter Chips */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '0.4rem',
-            padding: '0.6rem 1.25rem',
-            borderBottom: '1px solid var(--border-subtle)',
-            overflowX: 'auto',
-            backgroundColor: 'rgba(15, 23, 42, 0.4)',
-          }}
-        >
-          {[
-            { key: 'ALL', label: `All (${totalIssueCount})` },
-            { key: 'OPEN', label: `Open (${openIssuesCount})` },
-            { key: 'AWAITING_REVIEW', label: `Awaiting Review (${awaitingReviewCount})` },
-            { key: 'ASSIGNED', label: `Assigned (${assignedToTesterCount})` },
-            { key: 'IN_PROGRESS', label: `In Progress (${inProgressCount})` },
-            { key: 'RESOLVED', label: `Resolved (${resolvedCount})` },
-            { key: 'CLOSED', label: `Closed (${closedCount})` },
-            { key: 'REOPENED', label: `Reopened (${reopenedCount})` },
-            { key: 'HIGH_SEVERITY', label: `High Severity (${(severityDist?.CRITICAL || 0) + (severityDist?.BLOCKER || 0)})` },
-            { key: 'URGENT', label: `Urgent (${priorityDist?.URGENT || 0})` },
-          ].map((chip) => (
-            <button
-              key={chip.key}
-              onClick={() => handleDefaultFilterChange(chip.key as FilterChip)}
-              style={{
-                padding: '0.25rem 0.65rem',
-                fontSize: '0.75rem',
-                fontWeight: '600',
-                borderRadius: 'var(--radius-sm)',
-                backgroundColor: selectedChip === chip.key ? 'var(--primary)' : 'var(--bg-surface-elevated)',
-                color: selectedChip === chip.key ? '#fff' : 'var(--text-secondary)',
-                border: '1px solid',
-                borderColor: selectedChip === chip.key ? 'var(--primary)' : 'var(--border-subtle)',
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Table Content */}
-        <div className="card-body" style={{ padding: 0 }}>
-          {filteredIssues.length === 0 ? (
-            <div style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
-              <FilePlus2 size={32} color="#818cf8" style={{ margin: '0 auto 0.75rem' }} />
-              <p style={{ color: 'var(--text-primary)', fontWeight: '600', marginBottom: '0.4rem', fontSize: '1rem' }}>
-                {totalIssueCount === 0 ? 'No issues reported yet.' : 'No issues match your current filters.'}
-              </p>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                {totalIssueCount === 0
-                  ? 'Found a defect in any application? Report your first defect to get started.'
-                  : 'Try clearing your search query or resetting your filter chips.'}
-              </p>
-              {totalIssueCount === 0 ? (
-                <button className="btn btn-primary" onClick={() => navigate('/issues?create=true')} style={{ margin: '0 auto' }}>
-                  <FilePlus2 size={16} />
-                  <span>Report Your First Defect</span>
-                </button>
-              ) : (
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    setSelectedChip('ALL');
-                    setSearchQuery('');
-                    setStatusFilter('ALL');
-                    setSeverityFilter('ALL');
-                    setPriorityFilter('ALL');
-                    setProjectFilter('ALL');
-                  }}
-                  style={{ margin: '0 auto' }}
-                >
-                  <span>Reset All Filters</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="table-container" style={{ border: 'none', borderRadius: 0 }}>
-              <table className="data-table" style={{ fontSize: density === 'compact' ? '0.8rem' : '0.875rem' }}>
-                <thead>
-                  <tr>
-                    <th>Key</th>
-                    <th>Defect Title</th>
-                    <th>Project</th>
-                    <th>Severity</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                    <th>Updated Date</th>
-                    <th style={{ textAlign: 'right' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredIssues.map((issue) => {
-                    const proj = projectMap.get(issue.project_id);
-                    return (
-                      <tr key={issue.id} style={{ height: density === 'compact' ? '40px' : '52px' }}>
-                        <td>
-                          <Link
-                            to={`/issues/${issue.id}`}
-                            style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', color: 'var(--primary)' }}
-                          >
-                            {issue.issue_key}
-                          </Link>
-                        </td>
-                        <td style={{ maxWidth: '260px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          <Link
-                            to={`/issues/${issue.id}`}
-                            style={{ color: 'var(--text-primary)', fontWeight: '500' }}
-                            title={issue.title}
-                          >
-                            {issue.title}
-                          </Link>
-                        </td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            {proj ? proj.project_key : `#${issue.project_id}`}
-                          </span>
-                        </td>
-                        <td>
-                          <SeverityBadge severity={issue.severity} />
-                        </td>
-                        <td>
-                          <PriorityBadge priority={issue.priority} />
-                        </td>
-                        <td>
-                          <StatusBadge status={issue.status} />
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {formatDate(issue.updated_at || issue.created_at)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <Link
-                            to={`/issues/${issue.id}`}
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: density === 'compact' ? '0.2rem 0.4rem' : '0.25rem 0.6rem', fontSize: '0.75rem' }}
-                          >
-                            <span>Open</span>
-                            <ArrowRight size={12} />
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* STEP 4 D: Scoped Project Breakdown (📁 MY PROJECTS) */}
-      <div className="card" style={{ padding: '1.25rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FolderGit2 size={18} color="#34d399" />
-            <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-              📁 Project Breakdown
-            </h2>
-          </div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Showing projects where you have reported defects
-          </span>
-        </div>
-
-        {myProjectsBreakdown.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem 0' }}>
-            No project defect history recorded yet.
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-            {myProjectsBreakdown.map((proj) => (
-              <div
-                key={proj.project_id}
-                style={{
-                  padding: '1rem',
-                  backgroundColor: 'var(--bg-surface-elevated)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                    <span
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '0.8rem',
-                        fontWeight: '700',
-                        color: '#818cf8',
-                        backgroundColor: 'var(--primary-subtle)',
-                        padding: '0.1rem 0.4rem',
-                        borderRadius: 'var(--radius-sm)',
-                      }}
-                    >
-                      {proj.project_key}
-                    </span>
-                    <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#34d399' }}>
-                      {proj.resolution_rate.toFixed(0)}% Resolved
-                    </span>
-                  </div>
-
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
-                    {proj.project_name}
-                  </h3>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem', textAlign: 'center', fontSize: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)' }}>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block' }}>Total</span>
-                    <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{proj.total_issues}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block' }}>Open</span>
-                    <span style={{ fontWeight: '700', color: '#fbbf24' }}>{proj.open_issues}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block' }}>Resolved</span>
-                    <span style={{ fontWeight: '700', color: '#34d399' }}>{proj.resolved_issues}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block' }}>Closed</span>
-                    <span style={{ fontWeight: '700', color: '#818cf8' }}>{proj.closed_issues}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* STEP 9: Recent Real Notifications Feed */}
-      <div className="card" style={{ padding: '1.25rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Bell size={18} color="#818cf8" />
-            <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-              Recent Notification Activity
-            </h2>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {liveNotifications.some((n) => !n.is_read) && (
-              <button
-                onClick={() => markAllAsRead()}
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: '0.75rem' }}
-              >
-                Mark All Read
-              </button>
-            )}
-            <Link to="/notifications" className="btn btn-secondary btn-sm">
-              <span>View All</span>
-              <ArrowUpRight size={14} />
-            </Link>
-          </div>
-        </div>
-
-        {liveNotifications.length === 0 ? (
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1.5rem 0' }}>
-            You're all caught up! No new notifications.
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {liveNotifications.slice(0, 5).map((notif) => (
-              <div
-                key={notif.id}
-                style={{
-                  padding: '0.65rem 0.85rem',
-                  backgroundColor: notif.is_read ? 'transparent' : 'var(--bg-surface-elevated)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-sm)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: '0.85rem', fontWeight: notif.is_read ? '500' : '700', color: 'var(--text-primary)', margin: 0 }}>
-                    {notif.title}
-                  </p>
-                  <p style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0' }}>
-                    {notif.message}
-                  </p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    {formatRelativeTime(notif.created_at)}
-                  </span>
-                  {!notif.is_read && (
-                    <button
-                      onClick={() => markAsRead(notif.id)}
-                      className="btn btn-ghost btn-sm"
-                      style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}
-                      title="Mark Read"
-                    >
-                      Read
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* STEP 3 C: Reopen Issue Modal */}
+      {/* ── Reopen Issue Modal ── */}
       {reopenModalIssue && (
         <Modal
           isOpen={true}
-          onClose={() => {
-            setReopenModalIssue(null);
-            setReopenReason('');
-          }}
+          onClose={() => setReopenModalIssue(null)}
           title={`Reopen Defect: ${reopenModalIssue.issue_key}`}
         >
-          <form onSubmit={handleReopenSubmit}>
-            <div style={{ marginBottom: '1rem' }}>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-                Please provide feedback on why this issue remains unresolved or what additional steps are needed.
+          <form onSubmit={handleReopenSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem 0' }}>
+                You are reopening <strong>{reopenModalIssue.title}</strong>. Please describe why the resolution was
+                incomplete or what error still persists:
               </p>
               <textarea
-                className="form-input"
-                rows={4}
-                required
-                placeholder="Explain what behavior is still broken..."
                 value={reopenReason}
                 onChange={(e) => setReopenReason(e.target.value)}
-                style={{ width: '100%', resize: 'vertical' }}
+                placeholder="e.g. Error still occurs when clicking submit on mobile view..."
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem',
+                  fontSize: '0.85rem',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--bg-input)',
+                  border: '1px solid var(--border-muted)',
+                  color: 'var(--text-primary)',
+                  resize: 'vertical',
+                }}
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
               <button
                 type="button"
-                className="btn btn-secondary"
-                onClick={() => {
-                  setReopenModalIssue(null);
-                  setReopenReason('');
-                }}
+                onClick={() => setReopenModalIssue(null)}
+                className="btn btn-secondary btn-sm"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="btn btn-primary"
-                disabled={isActionSubmitting || !reopenReason.trim()}
-                style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                disabled={isActionSubmitting}
+                className="btn btn-danger btn-sm"
               >
-                {isActionSubmitting ? 'Reopening...' : 'Confirm Reopen'}
+                <RotateCcw size={14} />
+                <span>{isActionSubmitting ? 'Reopening…' : 'Reopen Defect'}</span>
               </button>
             </div>
           </form>
