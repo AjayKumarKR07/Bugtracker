@@ -53,7 +53,11 @@ export function useWebSocket({ token, onMessage, enabled = true }: UseWebSocketO
         ws.onopen = () => {
           if (!isMounted) return;
           setStatus('connected');
+          const wasReconnecting = reconnectAttemptRef.current > 0;
           reconnectAttemptRef.current = 0;
+          if (wasReconnecting) {
+            window.dispatchEvent(new CustomEvent('app:ws_reconnected'));
+          }
         };
 
         ws.onmessage = (event) => {
@@ -100,10 +104,25 @@ export function useWebSocket({ token, onMessage, enabled = true }: UseWebSocketO
       }
     }
 
+    function handleOnline() {
+      if (!isMounted || !token) return;
+      if (wsRef.current?.readyState !== WebSocket.OPEN) {
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+        reconnectAttemptRef.current = 0;
+        connect();
+      }
+    }
+
+    window.addEventListener('online', handleOnline);
+
     connect();
 
     return () => {
       isMounted = false;
+      window.removeEventListener('online', handleOnline);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

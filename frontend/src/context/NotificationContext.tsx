@@ -150,6 +150,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setNotifications((prev) => [newItem, ...prev.filter((item) => item.id !== newItem.id)]);
         setUnreadCount((prev) => prev + 1);
         addToast(d.title, d.message, d.notification_type);
+
+        // Notify entire app of realtime update so active views refresh immediately
+        window.dispatchEvent(new CustomEvent('app:realtime_notification', { detail: d }));
       }
     },
     [addToast]
@@ -171,6 +174,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setPreferences(null);
     }
   }, [isAuthenticated, fetchUnreadCount, fetchNotifications]);
+
+  // When WebSocket reconnects, refetch unread count and notifications to ensure no missed events
+  useEffect(() => {
+    if (isAuthenticated && wsStatus === 'connected') {
+      fetchUnreadCount();
+      fetchNotifications();
+    }
+  }, [isAuthenticated, wsStatus, fetchUnreadCount, fetchNotifications]);
 
   const value: NotificationContextType = {
     notifications,

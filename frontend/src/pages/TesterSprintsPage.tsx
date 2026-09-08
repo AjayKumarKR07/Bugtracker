@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertCircle,
@@ -38,7 +38,7 @@ type FilterTab = 'ALL' | 'ACTIVE' | 'IN_PROGRESS' | 'READY_FOR_APPROVAL' | 'COMP
 
 export const TesterSprintsPage: React.FC = () => {
   const { user } = useAuth();
-  const { notifications: liveNotifications } = useNotifications();
+  const { wsStatus, notifications: liveNotifications } = useNotifications();
 
   // ── Data state ──
   const [sprints, setSprints] = useState<Sprint[]>([]);
@@ -86,20 +86,38 @@ export const TesterSprintsPage: React.FC = () => {
     loadSprints();
   }, [loadSprints]);
 
-  // Real-time: auto-refresh immediately when a WebSocket notification arrives
+  // Real-time WebSocket refresh
+  const isInitialMount = useRef(true);
   const latestNotifId = liveNotifications[0]?.id;
+
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (latestNotifId) {
       loadSprints(true);
     }
   }, [latestNotifId, loadSprints]);
 
-  // Fallback background polling every 10s to keep state always fresh
+  // Refetch when WebSocket reconnects
   useEffect(() => {
-    const timer = setInterval(() => {
+    if (wsStatus === 'connected') {
       loadSprints(true);
-    }, 10000);
-    return () => clearInterval(timer);
+    }
+  }, [wsStatus, loadSprints]);
+
+  // Also listen for broadcasted app-level realtime events
+  useEffect(() => {
+    const handleRealtime = () => {
+      loadSprints(true);
+    };
+    window.addEventListener('app:realtime_notification', handleRealtime);
+    window.addEventListener('app:ws_reconnected', handleRealtime);
+    return () => {
+      window.removeEventListener('app:realtime_notification', handleRealtime);
+      window.removeEventListener('app:ws_reconnected', handleRealtime);
+    };
   }, [loadSprints]);
 
   // Load issues for a specific sprint

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -187,7 +187,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
 export const TesterDashboardPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { notifications: liveNotifications } = useNotifications();
+  const { wsStatus, notifications: liveNotifications } = useNotifications();
 
   // ── Data state ──
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -252,16 +252,39 @@ export const TesterDashboardPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  // Auto-refresh: only when a new notification arrives (latestNotifId changes).
-  // Deliberately excludes unreadCount to avoid a spurious reload on initial
-  // mount when the user already has pre-existing unread notifications.
+  // Real-time WebSocket refresh
+  const isInitialMount = useRef(true);
   const latestNotifId = liveNotifications[0]?.id;
+
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (latestNotifId) {
       loadData(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestNotifId]);
+  }, [latestNotifId, loadData]);
+
+  // Refetch when WebSocket reconnects
+  useEffect(() => {
+    if (wsStatus === 'connected') {
+      loadData(true);
+    }
+  }, [wsStatus, loadData]);
+
+  // Also listen for broadcasted app-level realtime events
+  useEffect(() => {
+    const handleRealtime = () => {
+      loadData(true);
+    };
+    window.addEventListener('app:realtime_notification', handleRealtime);
+    window.addEventListener('app:ws_reconnected', handleRealtime);
+    return () => {
+      window.removeEventListener('app:realtime_notification', handleRealtime);
+      window.removeEventListener('app:ws_reconnected', handleRealtime);
+    };
+  }, [loadData]);
 
   // ─────────────────────────────────────────────────────────────────
   // Derived metrics

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertCircle,
@@ -134,7 +134,7 @@ const FilterSelect: React.FC<{
 
 export const TesterIssuesPage: React.FC = () => {
   const { user } = useAuth();
-  const { notifications: liveNotifications } = useNotifications();
+  const { wsStatus, notifications: liveNotifications } = useNotifications();
 
   // ── Data state ──
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
@@ -184,16 +184,39 @@ export const TesterIssuesPage: React.FC = () => {
     loadIssues();
   }, [loadIssues]);
 
-  // Auto-refresh: only when a new notification arrives (latestNotifId changes).
-  // Deliberately excludes unreadCount to avoid a spurious reload on initial
-  // mount when the user already has pre-existing unread notifications.
+  // Real-time WebSocket refresh
+  const isInitialMount = useRef(true);
   const latestNotifId = liveNotifications[0]?.id;
+
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (latestNotifId) {
       loadIssues(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestNotifId]);
+  }, [latestNotifId, loadIssues]);
+
+  // Refetch when WebSocket reconnects
+  useEffect(() => {
+    if (wsStatus === 'connected') {
+      loadIssues(true);
+    }
+  }, [wsStatus, loadIssues]);
+
+  // Also listen for broadcasted app-level realtime events
+  useEffect(() => {
+    const handleRealtime = () => {
+      loadIssues(true);
+    };
+    window.addEventListener('app:realtime_notification', handleRealtime);
+    window.addEventListener('app:ws_reconnected', handleRealtime);
+    return () => {
+      window.removeEventListener('app:realtime_notification', handleRealtime);
+      window.removeEventListener('app:ws_reconnected', handleRealtime);
+    };
+  }, [loadIssues]);
 
   // Reset page when filters change
   useEffect(() => {

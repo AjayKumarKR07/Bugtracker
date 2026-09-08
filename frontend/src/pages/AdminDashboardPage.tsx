@@ -221,17 +221,39 @@ export const AdminDashboardPage: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  // WebSocket refresh
-  const lastNotificationIdRef = useRef<number | null>(null);
+  // Real-time WebSocket refresh
+  const isInitialMount = useRef(true);
   const latestNotificationId = liveNotifications[0]?.id;
+
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (latestNotificationId) {
-      if (lastNotificationIdRef.current !== null && lastNotificationIdRef.current !== latestNotificationId) {
-        fetchData(true);
-      }
-      lastNotificationIdRef.current = latestNotificationId;
+      fetchData(true);
     }
   }, [latestNotificationId, fetchData]);
+
+  // Refetch current server state when WebSocket reconnects
+  useEffect(() => {
+    if (wsStatus === 'connected') {
+      fetchData(true);
+    }
+  }, [wsStatus, fetchData]);
+
+  // Also listen for broadcasted app-level realtime events
+  useEffect(() => {
+    const handleRealtime = () => {
+      fetchData(true);
+    };
+    window.addEventListener('app:realtime_notification', handleRealtime);
+    window.addEventListener('app:ws_reconnected', handleRealtime);
+    return () => {
+      window.removeEventListener('app:realtime_notification', handleRealtime);
+      window.removeEventListener('app:ws_reconnected', handleRealtime);
+    };
+  }, [fetchData]);
 
   // Handle Assign modal
   const openAssignModal = async (issueId: number) => {

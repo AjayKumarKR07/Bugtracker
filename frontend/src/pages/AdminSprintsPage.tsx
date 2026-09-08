@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -18,6 +18,7 @@ import { SprintService } from '../services/SprintService';
 import { projectsApi } from '../api/projects';
 import { issuesApi } from '../api/issues';
 import { usersApi } from '../api/users';
+import { useNotifications } from '../hooks/useNotifications';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { Modal } from '../components/common/Modal';
@@ -106,8 +107,44 @@ export const AdminSprintsPage: React.FC = () => {
     }
   }, [createForm.project_id]);
 
+  const { wsStatus, notifications: liveNotifications } = useNotifications();
+
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+  // Real-time WebSocket refresh
+  const isInitialMount = useRef(true);
+  const latestNotificationId = liveNotifications[0]?.id;
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (latestNotificationId) {
+      fetchData(true);
+    }
+  }, [latestNotificationId, fetchData]);
+
+  // Refetch when WebSocket reconnects
+  useEffect(() => {
+    if (wsStatus === 'connected') {
+      fetchData(true);
+    }
+  }, [wsStatus, fetchData]);
+
+  // Listen for broadcasted app-level realtime events
+  useEffect(() => {
+    const handleRealtime = () => {
+      fetchData(true);
+    };
+    window.addEventListener('app:realtime_notification', handleRealtime);
+    window.addEventListener('app:ws_reconnected', handleRealtime);
+    return () => {
+      window.removeEventListener('app:realtime_notification', handleRealtime);
+      window.removeEventListener('app:ws_reconnected', handleRealtime);
+    };
   }, [fetchData]);
 
   // Actions
