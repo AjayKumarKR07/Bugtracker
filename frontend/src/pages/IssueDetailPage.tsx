@@ -196,11 +196,15 @@ export const IssueDetailPage: React.FC = () => {
 
   const handleReopenSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!reopenReason.trim()) {
+      setActionError('A reason is required to reopen the defect.');
+      return;
+    }
     setIsActionSubmitting(true);
     setActionError(null);
     try {
       const updated = await issuesApi.reopen(issueId, {
-        reason: reopenReason.trim() || undefined,
+        reason: reopenReason.trim(),
       });
       setIssue(updated);
       setIsReopenOpen(false);
@@ -1334,7 +1338,7 @@ export const IssueDetailPage: React.FC = () => {
         <form onSubmit={handleReopenSubmit}>
           <div className="form-group">
             <label className="form-label" htmlFor="reopen-reason">
-              Reason for Reopening (Optional)
+              Reason for Reopening <span style={{ color: 'var(--color-danger, #ef4444)' }}>*</span>
             </label>
             <textarea
               id="reopen-reason"
@@ -1343,6 +1347,7 @@ export const IssueDetailPage: React.FC = () => {
               placeholder="Explain why the fix did not work or if the bug persists..."
               value={reopenReason}
               onChange={(e) => setReopenReason(e.target.value)}
+              required
             />
           </div>
 

@@ -306,10 +306,14 @@ export const DashboardPage: React.FC = () => {
   const handleReopenSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reopenModalIssue) return;
+    if (!reopenReason.trim()) {
+      setActionErrorMsg('A reason is required to reopen the defect.');
+      return;
+    }
     setIsActionSubmitting(true);
     setActionErrorMsg(null);
     try {
-      await issuesApi.reopen(reopenModalIssue.id, { reason: reopenReason.trim() || undefined });
+      await issuesApi.reopen(reopenModalIssue.id, { reason: reopenReason.trim() });
       const key = reopenModalIssue.issue_key;
       setReopenModalIssue(null);
       setReopenReason('');
@@ -1620,13 +1624,14 @@ export const DashboardPage: React.FC = () => {
             <div>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem 0' }}>
                 You are reopening <strong>{reopenModalIssue.title}</strong>. Please describe why the resolution was
-                incomplete or what error still persists:
+                incomplete or what error still persists <span style={{ color: '#ef4444' }}>*</span>:
               </p>
               <textarea
                 value={reopenReason}
                 onChange={(e) => setReopenReason(e.target.value)}
                 placeholder="e.g. Error still occurs when clicking submit on mobile view..."
                 rows={4}
+                required
                 style={{
                   width: '100%',
                   padding: '0.65rem',
