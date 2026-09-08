@@ -6,7 +6,10 @@ from fastapi.responses import StreamingResponse
 from app.database.session import get_db
 from app.dependencies.auth import get_current_user, require_role
 from app.models.user import User, UserRole
-from app.schemas.sprint import SprintCreate, SprintRead, SprintUpdate, SprintAnalytics, SprintExtend, SprintOverview
+from app.schemas.sprint import (
+    SprintCreate, SprintRead, SprintUpdate, SprintAnalytics, SprintExtend,
+    SprintOverview, SprintAssignTester, SprintRequestChanges,
+)
 from app.schemas.issue import IssueDetailResponse
 from app.services import sprint_service
 from app.services.pdf_service import generate_sprint_report
@@ -171,3 +174,77 @@ async def add_issue_to_sprint_alias(
 ):
     """[Alias] Add an issue to a sprint using mentor-required path format. ADMIN only."""
     return await sprint_service.add_issue_to_sprint(db, sprint_id, issue_id, actor=current_user)
+
+
+# --------------------------------------------------------------------------- #
+# Sprint Approval Workflow                                                      #
+# --------------------------------------------------------------------------- #
+
+@router.post("/{sprint_id}/assign-tester", response_model=SprintRead)
+async def assign_tester(
+    sprint_id: int,
+    body: SprintAssignTester,
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Assign a tester to a sprint. Moves PLANNED → ACTIVE automatically. ADMIN only."""
+    return await sprint_service.assign_tester(db, sprint_id, body.tester_id, actor=current_user)
+
+
+@router.post("/{sprint_id}/submit-for-approval", response_model=SprintRead)
+async def submit_for_approval(
+    sprint_id: int,
+    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tester submits a sprint for admin approval. Moves IN_PROGRESS → READY_FOR_APPROVAL."""
+    return await sprint_service.submit_for_approval(db, sprint_id, actor=current_user)
+
+
+@router.post("/{sprint_id}/begin-work", response_model=SprintRead)
+async def begin_work(
+    sprint_id: int,
+    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Tester begins work on an ACTIVE sprint. Moves ACTIVE → IN_PROGRESS. TESTER/ADMIN only."""
+    return await sprint_service.begin_work(db, sprint_id, actor=current_user)
+
+
+@router.post("/{sprint_id}/approve", response_model=SprintRead)
+async def approve_sprint(
+    sprint_id: int,
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin approves a sprint. Moves READY_FOR_APPROVAL → COMPLETED. ADMIN only."""
+    return await sprint_service.approve_sprint(db, sprint_id, actor=current_user)
+
+
+@router.post("/{sprint_id}/request-changes", response_model=SprintRead)
+async def request_changes(
+    sprint_id: int,
+    body: SprintRequestChanges,
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin requests changes. Moves READY_FOR_APPROVAL → IN_PROGRESS. ADMIN only."""
+    return await sprint_service.request_changes(db, sprint_id, body.comment, actor=current_user)
+
+
+@router.get("/assigned", response_model=list[SprintRead])
+async def get_assigned_sprints(
+    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all sprints assigned to the current tester."""
+    return await sprint_service.get_assigned_sprints_for_tester(db, current_user.id)
+
+
+@router.get("/awaiting-approval", response_model=list[SprintRead])
+async def get_awaiting_approval(
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all sprints pending admin approval. ADMIN only."""
+    return await sprint_service.get_sprints_awaiting_approval(db)

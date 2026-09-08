@@ -9,7 +9,10 @@ from app.models.sprint import Sprint, SprintStatus
 from app.models.issue import Issue, IssueStatus
 from app.models.project import Project
 from app.models.user import User, UserRole
-from app.schemas.sprint import SprintCreate, SprintUpdate, SprintAnalytics, SprintOverview, SprintRead
+from app.schemas.sprint import (
+    SprintCreate, SprintUpdate, SprintAnalytics, SprintOverview, SprintRead,
+    SprintAssignTester, SprintRequestChanges
+)
 from app.services.audit_service import create_audit_log
 from app.models.audit_log import AuditAction
 from app.services import notification_service
@@ -17,14 +20,38 @@ from app.models.notification import NotificationType
 from app.schemas.notification import NotificationResponse
 from app.services.websocket_manager import ws_manager
 
+# Statuses that count as "active/in-flight" for burndown/health purposes
+_ACTIVE_STATUSES = {
+    SprintStatus.ACTIVE,
+    SprintStatus.IN_PROGRESS,
+    SprintStatus.READY_FOR_APPROVAL,
+}
+
 
 async def get_sprints_for_project(db: AsyncSession, project_id: int) -> Sequence[Sprint]:
-    result = await db.execute(select(Sprint).where(Sprint.project_id == project_id).order_by(Sprint.start_date.desc()))
+    result = await db.execute(
+        select(Sprint)
+        .options(
+            selectinload(Sprint.assigned_tester),
+            selectinload(Sprint.submitted_by),
+            selectinload(Sprint.approved_by),
+        )
+        .where(Sprint.project_id == project_id)
+        .order_by(Sprint.start_date.desc())
+    )
     return result.scalars().all()
 
 
 async def get_sprint_by_id(db: AsyncSession, sprint_id: int) -> Sprint:
-    result = await db.execute(select(Sprint).where(Sprint.id == sprint_id))
+    result = await db.execute(
+        select(Sprint)
+        .options(
+            selectinload(Sprint.assigned_tester),
+            selectinload(Sprint.submitted_by),
+            selectinload(Sprint.approved_by),
+        )
+        .where(Sprint.id == sprint_id)
+    )
     sprint = result.scalar_one_or_none()
     if not sprint:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sprint not found")
@@ -344,10 +371,10 @@ async def get_project_sprint_summary(db: AsyncSession, project_id: int) -> Sprin
     
     total = len(sprints)
     completed_sprints = [s for s in sprints if s.status in [SprintStatus.COMPLETED, SprintStatus.ARCHIVED]]
-    active_sprint = next((s for s in sprints if s.status == SprintStatus.ACTIVE), None)
+    active_sprint = next((s for s in sprints if s.status in _ACTIVE_STATUSES), None)
     
     now = datetime.now(timezone.utc)
-    overdue_count = sum(1 for s in sprints if s.status == SprintStatus.ACTIVE and s.end_date < now)
+    overdue_count = sum(1 for s in sprints if s.status in _ACTIVE_STATUSES and s.end_date < now)
     
     avg_comp_rate = 0.0
     avg_velocity = 0.0
@@ -430,7 +457,7 @@ async def get_sprint_analytics(db: AsyncSession, sprint_id: int) -> SprintAnalyt
     sprint_health = "ON_TRACK"
     if is_overdue:
         sprint_health = "OFF_TRACK"
-    elif sprint.status == SprintStatus.ACTIVE:
+    elif sprint.status in _ACTIVE_STATUSES:
         days_total = max(1, (sprint.end_date - sprint.start_date).days)
         days_elapsed = (now - sprint.start_date).days
         time_elapsed_pct = max(0.0, min(1.0, days_elapsed / days_total))
@@ -468,7 +495,9 @@ async def get_sprint_analytics(db: AsyncSession, sprint_id: int) -> SprintAnalyt
 
     # Real Historical Burndown Calculation
     burndown_points = []
-    if sprint.status in [SprintStatus.ACTIVE, SprintStatus.COMPLETED, SprintStatus.ARCHIVED] and total > 0:
+    if sprint.status in (
+        _ACTIVE_STATUSES | {SprintStatus.COMPLETED, SprintStatus.ARCHIVED}
+    ) and total > 0:
         start_date_val = (sprint.actual_start_date or sprint.start_date).date()
         end_date_val = (sprint.completed_at or sprint.end_date).date()
         total_days = max(1, (end_date_val - start_date_val).days)
@@ -590,3 +619,201 @@ async def remove_issue_from_sprint(db: AsyncSession, sprint_id: int, issue_id: i
         .where(Issue.id == issue_id)
     )
     return result.scalar_one()
+
+
+# --------------------------------------------------------------------------- #
+# Approval workflow functions                                                  #
+# --------------------------------------------------------------------------- #
+
+async def assign_tester(
+    db: AsyncSession, sprint_id: int, tester_id: int, actor: User
+) -> Sprint:
+    """Assign a tester to a sprint. ADMIN only."""
+    sprint = await get_sprint_by_id(db, sprint_id)
+
+    # Validate tester exists and has TESTER/DEVELOPER role
+    tester_result = await db.execute(select(User).where(User.id == tester_id))
+    tester = tester_result.scalar_one_or_none()
+    if not tester:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tester user not found")
+    if tester.role not in (UserRole.TESTER, UserRole.DEVELOPER):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User '{tester.full_name}' does not have TESTER or DEVELOPER role"
+        )
+
+    old_tester_id = sprint.assigned_tester_id
+    sprint.assigned_tester_id = tester_id
+
+    # Move PLANNED → ACTIVE automatically when tester is assigned
+    if sprint.status == SprintStatus.PLANNED:
+        sprint.status = SprintStatus.ACTIVE
+        sprint.actual_start_date = datetime.now(timezone.utc)
+
+    await create_audit_log(
+        db=db, actor=actor, action=AuditAction.SPRINT_TESTER_ASSIGNED,
+        entity_type="SPRINT", entity_id=sprint.id, entity_key=sprint.name,
+        description=f"Sprint '{sprint.name}' assigned to tester '{tester.full_name}'",
+        old_values={"assigned_tester_id": old_tester_id},
+        new_values={"assigned_tester_id": tester_id, "tester_name": tester.full_name},
+    )
+    await db.commit()
+    return await get_sprint_by_id(db, sprint.id)
+
+
+async def submit_for_approval(db: AsyncSession, sprint_id: int, actor: User) -> Sprint:
+    """Tester submits a sprint for admin review."""
+    sprint = await get_sprint_by_id(db, sprint_id)
+
+    # Must be the assigned tester (or an admin acting on behalf)
+    if actor.role == UserRole.TESTER and sprint.assigned_tester_id != actor.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not the assigned tester for this sprint"
+        )
+
+    # Only IN_PROGRESS → READY_FOR_APPROVAL is allowed.
+    # Tester must first use "Begin Work" (ACTIVE → IN_PROGRESS) before submitting.
+    if sprint.status != SprintStatus.IN_PROGRESS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Sprint cannot be submitted for approval from status '{sprint.status.value}'. "
+                "Use 'Begin Work' first to move the sprint to IN_PROGRESS."
+            )
+        )
+
+    old_status = sprint.status
+    sprint.status = SprintStatus.READY_FOR_APPROVAL
+    sprint.submitted_by_id = actor.id
+    sprint.submitted_at = datetime.now(timezone.utc)
+    sprint.review_comment = None  # clear previous rejection comment
+
+    await create_audit_log(
+        db=db, actor=actor, action=AuditAction.SPRINT_SUBMITTED_FOR_APPROVAL,
+        entity_type="SPRINT", entity_id=sprint.id, entity_key=sprint.name,
+        description=f"Tester '{actor.full_name}' submitted sprint '{sprint.name}' for admin approval",
+        old_values={"status": old_status.value},
+        new_values={"status": SprintStatus.READY_FOR_APPROVAL.value, "submitted_by": actor.full_name},
+    )
+    await db.commit()
+    return await get_sprint_by_id(db, sprint.id)
+
+
+async def approve_sprint(db: AsyncSession, sprint_id: int, actor: User) -> Sprint:
+    """Admin approves a READY_FOR_APPROVAL sprint → COMPLETED."""
+    sprint = await get_sprint_by_id(db, sprint_id)
+
+    if sprint.status != SprintStatus.READY_FOR_APPROVAL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Sprint must be READY_FOR_APPROVAL to approve. Current status: '{sprint.status.value}'"
+        )
+
+    old_status = sprint.status
+    sprint.status = SprintStatus.COMPLETED
+    sprint.approved_by_id = actor.id
+    sprint.approved_at = datetime.now(timezone.utc)
+    sprint.completed_at = datetime.now(timezone.utc)
+
+    await create_audit_log(
+        db=db, actor=actor, action=AuditAction.SPRINT_APPROVED,
+        entity_type="SPRINT", entity_id=sprint.id, entity_key=sprint.name,
+        description=f"Admin '{actor.full_name}' approved sprint '{sprint.name}'",
+        old_values={"status": old_status.value},
+        new_values={"status": SprintStatus.COMPLETED.value, "approved_by": actor.full_name},
+    )
+    await db.commit()
+    return await get_sprint_by_id(db, sprint.id)
+
+
+async def request_changes(
+    db: AsyncSession, sprint_id: int, comment: str | None, actor: User
+) -> Sprint:
+    """Admin requests changes on a READY_FOR_APPROVAL sprint → IN_PROGRESS."""
+    sprint = await get_sprint_by_id(db, sprint_id)
+
+    if sprint.status != SprintStatus.READY_FOR_APPROVAL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Sprint must be READY_FOR_APPROVAL to request changes. Current status: '{sprint.status.value}'"
+        )
+
+    old_status = sprint.status
+    sprint.status = SprintStatus.IN_PROGRESS
+    sprint.review_comment = comment
+
+    await create_audit_log(
+        db=db, actor=actor, action=AuditAction.SPRINT_CHANGES_REQUESTED,
+        entity_type="SPRINT", entity_id=sprint.id, entity_key=sprint.name,
+        description=f"Admin '{actor.full_name}' requested changes on sprint '{sprint.name}'",
+        old_values={"status": old_status.value},
+        new_values={"status": SprintStatus.IN_PROGRESS.value, "review_comment": comment},
+    )
+    await db.commit()
+    return await get_sprint_by_id(db, sprint.id)
+
+
+async def get_assigned_sprints_for_tester(
+    db: AsyncSession, tester_id: int
+) -> Sequence[Sprint]:
+    """Return all sprints assigned to a specific tester, ordered by most recent first."""
+    result = await db.execute(
+        select(Sprint)
+        .options(
+            selectinload(Sprint.assigned_tester),
+            selectinload(Sprint.submitted_by),
+            selectinload(Sprint.approved_by),
+        )
+        .where(Sprint.assigned_tester_id == tester_id)
+        .order_by(Sprint.updated_at.desc())
+    )
+    return result.scalars().all()
+
+
+async def get_sprints_awaiting_approval(db: AsyncSession) -> Sequence[Sprint]:
+    """Return all sprints in READY_FOR_APPROVAL status, oldest submission first."""
+    result = await db.execute(
+        select(Sprint)
+        .options(
+            selectinload(Sprint.assigned_tester),
+            selectinload(Sprint.submitted_by),
+            selectinload(Sprint.approved_by),
+        )
+        .where(Sprint.status == SprintStatus.READY_FOR_APPROVAL)
+        .order_by(Sprint.submitted_at.asc())
+    )
+    return result.scalars().all()
+
+
+async def begin_work(
+    db: AsyncSession, sprint_id: int, actor: User
+) -> Sprint:
+    """Tester begins work on an ACTIVE sprint → IN_PROGRESS."""
+    sprint = await get_sprint_by_id(db, sprint_id)
+
+    # Only the assigned tester (or admin) may begin work
+    if actor.role == UserRole.TESTER and sprint.assigned_tester_id != actor.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not the assigned tester for this sprint"
+        )
+
+    if sprint.status != SprintStatus.ACTIVE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Sprint must be ACTIVE to begin work. Current status: '{sprint.status.value}'"
+        )
+
+    old_status = sprint.status
+    sprint.status = SprintStatus.IN_PROGRESS
+
+    await create_audit_log(
+        db=db, actor=actor, action=AuditAction.SPRINT_UPDATED,
+        entity_type="SPRINT", entity_id=sprint.id, entity_key=sprint.name,
+        description=f"Tester '{actor.full_name}' began work on sprint '{sprint.name}'",
+        old_values={"status": old_status.value},
+        new_values={"status": SprintStatus.IN_PROGRESS.value},
+    )
+    await db.commit()
+    return await get_sprint_by_id(db, sprint.id)

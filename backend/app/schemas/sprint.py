@@ -34,6 +34,18 @@ class SprintExtend(BaseModel):
     new_end_date: datetime
 
 
+# ── Approval workflow request schemas ─────────────────────────────────────────
+
+class SprintAssignTester(BaseModel):
+    tester_id: int = Field(..., description="ID of the TESTER user to assign")
+
+
+class SprintRequestChanges(BaseModel):
+    comment: str | None = Field(None, max_length=2000, description="Optional reason/feedback for the tester")
+
+
+# ── Read schema ───────────────────────────────────────────────────────────────
+
 class SprintRead(SprintBase):
     id: int
     project_id: int
@@ -42,8 +54,29 @@ class SprintRead(SprintBase):
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    # Approval workflow fields
+    assigned_tester_id: int | None = None
+    assigned_tester_name: str | None = None   # resolved from relationship
+    submitted_by_id: int | None = None
+    submitted_at: datetime | None = None
+    approved_by_id: int | None = None
+    approved_at: datetime | None = None
+    review_comment: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        # Resolve related user names if ORM object without triggering lazy IO
+        instance = super().model_validate(obj, **kwargs)
+        try:
+            if hasattr(obj, "__dict__"):
+                tester = obj.__dict__.get("assigned_tester")
+                if tester and hasattr(tester, "full_name"):
+                    instance.assigned_tester_name = tester.full_name
+        except Exception:
+            pass
+        return instance
 
 
 class SprintAnalytics(BaseModel):
@@ -64,7 +97,7 @@ class SprintAnalytics(BaseModel):
     total_estimated_effort: int = 0
     completed_effort: int = 0
     remaining_effort: int = 0
-    
+
 class SprintOverview(BaseModel):
     total_sprints: int
     active_sprint: SprintRead | None
@@ -72,3 +105,4 @@ class SprintOverview(BaseModel):
     avg_completion_rate: float
     avg_velocity: float
     overdue_sprints: int
+

@@ -1,4 +1,4 @@
-"""
+﻿"""
 E2E integration test for verifying the USER -> ADMIN -> TESTER -> USER workflow
 across all boundaries and the database.
 """
@@ -179,22 +179,30 @@ def test_e2e_user_to_admin_to_tester_workflow():
 
     # Step 8: Raw PostgreSQL Verification
     async def _verify_db():
-        from sqlalchemy.ext.asyncio import AsyncSession
-        async with AsyncSession(engine) as session:
-            result = await session.execute(select(Issue).where(Issue.id == issue_id))
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+        from sqlalchemy.orm import selectinload
+
+        async_session = async_sessionmaker(engine, expire_on_commit=False)
+        async with async_session() as session:
+            # Eagerly load relationships to prevent implicit lazy IO
+            result = await session.execute(
+                select(Issue)
+                .where(Issue.id == issue_id)
+                .options(selectinload(Issue.assignee), selectinload(Issue.reporter))
+            )
             db_issue = result.scalar_one_or_none()
             assert db_issue is not None
             assert db_issue.status == IssueStatus.REOPENED
             assert db_issue.assignee_id == tester_id
             assert db_issue.resolved_at is None  # Should be cleared on reopen
-            
+
             # Check Audit Logs
             audit_res = await session.execute(
                 select(AuditLog).where(AuditLog.entity_id == issue_id).order_by(AuditLog.created_at)
             )
             audit_logs = audit_res.scalars().all()
             actions = [log.action.value for log in audit_logs]
-            
+
             assert "ISSUE_CREATED" in actions
             assert "ISSUE_ASSIGNED" in actions
             assert "ISSUE_STATUS_CHANGED" in actions
@@ -207,7 +215,7 @@ def test_e2e_user_to_admin_to_tester_workflow():
             )
             notifications = notif_res.scalars().all()
             assert len(notifications) > 0
-            
+
             reopen_notifs = [n for n in notifications if n.notification_type.value == "ISSUE_REOPENED"]
             assert len(reopen_notifs) > 0
             assert any(n.user_id == tester_id for n in reopen_notifs)

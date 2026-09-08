@@ -84,4 +84,41 @@ export const SprintService = {
     const response = await apiClient.delete(`/sprints/${sprintId}/issues/${issueId}`);
     return response.data;
   },
+
+  // ── Approval Workflow ─────────────────────────────────────────────────────
+
+  assignTester: async (sprintId: number, testerId: number): Promise<Sprint> => {
+    const response = await apiClient.post(`/sprints/${sprintId}/assign-tester`, { tester_id: testerId });
+    return response.data;
+  },
+
+  submitForApproval: async (sprintId: number): Promise<Sprint> => {
+    const response = await apiClient.post(`/sprints/${sprintId}/submit-for-approval`);
+    return response.data;
+  },
+
+  beginWork: async (sprintId: number): Promise<Sprint> => {
+    const response = await apiClient.post(`/sprints/${sprintId}/begin-work`);
+    return response.data;
+  },
+
+  approveSprint: async (sprintId: number): Promise<Sprint> => {
+    const response = await apiClient.post(`/sprints/${sprintId}/approve`);
+    return response.data;
+  },
+
+  requestChanges: async (sprintId: number, comment?: string | null): Promise<Sprint> => {
+    const response = await apiClient.post(`/sprints/${sprintId}/request-changes`, { comment });
+    return response.data;
+  },
+
+  getAssignedSprints: async (): Promise<Sprint[]> => {
+    const response = await apiClient.get('/sprints/assigned');
+    return response.data;
+  },
+
+  getAwaitingApprovalSprints: async (): Promise<Sprint[]> => {
+    const response = await apiClient.get('/sprints/awaiting-approval');
+    return response.data;
+  },
 };

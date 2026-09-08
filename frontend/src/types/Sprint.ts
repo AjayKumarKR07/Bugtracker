@@ -1,4 +1,10 @@
-export type SprintStatus = 'PLANNED' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+export type SprintStatus =
+  | 'PLANNED'
+  | 'ACTIVE'
+  | 'IN_PROGRESS'
+  | 'READY_FOR_APPROVAL'
+  | 'COMPLETED'
+  | 'ARCHIVED';
 
 export interface Sprint {
   id: number;
@@ -16,6 +22,14 @@ export interface Sprint {
   project_id: number;
   created_at: string;
   updated_at: string;
+  // Approval workflow
+  assigned_tester_id: number | null;
+  assigned_tester_name: string | null;
+  submitted_by_id: number | null;
+  submitted_at: string | null;
+  approved_by_id: number | null;
+  approved_at: string | null;
+  review_comment: string | null;
 }
 
 export interface SprintCreate {
@@ -44,6 +58,14 @@ export interface SprintUpdate {
 
 export interface SprintExtend {
   new_end_date: string;
+}
+
+export interface SprintAssignTester {
+  tester_id: number;
+}
+
+export interface SprintRequestChanges {
+  comment?: string | null;
 }
 
 export interface SprintOverview {

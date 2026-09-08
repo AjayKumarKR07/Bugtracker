@@ -6,11 +6,14 @@ import {
   AlertTriangle,
   Bug,
   CheckCircle2,
+  ClipboardCheck,
   FolderGit2,
   HeartPulse,
   Layers,
   RefreshCw,
   Shield,
+  ThumbsUp,
+  RotateCcw,
   Users,
 } from 'lucide-react';
 import { adminApi } from '../api/admin';
@@ -24,11 +27,13 @@ import { Modal } from '../components/common/Modal';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { SeverityBadge } from '../components/common/SeverityBadge';
 import { AdvancedAnalytics } from '../components/admin/AdvancedAnalytics';
+import { SprintService } from '../services/SprintService';
 import { useNotifications } from '../hooks/useNotifications';
 import type { AdminDashboardResponse, InactiveAssigneeItem } from '../types/admin';
 import type { DeveloperAnalyticsItem } from '../types/analytics';
 import type { AuditLogItem } from '../types/audit';
 import type { Issue } from '../types/issue';
+import type { Sprint } from '../types/Sprint';
 import type { UserDetail } from '../types/user';
 import { formatRelativeTime } from '../utils/formatters';
 
@@ -111,12 +116,17 @@ export const AdminDashboardPage: React.FC = () => {
   const [unassignedQueue, setUnassignedQueue] = useState<Issue[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   
-  // Assignment state
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
   const [testers, setTesters] = useState<UserDetail[]>([]);
   const [assigning, setAssigning] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Sprint approval state
+  const [awaitingApproval, setAwaitingApproval] = useState<Sprint[]>([]);
+  const [requestChangesSprintId, setRequestChangesSprintId] = useState<number | null>(null);
+  const [requestChangesComment, setRequestChangesComment] = useState('');
+  const [sprintActionLoading, setSprintActionLoading] = useState<number | null>(null);
 
   const fetchData = useCallback(async (background = false) => {
     if (!background) setIsLoading(true);
@@ -143,6 +153,13 @@ export const AdminDashboardPage: React.FC = () => {
       setInactiveAssignees(inactiveList.items);
       setUnassignedQueue(unassignedList.items);
       setAuditLogs(logsList.items);
+
+      // Sprint approval
+      try {
+        const pendingSprints = await SprintService.getAwaitingApprovalSprints();
+        setAwaitingApproval(pendingSprints);
+      } catch { /* non-critical */ }
+
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to load dashboard data');
     } finally {
@@ -194,6 +211,36 @@ export const AdminDashboardPage: React.FC = () => {
       setAssigning(false);
     }
   };
+
+  const handleApproveSprint = async (sprintId: number) => {
+    setSprintActionLoading(sprintId);
+    try {
+      await SprintService.approveSprint(sprintId);
+      setToastMessage({ type: 'success', text: 'Sprint approved and marked COMPLETED!' });
+      fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to approve sprint' });
+    } finally {
+      setSprintActionLoading(null);
+    }
+  };
+
+  const handleRequestChanges = async () => {
+    if (!requestChangesSprintId) return;
+    setSprintActionLoading(requestChangesSprintId);
+    try {
+      await SprintService.requestChanges(requestChangesSprintId, requestChangesComment || null);
+      setToastMessage({ type: 'success', text: 'Changes requested. Tester will be notified.' });
+      setRequestChangesSprintId(null);
+      setRequestChangesComment('');
+      fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to request changes' });
+    } finally {
+      setSprintActionLoading(null);
+    }
+  };
+
 
   // Health Score Calculation
   const healthScore = useMemo(() => {
@@ -431,6 +478,53 @@ export const AdminDashboardPage: React.FC = () => {
             )}
           </section>
 
+          {/* Sprints Awaiting Approval */}
+          {awaitingApproval.length > 0 && (
+            <section className="card" style={{ border: '1px solid rgba(99,102,241,0.3)' }}>
+              <div className="card-header">
+                <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#818cf8' }}>
+                  <ClipboardCheck size={18} />
+                  Sprints Awaiting Approval
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(99,102,241,0.2)', color: '#818cf8', padding: '0.15rem 0.5rem', borderRadius: '12px', marginLeft: '0.25rem' }}>
+                    {awaitingApproval.length}
+                  </span>
+                </h2>
+              </div>
+              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {awaitingApproval.map(sprint => (
+                  <div key={sprint.id} style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.2rem' }}>{sprint.name}</div>
+                      {sprint.goal && <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{sprint.goal}</div>}
+                      <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                        <span>Tester: <strong style={{ color: 'var(--text-primary)' }}>{sprint.assigned_tester_name || '—'}</strong></span>
+                        {sprint.submitted_at && <span>Submitted: <strong style={{ color: 'var(--text-primary)' }}>{formatRelativeTime(sprint.submitted_at)}</strong></span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                      <button
+                        className="btn btn-success btn-sm"
+                        disabled={sprintActionLoading === sprint.id}
+                        onClick={() => handleApproveSprint(sprint.id)}
+                        title="Approve Sprint → COMPLETED"
+                      >
+                        <ThumbsUp size={14} /> Approve
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={sprintActionLoading === sprint.id}
+                        onClick={() => { setRequestChangesSprintId(sprint.id); setRequestChangesComment(''); }}
+                        title="Request changes → returns to IN_PROGRESS"
+                      >
+                        <RotateCcw size={14} /> Request Changes
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* System Activity */}
           <section className="card">
             <div className="card-header">
@@ -584,6 +678,33 @@ export const AdminDashboardPage: React.FC = () => {
               );
             })}
           </div>
+        </div>
+      </Modal>
+
+      {/* Request Changes Modal */}
+      <Modal
+        isOpen={requestChangesSprintId !== null}
+        onClose={() => { setRequestChangesSprintId(null); setRequestChangesComment(''); }}
+        title="Request Changes"
+      >
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+          The sprint will be sent back to the tester with status <strong>IN_PROGRESS</strong>.
+        </p>
+        <div className="form-group">
+          <label className="form-label">Comment / Feedback (optional)</label>
+          <textarea
+            className="form-textarea"
+            rows={4}
+            value={requestChangesComment}
+            onChange={e => setRequestChangesComment(e.target.value)}
+            placeholder="Describe what changes are needed..."
+          />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+          <button className="btn btn-secondary" onClick={() => { setRequestChangesSprintId(null); setRequestChangesComment(''); }}>Cancel</button>
+          <button className="btn btn-primary" disabled={sprintActionLoading !== null} onClick={handleRequestChanges}>
+            Send Back to Tester
+          </button>
         </div>
       </Modal>
 

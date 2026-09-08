@@ -14,10 +14,12 @@ from app.database.base import Base
 
 
 class SprintStatus(str, enum.Enum):
-    PLANNED = "PLANNED"
-    ACTIVE = "ACTIVE"
-    COMPLETED = "COMPLETED"
-    ARCHIVED = "ARCHIVED"
+    PLANNED             = "PLANNED"
+    ACTIVE              = "ACTIVE"
+    IN_PROGRESS         = "IN_PROGRESS"          # Tester actively working (post-assign)
+    READY_FOR_APPROVAL  = "READY_FOR_APPROVAL"   # Tester submitted, awaiting admin review
+    COMPLETED           = "COMPLETED"
+    ARCHIVED            = "ARCHIVED"
 
 
 class Sprint(Base):
@@ -58,6 +60,22 @@ class Sprint(Base):
     hours_per_day: Mapped[int | None] = mapped_column(nullable=True)
 
     # ------------------------------------------------------------------ #
+    # Approval workflow                                                    #
+    # ------------------------------------------------------------------ #
+    assigned_tester_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    submitted_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ------------------------------------------------------------------ #
     # Foreign keys                                                         #
     # ------------------------------------------------------------------ #
     project_id: Mapped[int] = mapped_column(
@@ -91,6 +109,28 @@ class Sprint(Base):
         cascade="all, save-update",
         lazy="select",
     )
+    assigned_tester: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
+        "User",
+        foreign_keys=[assigned_tester_id],
+        lazy="selectin",
+    )
+    submitted_by: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
+        "User",
+        foreign_keys=[submitted_by_id],
+        lazy="selectin",
+    )
+    approved_by: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
+        "User",
+        foreign_keys=[approved_by_id],
+        lazy="selectin",
+    )
+
+    @property
+    def assigned_tester_name(self) -> str | None:
+        tester = self.__dict__.get("assigned_tester")
+        if tester and hasattr(tester, "full_name"):
+            return tester.full_name
+        return None
 
     def __repr__(self) -> str:
         return f"<Sprint id={self.id} name={self.name!r} status={self.status}>"

@@ -8,6 +8,7 @@ import {
   Bug,
   CheckCircle2,
   CheckCheck,
+  ClipboardCheck,
   Clock,
   Eye,
   FlaskConical,
@@ -18,12 +19,14 @@ import {
   Search,
   Shield,
   Sparkles,
+  ThumbsUp,
   TrendingUp,
   Zap,
 } from 'lucide-react';
 import { analyticsApi } from '../api/analytics';
 import { getApiErrorMessage } from '../api/client';
 import { issuesApi } from '../api/issues';
+import { SprintService } from '../services/SprintService';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { PriorityBadge } from '../components/common/PriorityBadge';
@@ -37,6 +40,7 @@ import type {
   SeverityDistributionResponse,
 } from '../types/analytics';
 import type { Issue } from '../types/issue';
+import type { Sprint } from '../types/Sprint';
 import { formatDate, formatRelativeTime } from '../utils/formatters';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -192,6 +196,10 @@ export const TesterDashboardPage: React.FC = () => {
   const [severityDist, setSeverityDist] = useState<SeverityDistributionResponse | null>(null);
   const [priorityDist, setPriorityDist] = useState<PriorityDistributionResponse | null>(null);
 
+  // ── Sprint state ──
+  const [assignedSprints, setAssignedSprints] = useState<Sprint[]>([]);
+  const [sprintSubmitting, setSprintSubmitting] = useState<number | null>(null);
+
   // ── UI state ──
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -225,6 +233,13 @@ export const TesterDashboardPage: React.FC = () => {
       setStatusDist(statusRes);
       setSeverityDist(sevRes);
       setPriorityDist(priRes);
+
+      // Load assigned sprints (non-critical)
+      try {
+        const sprints = await SprintService.getAssignedSprints();
+        setAssignedSprints(sprints);
+      } catch { /* ignore */ }
+
     } catch (err: unknown) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -317,6 +332,39 @@ export const TesterDashboardPage: React.FC = () => {
     }
   };
 
+  const handleSubmitSprintForApproval = async (sprintId: number) => {
+    setSprintSubmitting(sprintId);
+    setActionError(null);
+    try {
+      await SprintService.submitForApproval(sprintId);
+      setActionSuccess('Sprint submitted for admin approval!');
+      setTimeout(() => setActionSuccess(null), 5000);
+      await loadData(true);
+    } catch (err: unknown) {
+      setActionError(getApiErrorMessage(err));
+      setTimeout(() => setActionError(null), 5000);
+    } finally {
+      setSprintSubmitting(null);
+    }
+  };
+
+  const handleBeginWork = async (sprintId: number) => {
+    setSprintSubmitting(sprintId);
+    setActionError(null);
+    try {
+      await SprintService.beginWork(sprintId);
+      setActionSuccess('Sprint is now In Progress. You can now submit it for approval when ready.');
+      setTimeout(() => setActionSuccess(null), 5000);
+      await loadData(true);
+    } catch (err: unknown) {
+      setActionError(getApiErrorMessage(err));
+      setTimeout(() => setActionError(null), 5000);
+    } finally {
+      setSprintSubmitting(null);
+    }
+  };
+
+
   // ─────────────────────────────────────────────────────────────────
   // Render states
   // ─────────────────────────────────────────────────────────────────
@@ -388,6 +436,90 @@ export const TesterDashboardPage: React.FC = () => {
           <AlertCircle size={16} />
           {actionError}
         </div>
+      )}
+
+      {/* ── Assigned Sprints Section ── */}
+      {assignedSprints.length > 0 && (
+        <section className="card" style={{ border: '1px solid rgba(99,102,241,0.25)' }}>
+          <div className="card-header">
+            <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ClipboardCheck size={18} style={{ color: '#818cf8' }} />
+              My Assigned Sprints
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(99,102,241,0.2)', color: '#818cf8', padding: '0.15rem 0.5rem', borderRadius: '12px', marginLeft: '0.25rem' }}>
+                {assignedSprints.length}
+              </span>
+            </h2>
+          </div>
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {assignedSprints.map(sprint => {
+              return (
+                <div key={sprint.id} style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg-secondary)' }}>
+                  {/* Header row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '1rem' }}>{sprint.name}</div>
+                      {sprint.goal && <div style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>{sprint.goal}</div>}
+                      <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                        <span>📅 {formatDate(sprint.start_date)} → {formatDate(sprint.end_date)}</span>
+                        <span style={{
+                          fontWeight: 600,
+                          color: sprint.status === 'READY_FOR_APPROVAL' ? '#22d3ee' :
+                                 sprint.status === 'IN_PROGRESS' ? '#fbbf24' :
+                                 sprint.status === 'ACTIVE' ? '#818cf8' : 'var(--text-muted)'
+                        }}>
+                          ● {sprint.status === 'READY_FOR_APPROVAL' ? 'Awaiting Approval' :
+                             sprint.status === 'IN_PROGRESS' ? 'In Progress' :
+                             sprint.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                      {sprint.status === 'READY_FOR_APPROVAL' ? (
+                        <span style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem', borderRadius: '8px', background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', color: '#22d3ee', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <ThumbsUp size={13} /> Submitted — awaiting admin
+                        </span>
+                      ) : sprint.status === 'ACTIVE' ? (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          disabled={sprintSubmitting === sprint.id}
+                          onClick={() => handleBeginWork(sprint.id)}
+                          title="Mark sprint as In Progress to begin testing work"
+                        >
+                          <Play size={14} />
+                          {sprintSubmitting === sprint.id ? 'Starting...' : 'Begin Work'}
+                        </button>
+                      ) : sprint.status === 'IN_PROGRESS' ? (
+                        <button
+                          className="btn btn-success btn-sm"
+                          disabled={sprintSubmitting === sprint.id}
+                          onClick={() => handleSubmitSprintForApproval(sprint.id)}
+                        >
+                          <ThumbsUp size={14} />
+                          {sprintSubmitting === sprint.id ? 'Submitting...' : 'Submit for Approval'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Review comment banner */}
+                  {sprint.review_comment && sprint.status === 'IN_PROGRESS' && (
+                    <div style={{ marginTop: '0.5rem', padding: '0.75rem 1rem', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: '8px', borderLeft: '4px solid #f59e0b', fontSize: '0.85rem' }}>
+                      <strong style={{ color: '#fbbf24' }}>⚠ Admin Feedback:</strong>
+                      <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)' }}>{sprint.review_comment}</p>
+                    </div>
+                  )}
+
+                  {/* Approved banner */}
+                  {sprint.status === 'COMPLETED' && sprint.approved_at && (
+                    <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', fontSize: '0.82rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CheckCircle2 size={14} /> Approved by admin {formatRelativeTime(sprint.approved_at)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* ── Hero Header ── */}
