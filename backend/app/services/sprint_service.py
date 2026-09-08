@@ -657,7 +657,26 @@ async def assign_tester(
         old_values={"assigned_tester_id": old_tester_id},
         new_values={"assigned_tester_id": tester_id, "tester_name": tester.full_name},
     )
+
+    # Real-time notification to assigned tester
+    notif = await notification_service.create_notification(
+        db=db,
+        user_id=tester_id,
+        notification_type=NotificationType.SPRINT_STARTED,
+        title="Sprint Assigned",
+        message=f"You have been assigned to sprint '{sprint.name}' by {actor.full_name}.",
+        entity_type="SPRINT",
+        entity_id=sprint.id,
+        entity_key=sprint.name,
+    )
     await db.commit()
+
+    try:
+        payload = NotificationResponse.model_validate(notif).model_dump(mode="json")
+        await ws_manager.send_personal_notification(tester_id, payload)
+    except Exception:
+        pass
+
     return await get_sprint_by_id(db, sprint.id)
 
 
@@ -696,7 +715,30 @@ async def submit_for_approval(db: AsyncSession, sprint_id: int, actor: User) -> 
         old_values={"status": old_status.value},
         new_values={"status": SprintStatus.READY_FOR_APPROVAL.value, "submitted_by": actor.full_name},
     )
+
+    # Real-time notification to all active admins
+    admin_res = await db.execute(select(User.id).where(User.role == UserRole.ADMIN, User.is_active == True))
+    admin_ids = admin_res.scalars().all()
+    notifications = await notification_service.notify_users(
+        db=db,
+        user_ids=admin_ids,
+        notification_type=NotificationType.SPRINT_ENDED,
+        title="Sprint Awaiting Approval",
+        message=f"Tester '{actor.full_name}' submitted sprint '{sprint.name}' for approval.",
+        actor_id=actor.id,
+        entity_type="SPRINT",
+        entity_id=sprint.id,
+        entity_key=sprint.name,
+    )
     await db.commit()
+
+    for n in notifications:
+        try:
+            p = NotificationResponse.model_validate(n).model_dump(mode="json")
+            await ws_manager.send_personal_notification(n.user_id, p)
+        except Exception:
+            pass
+
     return await get_sprint_by_id(db, sprint.id)
 
 
@@ -723,7 +765,29 @@ async def approve_sprint(db: AsyncSession, sprint_id: int, actor: User) -> Sprin
         old_values={"status": old_status.value},
         new_values={"status": SprintStatus.COMPLETED.value, "approved_by": actor.full_name},
     )
+
+    notif = None
+    if sprint.assigned_tester_id:
+        notif = await notification_service.create_notification(
+            db=db,
+            user_id=sprint.assigned_tester_id,
+            notification_type=NotificationType.SPRINT_ENDED,
+            title="Sprint Approved",
+            message=f"Sprint '{sprint.name}' was approved by {actor.full_name}!",
+            entity_type="SPRINT",
+            entity_id=sprint.id,
+            entity_key=sprint.name,
+        )
+
     await db.commit()
+
+    if notif and sprint.assigned_tester_id:
+        try:
+            p = NotificationResponse.model_validate(notif).model_dump(mode="json")
+            await ws_manager.send_personal_notification(sprint.assigned_tester_id, p)
+        except Exception:
+            pass
+
     return await get_sprint_by_id(db, sprint.id)
 
 
@@ -750,7 +814,32 @@ async def request_changes(
         old_values={"status": old_status.value},
         new_values={"status": SprintStatus.IN_PROGRESS.value, "review_comment": comment},
     )
+
+    notif = None
+    if sprint.assigned_tester_id:
+        msg = f"Admin '{actor.full_name}' requested changes on sprint '{sprint.name}'"
+        if comment:
+            msg += f": {comment}"
+        notif = await notification_service.create_notification(
+            db=db,
+            user_id=sprint.assigned_tester_id,
+            notification_type=NotificationType.SPRINT_STARTED,
+            title="Sprint Changes Requested",
+            message=msg,
+            entity_type="SPRINT",
+            entity_id=sprint.id,
+            entity_key=sprint.name,
+        )
+
     await db.commit()
+
+    if notif and sprint.assigned_tester_id:
+        try:
+            p = NotificationResponse.model_validate(notif).model_dump(mode="json")
+            await ws_manager.send_personal_notification(sprint.assigned_tester_id, p)
+        except Exception:
+            pass
+
     return await get_sprint_by_id(db, sprint.id)
 
 

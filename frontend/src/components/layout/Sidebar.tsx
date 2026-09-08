@@ -6,6 +6,7 @@ import {
   FlaskConical,
   FolderGit2,
   LayoutDashboard,
+  Layers,
   LogOut,
   Bell,
   Shield,
@@ -176,6 +177,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               >
                 <FlaskConical size={18} />
                 <span>Tester Dashboard</span>
+              </NavLink>
+
+              <NavLink
+                to="/tester-sprints"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <Layers size={18} />
+                <span>Sprints Dashboard</span>
               </NavLink>
 
               <NavLink

@@ -127,6 +127,13 @@ class IssueResponse(BaseModel):
     assignee_id: int | None
     sprint_id: int | None
     estimated_effort: int | None
+    external_id: str | None = None
+    source: str | None = None
+    category: str | None = None
+    component: str | None = None
+    raw_status: str | None = None
+    raw_resolution: str | None = None
+    raw_priority: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -150,6 +157,13 @@ class IssueDetailResponse(BaseModel):
     actual_result: str | None
     resolution_summary: str | None
     resolved_at: datetime | None
+    external_id: str | None = None
+    source: str | None = None
+    category: str | None = None
+    component: str | None = None
+    raw_status: str | None = None
+    raw_resolution: str | None = None
+    raw_priority: str | None = None
     project: ProjectBrief
     reporter: UserBrief
     assignee: UserBrief | None

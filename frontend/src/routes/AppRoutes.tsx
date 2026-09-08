@@ -18,6 +18,7 @@ import { ProfilePage } from '../pages/ProfilePage';
 import { ProjectsPage } from '../pages/ProjectsPage';
 import { TesterDashboardPage } from '../pages/TesterDashboardPage';
 import { TesterIssuesPage } from '../pages/TesterIssuesPage';
+import { TesterSprintsPage } from '../pages/TesterSprintsPage';
 import { SprintsPage } from '../pages/SprintsPage';
 import { BacklogPage } from '../pages/BacklogPage';
 
@@ -53,6 +54,7 @@ export const AppRoutes: React.FC = () => {
             {/* Tester / Developer Protected Routes */}
             <Route element={<RoleProtectedRoute allowedRoles={['TESTER', 'DEVELOPER']} />}>
               <Route path="/tester-dashboard" element={<TesterDashboardPage />} />
+              <Route path="/tester-sprints" element={<TesterSprintsPage />} />
               <Route path="/tester-issues" element={<TesterIssuesPage />} />
             </Route>
           </Route>

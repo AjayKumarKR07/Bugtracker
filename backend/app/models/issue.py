@@ -142,6 +142,21 @@ class Issue(Base):
     )
 
     # ------------------------------------------------------------------ #
+    # External Dataset & Source Tracking                                   #
+    # ------------------------------------------------------------------ #
+    external_id: Mapped[str | None] = mapped_column(
+        String(100), unique=True, index=True, nullable=True
+    )
+    source: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, default="MANUAL", server_default="MANUAL"
+    )
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    component: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    raw_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    raw_resolution: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    raw_priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # ------------------------------------------------------------------ #
     # Foreign keys                                                         #
     # ------------------------------------------------------------------ #
     project_id: Mapped[int] = mapped_column(

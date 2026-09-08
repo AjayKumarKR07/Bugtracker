@@ -441,7 +441,7 @@ export const TesterDashboardPage: React.FC = () => {
       {/* ── Assigned Sprints Section ── */}
       {assignedSprints.length > 0 && (
         <section className="card" style={{ border: '1px solid rgba(99,102,241,0.25)' }}>
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
             <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <ClipboardCheck size={18} style={{ color: '#818cf8' }} />
               My Assigned Sprints
@@ -449,6 +449,13 @@ export const TesterDashboardPage: React.FC = () => {
                 {assignedSprints.length}
               </span>
             </h2>
+            <Link
+              to="/tester-sprints"
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: '#a5b4fc' }}
+            >
+              <Layers size={14} /> <span>Open Sprints Dashboard</span> <ArrowRight size={13} />
+            </Link>
           </div>
           <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {assignedSprints.map(sprint => {
