@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
   FileDown,
   Plus,
   Search,
   SlidersHorizontal,
+  Target,
   X,
 } from 'lucide-react';
 import { attachmentsApi } from '../api/attachments';
@@ -34,6 +35,7 @@ import { generateIssuesPdfReport } from '../utils/pdfGenerator';
 export const IssuesPage: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const isUser = user?.role === 'USER';
   const isTester = user?.role === 'TESTER';
@@ -47,6 +49,10 @@ export const IssuesPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Focus specific defect (e.g. from notification deep-link)
+  const [focusedIssueId, setFocusedIssueId] = useState<number | null>(null);
+  const [focusedIssue, setFocusedIssue] = useState<Issue | null>(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<IssueStatus | ''>('');
@@ -124,6 +130,69 @@ export const IssuesPage: React.FC = () => {
       openReportModal();
     }
   }, [location.search, canReport]);
+
+  // Deep-linking from notifications: read target issueId
+  useEffect(() => {
+    const targetIdStr = searchParams.get('issueId');
+    if (targetIdStr) {
+      const idNum = parseInt(targetIdStr, 10);
+      if (!isNaN(idNum)) {
+        setFocusedIssueId(idNum);
+      }
+    }
+  }, [searchParams]);
+
+  // Auto-scroll and focus target issue once issues are loaded or fetched
+  useEffect(() => {
+    if (!focusedIssueId) {
+      setFocusedIssue(null);
+      return;
+    }
+    const found = issues.find((i) => i.id === focusedIssueId);
+    if (found) {
+      setFocusedIssue(found);
+      setTimeout(() => {
+        const el = document.getElementById(`issue-row-${focusedIssueId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    } else if (!isLoading) {
+      // If the target issue is not on current page, fetch it directly
+      issuesApi
+        .getById(focusedIssueId)
+        .then((data) => {
+          const issueItem: Issue = {
+            id: data.id,
+            issue_key: data.issue_key,
+            title: data.title,
+            issue_type: data.issue_type,
+            severity: data.severity,
+            priority: data.priority,
+            status: data.status,
+            project_id: data.project?.id || 0,
+            reporter_id: data.reporter?.id || 0,
+            assignee_id: data.assignee ? data.assignee.id : null,
+            sprint_id: data.sprint_id,
+            estimated_effort: data.estimated_effort,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+          };
+          setFocusedIssue(issueItem);
+          // Prepend to visible list so user can see it in table
+          setIssues((prev) => [issueItem, ...prev.filter((i) => i.id !== issueItem.id)]);
+          setTimeout(() => {
+            const el = document.getElementById(`issue-row-${issueItem.id}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        })
+        .catch(() => {
+          // Keep focusedIssue null if not found
+        });
+    }
+  }, [focusedIssueId, issues, isLoading]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -449,6 +518,53 @@ export const IssuesPage: React.FC = () => {
         )}
       </div>
 
+      {/* Focused Issue Banner (from notification navigation) */}
+      {focusedIssue && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1.15rem',
+            backgroundColor: 'rgba(99, 102, 241, 0.12)',
+            border: '1px solid rgba(99, 102, 241, 0.35)',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <Target size={18} style={{ color: '#818cf8', flexShrink: 0 }} />
+            <div>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Focused Defect from Notification:
+              </span>{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary)' }}>
+                {focusedIssue.issue_key}
+              </span>{' '}
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                — {focusedIssue.title}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Link to={`/issues/${focusedIssue.id}`} className="btn btn-primary btn-sm" style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}>
+              Open Details
+            </Link>
+            <button
+              onClick={() => {
+                setFocusedIssueId(null);
+                setFocusedIssue(null);
+              }}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+              title="Dismiss focus"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Issues Table */}
       {isLoading ? (
         <LoadingSpinner message="Loading defects..." />
@@ -489,7 +605,19 @@ export const IssuesPage: React.FC = () => {
             </thead>
             <tbody>
               {issues.map((issue) => (
-                <tr key={issue.id}>
+                <tr
+                  key={issue.id}
+                  id={`issue-row-${issue.id}`}
+                  style={
+                    focusedIssueId === issue.id
+                      ? {
+                          backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                          outline: '2px solid var(--primary)',
+                          transition: 'all 0.3s ease',
+                        }
+                      : undefined
+                  }
+                >
                   <td>
                     <Link
                       to={`/issues/${issue.id}`}

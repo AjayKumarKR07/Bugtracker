@@ -34,6 +34,7 @@ import { SeverityBadge } from '../components/common/SeverityBadge';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
+import { useNotificationNavigate } from '../hooks/useNotificationNavigate';
 import type {
   IssueStatusDistributionResponse,
   PriorityDistributionResponse,
@@ -188,6 +189,7 @@ export const TesterDashboardPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { wsStatus, notifications: liveNotifications } = useNotifications();
+  const { handleNotificationClick } = useNotificationNavigate();
 
   // ── Data state ──
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -1363,6 +1365,10 @@ export const TesterDashboardPage: React.FC = () => {
             {liveNotifications.slice(0, 6).map((notif) => (
               <div
                 key={notif.id}
+                onClick={() => handleNotificationClick(notif)}
+                role="button"
+                tabIndex={0}
+                title="Click to view destination"
                 style={{
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -1375,6 +1381,14 @@ export const TesterDashboardPage: React.FC = () => {
                   border: notif.is_read
                     ? '1px solid transparent'
                     : '1px solid rgba(99,102,241,0.15)',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s ease',
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleNotificationClick(notif);
+                  }
                 }}
               >
                 <div
@@ -1411,15 +1425,17 @@ export const TesterDashboardPage: React.FC = () => {
                     {formatRelativeTime(notif.created_at)}
                   </span>
                 </div>
-                {notif.entity_id && (
-                  <Link
-                    to={`/issues/${notif.entity_id}`}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', flexShrink: 0 }}
-                  >
-                    <Eye size={11} />
-                  </Link>
-                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNotificationClick(notif);
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', flexShrink: 0 }}
+                  title="Open destination"
+                >
+                  <Eye size={11} />
+                </button>
               </div>
             ))}
           </div>

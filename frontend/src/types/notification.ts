@@ -4,7 +4,12 @@ export type NotificationType =
   | 'ISSUE_RESOLVED'
   | 'ISSUE_REOPENED'
   | 'ISSUE_COMMENTED'
+  | 'ISSUE_MENTIONED'
   | 'ATTACHMENT_ADDED'
+  | 'ISSUE_REPORTED'
+  | 'SPRINT_STARTED'
+  | 'SPRINT_ENDED'
+  | 'SPRINT_OVERDUE'
   | 'USER_ACTIVATED'
   | 'USER_DEACTIVATED'
   | 'USER_ROLE_CHANGED'
@@ -18,6 +23,8 @@ export interface NotificationItem {
   entity_type: string | null;
   entity_id: number | null;
   entity_key: string | null;
+  destination?: string | null;
+  context?: string | null;
   is_read: boolean;
   read_at: string | null;
   created_at: string;
@@ -66,6 +73,8 @@ export interface WebSocketNotificationEvent {
     entity_type: string | null;
     entity_id: number | null;
     entity_key: string | null;
+    destination?: string | null;
+    context?: string | null;
     created_at: string | null;
   };
 }

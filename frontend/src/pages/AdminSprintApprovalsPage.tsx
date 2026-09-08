@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
@@ -19,6 +19,9 @@ import type { Sprint } from '../types/Sprint';
 import { formatDate, formatRelativeTime } from '../utils/formatters';
 
 export const AdminSprintApprovalsPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const targetSprintId = searchParams.get('sprintId');
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +94,21 @@ export const AdminSprintApprovalsPage: React.FC = () => {
       window.removeEventListener('app:ws_reconnected', handleRealtime);
     };
   }, [fetchData]);
+
+  // Handle notification deep-link: scroll to targeted sprint
+  useEffect(() => {
+    if (targetSprintId) {
+      const sId = parseInt(targetSprintId, 10);
+      if (!isNaN(sId)) {
+        setTimeout(() => {
+          const el = document.getElementById(`approval-sprint-${sId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 150);
+      }
+    }
+  }, [targetSprintId, awaitingApproval, allSprints]);
 
   const handleApproveSprint = async (sprintId: number) => {
     setActionLoadingId(sprintId);
@@ -280,18 +298,24 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                 const completedIssues = sprint.completed_issues ?? 0;
                 const pct = sprint.progress_percentage ?? (totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0);
 
+                const isTargeted = targetSprintId ? sprint.id === parseInt(targetSprintId, 10) : false;
+
                 return (
                   <div
                     key={sprint.id}
+                    id={`approval-sprint-${sprint.id}`}
                     style={{
                       padding: '1.5rem',
                       borderRadius: '12px',
                       backgroundColor: 'var(--bg-surface-elevated)',
-                      border: '1px solid rgba(99,102,241,0.3)',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                      border: isTargeted ? '2px solid var(--primary)' : '1px solid rgba(99,102,241,0.3)',
+                      boxShadow: isTargeted
+                        ? '0 0 0 2px var(--primary), 0 8px 25px -5px rgba(99, 102, 241, 0.4)'
+                        : '0 4px 12px rgba(0, 0, 0, 0.2)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '1.25rem',
+                      transition: 'all 0.25s ease',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
@@ -421,8 +445,22 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentlyCompleted.map((s) => (
-                    <tr key={s.id}>
+                  {recentlyCompleted.map((s) => {
+                    const isTargeted = targetSprintId ? s.id === parseInt(targetSprintId, 10) : false;
+                    return (
+                      <tr
+                        key={s.id}
+                        id={`approval-sprint-${s.id}`}
+                        style={
+                          isTargeted
+                            ? {
+                                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                outline: '2px solid var(--primary)',
+                                transition: 'all 0.3s ease',
+                              }
+                            : undefined
+                        }
+                      >
                       <td style={{ fontWeight: 700 }}>{s.name}</td>
                       <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                         {s.project_name || `Project #${s.project_id}`}
@@ -449,8 +487,9 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                           View
                         </Link>
                       </td>
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
@@ -31,6 +32,9 @@ import type { UserDetail } from '../types/user';
 import { formatDate } from '../utils/formatters';
 
 export const AdminSprintsPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const targetSprintId = searchParams.get('sprintId');
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,6 +150,26 @@ export const AdminSprintsPage: React.FC = () => {
       window.removeEventListener('app:ws_reconnected', handleRealtime);
     };
   }, [fetchData]);
+
+  // Handle notification deep-link: reset filters to ALL and scroll to target sprint
+  useEffect(() => {
+    if (targetSprintId && sprints.length > 0) {
+      const sId = parseInt(targetSprintId, 10);
+      if (!isNaN(sId)) {
+        const found = sprints.find((s) => s.id === sId);
+        if (found) {
+          setSelectedProjectId('ALL');
+          setStatusFilter('ALL');
+          setTimeout(() => {
+            const el = document.getElementById(`admin-sprint-row-${sId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 150);
+        }
+      }
+    }
+  }, [targetSprintId, sprints]);
 
   // Actions
   const handleCreateSprint = async (e: React.FormEvent) => {
@@ -506,8 +530,22 @@ export const AdminSprintsPage: React.FC = () => {
                     const completedIssues = sprint.completed_issues ?? 0;
                     const pct = sprint.progress_percentage ?? (totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0);
 
+                    const isTargeted = targetSprintId ? sprint.id === parseInt(targetSprintId, 10) : false;
+
                     return (
-                      <tr key={sprint.id}>
+                      <tr
+                        key={sprint.id}
+                        id={`admin-sprint-row-${sprint.id}`}
+                        style={
+                          isTargeted
+                            ? {
+                                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                outline: '2px solid var(--primary)',
+                                transition: 'all 0.3s ease',
+                              }
+                            : undefined
+                        }
+                      >
                         <td>
                           <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{sprint.name}</div>
                           {sprint.goal && (

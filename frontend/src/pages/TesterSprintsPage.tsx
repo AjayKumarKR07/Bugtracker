@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   AlertTriangle,
@@ -39,6 +39,8 @@ type FilterTab = 'ALL' | 'ACTIVE' | 'IN_PROGRESS' | 'READY_FOR_APPROVAL' | 'COMP
 export const TesterSprintsPage: React.FC = () => {
   const { user } = useAuth();
   const { wsStatus, notifications: liveNotifications } = useNotifications();
+  const [searchParams] = useSearchParams();
+  const targetSprintId = searchParams.get('sprintId');
 
   // ── Data state ──
   const [sprints, setSprints] = useState<Sprint[]>([]);
@@ -146,6 +148,31 @@ export const TesterSprintsPage: React.FC = () => {
       return next;
     });
   };
+
+  // Handle notification deep-link: expand, scroll, and highlight target sprint
+  useEffect(() => {
+    if (targetSprintId && sprints.length > 0) {
+      const sId = parseInt(targetSprintId, 10);
+      if (!isNaN(sId)) {
+        const targetSprint = sprints.find((s) => s.id === sId);
+        if (targetSprint) {
+          setActiveTab('ALL');
+          setExpandedSprintIds((prev) => {
+            const next = new Set(prev);
+            next.add(sId);
+            return next;
+          });
+          loadIssuesForSprint(sId);
+          setTimeout(() => {
+            const el = document.getElementById(`sprint-card-${sId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 150);
+        }
+      }
+    }
+  }, [targetSprintId, sprints]);
 
   // ─────────────────────────────────────────────────────────────────
   // Sprint Workflow Handlers
@@ -665,17 +692,22 @@ export const TesterSprintsPage: React.FC = () => {
               border: 'var(--border)',
             };
 
+            const isTargeted = targetSprintId ? sprint.id === parseInt(targetSprintId, 10) : false;
+
             return (
               <div
                 key={sprint.id}
+                id={`sprint-card-${sprint.id}`}
                 className="card"
                 style={{
-                  border: `1px solid ${statusConfig.border}`,
+                  border: isTargeted ? '2px solid var(--primary)' : `1px solid ${statusConfig.border}`,
                   borderRadius: 'var(--radius-lg)',
                   padding: '1.5rem',
                   backgroundColor: 'var(--bg-surface)',
-                  boxShadow: 'var(--shadow-md)',
-                  transition: 'border-color 0.2s ease',
+                  boxShadow: isTargeted
+                    ? '0 0 0 2px var(--primary), 0 10px 25px -5px rgba(99, 102, 241, 0.35)'
+                    : 'var(--shadow-md)',
+                  transition: 'all 0.25s ease',
                 }}
               >
                 {/* ── Top Header Row ── */}

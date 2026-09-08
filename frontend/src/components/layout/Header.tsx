@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, Menu, Radio } from 'lucide-react';
+import { Menu, Radio } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
-import { NotificationBadge } from '../common/NotificationBadge';
+import { NotificationDropdown } from './NotificationDropdown';
 import { getRoleLabel } from '../../types/auth';
 
 interface HeaderProps {
@@ -12,7 +12,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
   const { user } = useAuth();
-  const { unreadCount, wsStatus } = useNotifications();
+  const { wsStatus } = useNotifications();
   const location = useLocation();
 
   const getPageTitle = (pathname: string) => {
@@ -87,16 +87,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
           <span>{getWsStatusText()}</span>
         </div>
 
-        {/* Notifications Icon Button */}
-        <Link
-          to="/notifications"
-          className="header-icon-btn"
-          title="Notifications"
-          aria-label="View notifications"
-        >
-          <Bell size={18} />
-          <NotificationBadge count={unreadCount} />
-        </Link>
+        {/* Notifications Dropdown */}
+        <NotificationDropdown />
 
         {/* User Pill — shows name and role */}
         {user && (

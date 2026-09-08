@@ -15,6 +15,12 @@ export interface ToastItem {
   message: string;
   type: string;
   created_at: string;
+  notification_id?: number;
+  entity_type?: string | null;
+  entity_id?: number | null;
+  entity_key?: string | null;
+  destination?: string | null;
+  context?: string | null;
 }
 
 export interface NotificationContextType {
@@ -48,16 +54,37 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const addToast = useCallback((title: string, message: string, type: string) => {
-    const newToast: ToastItem = {
-      id: Math.random().toString(36).substring(2, 9),
-      title,
-      message,
-      type,
-      created_at: new Date().toISOString(),
-    };
-    setToasts((prev) => [newToast, ...prev.slice(0, 4)]);
-  }, []);
+  const addToast = useCallback(
+    (
+      title: string,
+      message: string,
+      type: string,
+      meta?: {
+        notification_id?: number;
+        entity_type?: string | null;
+        entity_id?: number | null;
+        entity_key?: string | null;
+        destination?: string | null;
+        context?: string | null;
+      }
+    ) => {
+      const newToast: ToastItem = {
+        id: Math.random().toString(36).substring(2, 9),
+        title,
+        message,
+        type,
+        created_at: new Date().toISOString(),
+        notification_id: meta?.notification_id,
+        entity_type: meta?.entity_type,
+        entity_id: meta?.entity_id,
+        entity_key: meta?.entity_key,
+        destination: meta?.destination,
+        context: meta?.context,
+      };
+      setToasts((prev) => [newToast, ...prev.slice(0, 4)]);
+    },
+    []
+  );
 
   const fetchUnreadCount = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -142,6 +169,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           entity_type: d.entity_type,
           entity_id: d.entity_id,
           entity_key: d.entity_key,
+          destination: d.destination,
+          context: d.context,
           is_read: false,
           read_at: null,
           created_at: d.created_at || new Date().toISOString(),
@@ -149,7 +178,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         setNotifications((prev) => [newItem, ...prev.filter((item) => item.id !== newItem.id)]);
         setUnreadCount((prev) => prev + 1);
-        addToast(d.title, d.message, d.notification_type);
+        addToast(d.title, d.message, d.notification_type, {
+          notification_id: d.id,
+          entity_type: d.entity_type,
+          entity_id: d.entity_id,
+          entity_key: d.entity_key,
+          destination: d.destination,
+          context: d.context,
+        });
 
         // Notify entire app of realtime update so active views refresh immediately
         window.dispatchEvent(new CustomEvent('app:realtime_notification', { detail: d }));

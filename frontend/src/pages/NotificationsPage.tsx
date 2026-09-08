@@ -7,16 +7,19 @@ import {
   Save,
   Settings,
   Trash2,
+  ArrowRight,
 } from 'lucide-react';
 import { getApiErrorMessage } from '../api/client';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useNotifications } from '../hooks/useNotifications';
+import { useNotificationNavigate } from '../hooks/useNotificationNavigate';
 import type { NotificationPreferenceUpdate, NotificationType } from '../types/notification';
 import { formatDate, formatRelativeTime } from '../utils/formatters';
 
 export const NotificationsPage: React.FC = () => {
+  const { handleNotificationClick } = useNotificationNavigate();
   const {
     notifications,
     unreadCount,
@@ -193,6 +196,10 @@ export const NotificationsPage: React.FC = () => {
                 <div
                   key={notif.id}
                   className="card"
+                  onClick={() => handleNotificationClick(notif)}
+                  role="button"
+                  tabIndex={0}
+                  title="Click to view destination"
                   style={{
                     backgroundColor: notif.is_read
                       ? 'var(--bg-surface)'
@@ -201,6 +208,13 @@ export const NotificationsPage: React.FC = () => {
                       ? 'var(--border-subtle)'
                       : 'rgba(99, 102, 241, 0.3)',
                     transition: 'all 0.15s ease',
+                    cursor: 'pointer',
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleNotificationClick(notif);
+                    }
                   }}
                 >
                   <div
@@ -271,7 +285,10 @@ export const NotificationsPage: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       {!notif.is_read && (
                         <button
-                          onClick={() => markAsRead(notif.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markAsRead(notif.id);
+                          }}
                           className="btn btn-secondary btn-sm"
                           title="Mark as read"
                         >
@@ -280,13 +297,28 @@ export const NotificationsPage: React.FC = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => deleteNotification(notif.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(notif.id);
+                        }}
                         className="btn-icon-only"
                         style={{ color: 'var(--text-muted)' }}
                         title="Delete notification"
                       >
                         <Trash2 size={15} />
                       </button>
+                      <span
+                        style={{
+                          color: 'var(--primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginLeft: '0.25rem',
+                          opacity: 0.8,
+                        }}
+                        title="Open destination"
+                      >
+                        <ArrowRight size={15} />
+                      </span>
                     </div>
                   </div>
                 </div>

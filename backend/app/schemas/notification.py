@@ -13,7 +13,7 @@ NotificationResponse is the primary public contract.
 
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from app.models.notification import NotificationType
 
@@ -35,11 +35,55 @@ class NotificationResponse(BaseModel):
     entity_type: str | None
     entity_id: int | None
     entity_key: str | None
+    destination: str | None = None
+    context: str | None = None
     is_read: bool
     read_at: datetime | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def populate_destination_and_context(self) -> "NotificationResponse":
+        if self.context is None:
+            self.context = self.entity_type
+        if self.destination is None:
+            e_type = (self.entity_type or "").upper()
+            t_lower = (self.title or "").lower()
+            m_lower = (self.message or "").lower()
+
+            if e_type == "SPRINT" or "sprint" in t_lower or "sprint" in m_lower:
+                if (
+                    "approval" in t_lower
+                    or "awaiting" in t_lower
+                    or "changes requested" in t_lower
+                    or "submitted for approval" in t_lower
+                ):
+                    self.destination = (
+                        f"/admin/sprint-approvals?sprintId={self.entity_id}"
+                        if self.entity_id
+                        else "/admin/sprint-approvals"
+                    )
+                else:
+                    self.destination = (
+                        f"/admin/sprints?sprintId={self.entity_id}"
+                        if self.entity_id
+                        else "/admin/sprints"
+                    )
+            elif e_type == "ISSUE" or "issue" in t_lower or "defect" in t_lower:
+                if self.notification_type in (
+                    NotificationType.ISSUE_COMMENTED,
+                    NotificationType.ATTACHMENT_ADDED,
+                    NotificationType.ISSUE_STATUS_CHANGED,
+                    NotificationType.ISSUE_RESOLVED,
+                    NotificationType.ISSUE_REOPENED,
+                ):
+                    self.destination = f"/issues/{self.entity_id}" if self.entity_id else "/issues"
+                else:
+                    self.destination = f"/issues?issueId={self.entity_id}" if self.entity_id else "/issues"
+            elif e_type == "USER":
+                self.destination = "/admin"
+        return self
 
 
 class NotificationListResponse(BaseModel):
