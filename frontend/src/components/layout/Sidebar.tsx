@@ -207,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
                 onClick={onCloseMobile}
               >
                 <Layers size={18} />
-                <span>Sprints Dashboard</span>
+                <span>My Sprints</span>
               </NavLink>
 
               <NavLink
