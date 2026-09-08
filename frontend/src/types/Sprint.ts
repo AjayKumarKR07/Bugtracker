@@ -30,7 +30,14 @@ export interface Sprint {
   approved_by_id: number | null;
   approved_at: string | null;
   review_comment: string | null;
+  // Rich project & metrics
+  project_name?: string | null;
+  project_key?: string | null;
+  total_issues?: number;
+  completed_issues?: number;
+  progress_percentage?: number;
 }
+
 
 export interface SprintCreate {
   name: string;

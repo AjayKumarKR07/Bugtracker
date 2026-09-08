@@ -1,0 +1,900 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Download,
+  FolderGit2,
+  Layers,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  UserCheck,
+  Check,
+} from 'lucide-react';
+import { SprintService } from '../services/SprintService';
+import { projectsApi } from '../api/projects';
+import { issuesApi } from '../api/issues';
+import { usersApi } from '../api/users';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { ErrorMessage } from '../components/common/ErrorMessage';
+import { Modal } from '../components/common/Modal';
+import { PriorityBadge } from '../components/common/PriorityBadge';
+import { SeverityBadge } from '../components/common/SeverityBadge';
+import type { Sprint, SprintCreate } from '../types/Sprint';
+import type { Project } from '../types/project';
+import type { Issue } from '../types/issue';
+import type { UserDetail } from '../types/user';
+import { formatDate } from '../utils/formatters';
+
+export const AdminSprintsPage: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Data
+  const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [testers, setTesters] = useState<UserDetail[]>([]);
+
+  // Filters
+  const [selectedProjectId, setSelectedProjectId] = useState<number | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Modals
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [selectedSprintForAssign, setSelectedSprintForAssign] = useState<Sprint | null>(null);
+  const [backlogModalOpen, setBacklogModalOpen] = useState(false);
+  const [activeSprintForBacklog, setActiveSprintForBacklog] = useState<Sprint | null>(null);
+  const [projectBacklogIssues, setProjectBacklogIssues] = useState<Issue[]>([]);
+  const [backlogLoading, setBacklogLoading] = useState(false);
+
+  // Forms
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState<{
+    project_id: number;
+    name: string;
+    goal: string;
+    start_date: string;
+    end_date: string;
+    estimated_team_members: number;
+    working_days: number;
+    hours_per_day: number;
+  }>({
+    project_id: 0,
+    name: '',
+    goal: '',
+    start_date: '',
+    end_date: '',
+    estimated_team_members: 3,
+    working_days: 10,
+    hours_per_day: 6,
+  });
+
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+
+  // Fetch initial data
+  const fetchData = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
+    else setRefreshing(true);
+    setError(null);
+
+    try {
+      const [sprintList, projectRes, testerRes] = await Promise.all([
+        SprintService.getAllSprints(),
+        projectsApi.list({ page_size: 100 }),
+        usersApi.list({ role: 'TESTER', is_active: true, page_size: 100 }),
+      ]);
+
+      setSprints(sprintList || []);
+      setProjects(projectRes.items || []);
+      setTesters(testerRes.items || []);
+
+      if (projectRes.items.length > 0 && createForm.project_id === 0) {
+        setCreateForm((prev) => ({ ...prev, project_id: projectRes.items[0].id }));
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to load sprint planning data');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [createForm.project_id]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Actions
+  const handleCreateSprint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.project_id || !createForm.name || !createForm.start_date || !createForm.end_date) {
+      setToastMessage({ type: 'error', text: 'Please fill in all required fields' });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const payload: SprintCreate = {
+        name: createForm.name.trim(),
+        goal: createForm.goal.trim() || null,
+        project_id: Number(createForm.project_id),
+        start_date: new Date(createForm.start_date).toISOString(),
+        end_date: new Date(createForm.end_date).toISOString(),
+        estimated_team_members: createForm.estimated_team_members,
+        working_days: createForm.working_days,
+        hours_per_day: createForm.hours_per_day,
+      };
+
+      await SprintService.createSprint(payload);
+      setToastMessage({ type: 'success', text: `Sprint '${createForm.name}' created successfully` });
+      setCreateModalOpen(false);
+      setCreateForm({
+        project_id: projects[0]?.id || 0,
+        name: '',
+        goal: '',
+        start_date: '',
+        end_date: '',
+        estimated_team_members: 3,
+        working_days: 10,
+        hours_per_day: 6,
+      });
+      fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to create sprint' });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleStartSprint = async (sprintId: number) => {
+    setActionLoadingId(sprintId);
+    try {
+      await SprintService.startSprint(sprintId);
+      setToastMessage({ type: 'success', text: 'Sprint started successfully' });
+      fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to start sprint' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleCompleteSprint = async (sprintId: number) => {
+    setActionLoadingId(sprintId);
+    try {
+      await SprintService.completeSprint(sprintId);
+      setToastMessage({ type: 'success', text: 'Sprint completed' });
+      fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to complete sprint' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteSprint = async (sprint: Sprint) => {
+    if (!window.confirm(`Are you sure you want to delete planned sprint '${sprint.name}'?`)) return;
+    setActionLoadingId(sprint.id);
+    try {
+      await SprintService.deleteSprint(sprint.id);
+      setToastMessage({ type: 'success', text: 'Sprint deleted' });
+      fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to delete sprint' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleAssignTester = async (testerId: number) => {
+    if (!selectedSprintForAssign) return;
+    setActionLoadingId(selectedSprintForAssign.id);
+    try {
+      await SprintService.assignTester(selectedSprintForAssign.id, testerId);
+      setToastMessage({ type: 'success', text: 'Tester assigned and sprint activated' });
+      setAssignModalOpen(false);
+      setSelectedSprintForAssign(null);
+      fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to assign tester' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const openBacklogModal = async (sprint: Sprint) => {
+    setActiveSprintForBacklog(sprint);
+    setBacklogModalOpen(true);
+    setBacklogLoading(true);
+    try {
+      const res = await issuesApi.list({
+        project_id: sprint.project_id,
+        backlog: true,
+        page_size: 50,
+      });
+      setProjectBacklogIssues(res.items || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBacklogLoading(false);
+    }
+  };
+
+  const handleAddIssueToSprint = async (issueId: number) => {
+    if (!activeSprintForBacklog) return;
+    try {
+      await SprintService.addIssueToSprint(activeSprintForBacklog.id, issueId);
+      setProjectBacklogIssues((prev) => prev.filter((i) => i.id !== issueId));
+      setToastMessage({ type: 'success', text: 'Issue added to sprint' });
+      fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to add issue to sprint' });
+    }
+  };
+
+  const handleDownloadReport = async (sprint: Sprint) => {
+    try {
+      await SprintService.downloadSprintReport(sprint.id, sprint.name);
+    } catch (err) {
+      setToastMessage({ type: 'error', text: 'Failed to download PDF report' });
+    }
+  };
+
+  // Filtered sprints
+  const filteredSprints = sprints.filter((s) => {
+    if (selectedProjectId !== 'ALL' && s.project_id !== selectedProjectId) return false;
+    if (statusFilter !== 'ALL' && s.status !== statusFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = s.name.toLowerCase().includes(q);
+      const matchGoal = s.goal ? s.goal.toLowerCase().includes(q) : false;
+      const matchTester = s.assigned_tester_name ? s.assigned_tester_name.toLowerCase().includes(q) : false;
+      const matchProject = s.project_name ? s.project_name.toLowerCase().includes(q) : false;
+      if (!matchName && !matchGoal && !matchTester && !matchProject) return false;
+    }
+    return true;
+  });
+
+  if (loading && sprints.length === 0) {
+    return (
+      <div className="page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <LoadingSpinner message="Loading Sprints & Planning Workspace..." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="page-container" style={{ maxWidth: '1440px', margin: '0 auto', paddingBottom: '3rem' }}>
+      {/* Header */}
+      <header
+        className="page-header"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          marginBottom: '1.5rem',
+          paddingBottom: '1.25rem',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+              }}
+            >
+              <Layers size={20} />
+            </div>
+            <div>
+              <h1 className="page-title" style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>
+                Sprints &amp; Planning
+              </h1>
+              <p className="page-subtitle" style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                Set up sprint iterations, manage defect scopes, assign QA testers, and start development sprints
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            style={{ fontSize: '0.82rem' }}
+          >
+            <RefreshCw size={15} className={refreshing ? 'spin' : ''} />
+            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setCreateModalOpen(true)}
+            style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Plus size={16} /> Create Sprint
+          </button>
+        </div>
+      </header>
+
+      {/* Workflow Navigation Banner */}
+      <div
+        style={{
+          padding: '1rem 1.25rem',
+          borderRadius: '10px',
+          backgroundColor: 'rgba(99,102,241,0.08)',
+          border: '1px solid rgba(99,102,241,0.25)',
+          marginBottom: '1.75rem',
+        }}
+      >
+        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+          Admin Sprint Planning Workflow
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>1. Create Sprint</span>
+          <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>2. Select Project</span>
+          <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>3. View Backlog</span>
+          <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>4. Add Backlog Issues</span>
+          <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>5. Assign Tester</span>
+          <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontWeight: 600, color: '#10b981' }}>6. Start Sprint (ACTIVE)</span>
+        </div>
+      </div>
+
+      {error && <ErrorMessage message={error} onRetry={() => fetchData()} />}
+
+      {/* Filters Toolbar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          marginBottom: '1.5rem',
+          padding: '1rem',
+          borderRadius: '10px',
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+        }}
+      >
+        {/* Project Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <FolderGit2 size={16} style={{ color: 'var(--text-muted)' }} />
+          <select
+            className="form-select"
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+            style={{ minWidth: '180px', fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}
+          >
+            <option value="ALL">All Projects ({projects.length})</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.project_key} — {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Status Filter */}
+        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+          {['ALL', 'PLANNED', 'ACTIVE', 'IN_PROGRESS', 'READY_FOR_APPROVAL', 'COMPLETED'].map((st) => (
+            <button
+              key={st}
+              onClick={() => setStatusFilter(st)}
+              className="btn btn-sm"
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.35rem 0.65rem',
+                backgroundColor: statusFilter === st ? '#6366f1' : 'var(--bg-surface-elevated)',
+                color: statusFilter === st ? '#fff' : 'var(--text-secondary)',
+                border: '1px solid var(--border-subtle)',
+                fontWeight: statusFilter === st ? 700 : 500,
+              }}
+            >
+              {st}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div style={{ position: 'relative', marginLeft: 'auto', minWidth: '220px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Search sprints, testers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ paddingLeft: '2.2rem', fontSize: '0.82rem', width: '100%' }}
+          />
+        </div>
+      </div>
+
+      {/* Sprints List Table / Cards */}
+      <section className="card">
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 className="card-title" style={{ fontSize: '1rem', fontWeight: 700 }}>
+            Managed Sprints ({filteredSprints.length})
+          </h2>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            Showing real-time data from PostgreSQL
+          </span>
+        </div>
+
+        <div className="card-body" style={{ padding: 0 }}>
+          {filteredSprints.length === 0 ? (
+            <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+              <Layers size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>No sprints found</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                Try adjusting your project or status filters, or click "Create Sprint" to plan a new iteration.
+              </p>
+            </div>
+          ) : (
+            <div className="table-container" style={{ border: 'none', borderRadius: 0 }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Sprint Name</th>
+                    <th>Project</th>
+                    <th>Status</th>
+                    <th>Assigned Tester</th>
+                    <th>Dates</th>
+                    <th>Issues &amp; Progress</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSprints.map((sprint) => {
+                    const totalIssues = sprint.total_issues ?? 0;
+                    const completedIssues = sprint.completed_issues ?? 0;
+                    const pct = sprint.progress_percentage ?? (totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0);
+
+                    return (
+                      <tr key={sprint.id}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{sprint.name}</div>
+                          {sprint.goal && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sprint.goal}>
+                              {sprint.goal}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                            {sprint.project_name || `Project #${sprint.project_id}`}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '4px',
+                              backgroundColor:
+                                sprint.status === 'COMPLETED'
+                                  ? 'rgba(16,185,129,0.15)'
+                                  : sprint.status === 'READY_FOR_APPROVAL'
+                                  ? 'rgba(99,102,241,0.2)'
+                                  : sprint.status === 'IN_PROGRESS'
+                                  ? 'rgba(245,158,11,0.15)'
+                                  : sprint.status === 'ACTIVE'
+                                  ? 'rgba(59,130,246,0.15)'
+                                  : 'rgba(100,116,139,0.15)',
+                              color:
+                                sprint.status === 'COMPLETED'
+                                  ? '#10b981'
+                                  : sprint.status === 'READY_FOR_APPROVAL'
+                                  ? '#818cf8'
+                                  : sprint.status === 'IN_PROGRESS'
+                                  ? '#f59e0b'
+                                  : sprint.status === 'ACTIVE'
+                                  ? '#3b82f6'
+                                  : '#94a3b8',
+                            }}
+                          >
+                            {sprint.status}
+                          </span>
+                        </td>
+                        <td>
+                          {sprint.assigned_tester_name ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#34d399' }}>
+                                {sprint.assigned_tester_name}
+                              </span>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}
+                                onClick={() => {
+                                  setSelectedSprintForAssign(sprint);
+                                  setAssignModalOpen(true);
+                                }}
+                                title="Change Tester"
+                              >
+                                Reassign
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                              onClick={() => {
+                                setSelectedSprintForAssign(sprint);
+                                setAssignModalOpen(true);
+                              }}
+                            >
+                              <UserCheck size={13} /> Assign Tester
+                            </button>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)' }}>
+                            {formatDate(sprint.start_date)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            to {formatDate(sprint.end_date)}
+                          </div>
+                        </td>
+                        <td style={{ minWidth: '140px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
+                            <span>{completedIssues} / {totalIssues} issues</span>
+                            <span style={{ fontWeight: 700 }}>{pct}%</span>
+                          </div>
+                          <div style={{ height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-subtle)', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 80 ? '#10b981' : '#6366f1' }} />
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            {/* Manage Backlog / Add Issues */}
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => openBacklogModal(sprint)}
+                              title="Add existing issues to sprint"
+                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
+                            >
+                              + Backlog
+                            </button>
+
+                            {/* Start Sprint if PLANNED */}
+                            {sprint.status === 'PLANNED' && (
+                              <button
+                                className="btn btn-primary btn-sm"
+                                disabled={actionLoadingId === sprint.id}
+                                onClick={() => handleStartSprint(sprint.id)}
+                                title="Start Sprint"
+                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
+                              >
+                                <Play size={13} /> Start
+                              </button>
+                            )}
+
+                            {/* Complete Sprint if ACTIVE or IN_PROGRESS */}
+                            {(sprint.status === 'ACTIVE' || sprint.status === 'IN_PROGRESS') && (
+                              <button
+                                className="btn btn-success btn-sm"
+                                disabled={actionLoadingId === sprint.id}
+                                onClick={() => handleCompleteSprint(sprint.id)}
+                                title="Complete Sprint"
+                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
+                              >
+                                <Check size={13} /> Finish
+                              </button>
+                            )}
+
+                            {/* Download PDF report */}
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleDownloadReport(sprint)}
+                              title="Download PDF Sprint Report"
+                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.45rem' }}
+                            >
+                              <Download size={13} />
+                            </button>
+
+                            {/* Delete if PLANNED */}
+                            {sprint.status === 'PLANNED' && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                disabled={actionLoadingId === sprint.id}
+                                onClick={() => handleDeleteSprint(sprint)}
+                                title="Delete Sprint"
+                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.45rem', color: '#ef4444' }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      {/* Modals                                                                */}
+      {/* ───────────────────────────────────────────────────────────────────── */}
+
+      {/* Create Sprint Modal */}
+      <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Sprint">
+        <form onSubmit={handleCreateSprint} style={{ padding: '1.25rem' }}>
+          <div className="form-group">
+            <label className="form-label">Project *</label>
+            <select
+              className="form-select"
+              required
+              value={createForm.project_id}
+              onChange={(e) => setCreateForm({ ...createForm, project_id: Number(e.target.value) })}
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.project_key} — {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Sprint Name *</label>
+            <input
+              type="text"
+              className="form-input"
+              required
+              placeholder="e.g. Sprint 1 - Core Defect Remediation"
+              value={createForm.name}
+              onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Sprint Goal</label>
+            <textarea
+              className="form-textarea"
+              rows={2}
+              placeholder="Primary milestone or defect focus for this sprint..."
+              value={createForm.goal}
+              onChange={(e) => setCreateForm({ ...createForm, goal: e.target.value })}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-group">
+              <label className="form-label">Start Date *</label>
+              <input
+                type="date"
+                className="form-input"
+                required
+                value={createForm.start_date}
+                onChange={(e) => setCreateForm({ ...createForm, start_date: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">End Date *</label>
+              <input
+                type="date"
+                className="form-input"
+                required
+                value={createForm.end_date}
+                onChange={(e) => setCreateForm({ ...createForm, end_date: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <div className="form-group">
+              <label className="form-label">Team Size</label>
+              <input
+                type="number"
+                min={1}
+                className="form-input"
+                value={createForm.estimated_team_members}
+                onChange={(e) => setCreateForm({ ...createForm, estimated_team_members: Number(e.target.value) })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Working Days</label>
+              <input
+                type="number"
+                min={1}
+                className="form-input"
+                value={createForm.working_days}
+                onChange={(e) => setCreateForm({ ...createForm, working_days: Number(e.target.value) })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Hours / Day</label>
+              <input
+                type="number"
+                min={1}
+                className="form-input"
+                value={createForm.hours_per_day}
+                onChange={(e) => setCreateForm({ ...createForm, hours_per_day: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setCreateModalOpen(false)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={creating}>
+              {creating ? 'Creating...' : 'Create Sprint'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Assign Tester Modal */}
+      <Modal
+        isOpen={assignModalOpen}
+        onClose={() => {
+          setAssignModalOpen(false);
+          setSelectedSprintForAssign(null);
+        }}
+        title={`Assign Tester to Sprint: ${selectedSprintForAssign?.name || ''}`}
+      >
+        <div style={{ padding: '1.25rem' }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+            Assigning a QA tester will transition the sprint to <strong>ACTIVE</strong> status and notify the tester.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '350px', overflowY: 'auto' }}>
+            {testers.map((t) => (
+              <div
+                key={t.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--bg-surface-elevated)',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                    {t.full_name}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.email}</div>
+                </div>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => handleAssignTester(t.id)}
+                  style={{ fontSize: '0.78rem', padding: '0.35rem 0.8rem' }}
+                >
+                  Select Tester
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Backlog Issues to Sprint Modal */}
+      <Modal
+        isOpen={backlogModalOpen}
+        onClose={() => {
+          setBacklogModalOpen(false);
+          setActiveSprintForBacklog(null);
+        }}
+        title={`Project Backlog: Add Issues to ${activeSprintForBacklog?.name || 'Sprint'}`}
+      >
+        <div style={{ padding: '1.25rem' }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+            Available unassigned backlog defects from this project. Click <strong>Add to Sprint</strong> to include the issue in sprint scope.
+          </p>
+
+          {backlogLoading ? (
+            <div style={{ padding: '2rem 0', textAlign: 'center' }}>
+              <LoadingSpinner message="Fetching backlog issues..." />
+            </div>
+          ) : projectBacklogIssues.length === 0 ? (
+            <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No unassigned backlog issues found in this project.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '420px', overflowY: 'auto' }}>
+              {projectBacklogIssues.map((issue) => (
+                <div
+                  key={issue.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    backgroundColor: 'var(--bg-surface-elevated)',
+                    border: '1px solid var(--border-subtle)',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#818cf8' }}>
+                        {issue.issue_key}
+                      </span>
+                      <PriorityBadge priority={issue.priority} />
+                      <SeverityBadge severity={issue.severity} />
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {issue.title}
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.75rem', padding: '0.3rem 0.75rem', flexShrink: 0 }}
+                    onClick={() => handleAddIssueToSprint(issue.id)}
+                  >
+                    + Add to Sprint
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Toast */}
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '1.5rem',
+            right: '1.5rem',
+            background: 'var(--bg-surface-elevated)',
+            border: `1px solid ${toastMessage.type === 'success' ? '#10b981' : '#ef4444'}`,
+            padding: '0.9rem 1.25rem',
+            borderRadius: '10px',
+            boxShadow: '0 8px 20px rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.85rem',
+            zIndex: 9999,
+          }}
+        >
+          {toastMessage.type === 'success' ? (
+            <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+          ) : (
+            <AlertCircle size={18} style={{ color: '#ef4444' }} />
+          )}
+          <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+            {toastMessage.text}
+          </span>
+          <button
+            onClick={() => setToastMessage(null)}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.1rem', marginLeft: '0.5rem' }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -73,6 +73,26 @@ export interface ContentStats {
   unread_notifications: number;
 }
 
+export interface SprintStats {
+  total: number;
+  planned: number;
+  active: number;
+  in_progress: number;
+  ready_for_approval: number;
+  completed: number;
+  archived: number;
+}
+
+export interface BacklogStats {
+  total: number;
+  unassigned: number;
+  critical: number;
+  high_priority: number;
+  resolved: number;
+  closed: number;
+  kaggle_count: number;
+}
+
 export interface AdminDashboardResponse {
   users: UserStats;
   projects: ProjectStats;
@@ -82,4 +102,7 @@ export interface AdminDashboardResponse {
   recent: RecentActivity;
   notifications: NotificationStats;
   content: ContentStats;
+  sprints: SprintStats;
+  backlog: BacklogStats;
 }
+

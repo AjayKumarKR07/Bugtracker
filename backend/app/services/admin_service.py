@@ -19,8 +19,10 @@ from app.models.issue_attachment import IssueAttachment
 from app.models.issue_comment import IssueComment
 from app.models.notification import Notification
 from app.models.project import Project, ProjectStatus
+from app.models.sprint import Sprint, SprintStatus
 from app.models.user import User, UserRole
 from app.schemas.admin import (
+    BacklogStats,
     ContentStats,
     DashboardResponse,
     IssuePriorityStats,
@@ -29,6 +31,7 @@ from app.schemas.admin import (
     NotificationStats,
     ProjectStats,
     RecentActivity,
+    SprintStats,
     UserStats,
     InactiveAssigneeItem,
     InactiveAssigneeList,
@@ -39,7 +42,7 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardResponse:
     """Return a complete statistics snapshot for the Admin dashboard.
 
     Uses efficient aggregation queries across users, projects, issues,
-    notifications, comments, and attachments. No ORM objects are instantiated.
+    notifications, comments, attachments, sprints, and backlog. No ORM objects are instantiated.
     """
     users = await _user_stats(db)
     projects = await _project_stats(db)
@@ -49,6 +52,8 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardResponse:
     recent = await _recent_activity(db)
     notifications = await _notification_stats(db)
     content = await _content_stats(db)
+    sprints = await _sprint_stats(db)
+    backlog = await _backlog_stats(db)
 
     return DashboardResponse(
         users=users,
@@ -59,7 +64,10 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardResponse:
         recent=recent,
         notifications=notifications,
         content=content,
+        sprints=sprints,
+        backlog=backlog,
     )
+
 
 
 async def get_inactive_assignees(db: AsyncSession) -> InactiveAssigneeList:
@@ -276,4 +284,55 @@ async def _content_stats(db: AsyncSession) -> ContentStats:
         total_notifications=notif_row.total,
         unread_notifications=notif_row.unread,
     )
+
+
+async def _sprint_stats(db: AsyncSession) -> SprintStats:
+    """Compute sprint metrics in a single SQL query."""
+    result = await db.execute(
+        select(
+            func.count().label("total"),
+            func.count(case((Sprint.status == SprintStatus.PLANNED, 1))).label("planned"),
+            func.count(case((Sprint.status == SprintStatus.ACTIVE, 1))).label("active"),
+            func.count(case((Sprint.status == SprintStatus.IN_PROGRESS, 1))).label("in_progress"),
+            func.count(case((Sprint.status == SprintStatus.READY_FOR_APPROVAL, 1))).label("ready_for_approval"),
+            func.count(case((Sprint.status == SprintStatus.COMPLETED, 1))).label("completed"),
+            func.count(case((Sprint.status == SprintStatus.ARCHIVED, 1))).label("archived"),
+        ).select_from(Sprint)
+    )
+    row = result.one()
+    return SprintStats(
+        total=row.total,
+        planned=row.planned,
+        active=row.active,
+        in_progress=row.in_progress,
+        ready_for_approval=row.ready_for_approval,
+        completed=row.completed,
+        archived=row.archived,
+    )
+
+
+async def _backlog_stats(db: AsyncSession) -> BacklogStats:
+    """Compute defect backlog metrics in a single SQL query."""
+    result = await db.execute(
+        select(
+            func.count().label("total"),
+            func.count(case((Issue.assignee_id.is_(None), 1))).label("unassigned"),
+            func.count(case((Issue.severity.in_([Severity.CRITICAL, Severity.BLOCKER]), 1))).label("critical"),
+            func.count(case((Issue.priority.in_([Priority.HIGH, Priority.URGENT]), 1))).label("high_priority"),
+            func.count(case((Issue.status == IssueStatus.RESOLVED, 1))).label("resolved"),
+            func.count(case((Issue.status == IssueStatus.CLOSED, 1))).label("closed"),
+            func.count(case((Issue.source == "KAGGLE_ISEC", 1))).label("kaggle_count"),
+        ).select_from(Issue).where(Issue.sprint_id.is_(None))
+    )
+    row = result.one()
+    return BacklogStats(
+        total=row.total,
+        unassigned=row.unassigned,
+        critical=row.critical,
+        high_priority=row.high_priority,
+        resolved=row.resolved,
+        closed=row.closed,
+        kaggle_count=row.kaggle_count,
+    )
+
 

@@ -62,6 +62,12 @@ class SprintRead(SprintBase):
     approved_by_id: int | None = None
     approved_at: datetime | None = None
     review_comment: str | None = None
+    # Rich project & progress metrics
+    project_name: str | None = None
+    project_key: str | None = None
+    total_issues: int = 0
+    completed_issues: int = 0
+    progress_percentage: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -74,9 +80,29 @@ class SprintRead(SprintBase):
                 tester = obj.__dict__.get("assigned_tester")
                 if tester and hasattr(tester, "full_name"):
                     instance.assigned_tester_name = tester.full_name
+                proj = obj.__dict__.get("project")
+                if proj:
+                    instance.project_name = getattr(proj, "name", None)
+                    instance.project_key = getattr(proj, "project_key", None)
+                issues = obj.__dict__.get("issues")
+                if issues is not None:
+                    tot = len(issues)
+                    comp = sum(
+                        1
+                        for i in issues
+                        if getattr(i, "status", None) in ("RESOLVED", "CLOSED")
+                        or (
+                            hasattr(getattr(i, "status", None), "value")
+                            and getattr(i, "status").value in ("RESOLVED", "CLOSED")
+                        )
+                    )
+                    instance.total_issues = tot
+                    instance.completed_issues = comp
+                    instance.progress_percentage = round((comp / tot) * 100) if tot > 0 else 0
         except Exception:
             pass
         return instance
+
 
 
 class SprintAnalytics(BaseModel):

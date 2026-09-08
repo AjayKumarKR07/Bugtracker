@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   BarChart3,
   Bug,
+  ClipboardCheck,
   FlaskConical,
   FolderGit2,
   LayoutDashboard,
@@ -12,6 +13,8 @@ import {
   Shield,
   UserCheck,
 } from 'lucide-react';
+
+
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
 import { getRoleLabel, getRoleDescription } from '../../types/auth';
@@ -121,6 +124,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
           {user?.role === 'ADMIN' && (
             <>
               <NavLink
+                to="/admin-dashboard"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <LayoutDashboard size={18} />
+                <span>Admin Dashboard</span>
+              </NavLink>
+
+              <NavLink
                 to="/issues"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={onCloseMobile}
@@ -139,6 +151,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               </NavLink>
 
               <NavLink
+                to="/admin/sprints"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <Layers size={18} />
+                <span>Sprints &amp; Planning</span>
+              </NavLink>
+
+              <NavLink
+                to="/admin/sprint-approvals"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                onClick={onCloseMobile}
+              >
+                <ClipboardCheck size={18} />
+                <span>Sprint Approvals</span>
+              </NavLink>
+
+              <NavLink
                 to="/analytics"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={onCloseMobile}
@@ -148,16 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               </NavLink>
 
               <NavLink
-                to="/admin-dashboard"
-                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                onClick={onCloseMobile}
-              >
-                <LayoutDashboard size={18} />
-                <span>Admin Dashboard</span>
-              </NavLink>
-
-              <NavLink
-                to="/admin"
+                to="/admin-management"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 onClick={onCloseMobile}
               >
@@ -166,6 +187,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               </NavLink>
             </>
           )}
+
 
           {/* TESTER / DEVELOPER: Tester-specific Navigation */}
           {(user?.role === 'TESTER' || user?.role === 'DEVELOPER') && (

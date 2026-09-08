@@ -27,7 +27,25 @@ async def create_sprint(
     return await sprint_service.create_sprint(db, sprint_in, actor=current_user)
 
 
+@router.get("", response_model=list[SprintRead])
+async def list_all_sprints(
+    project_id: int | None = Query(None, description="Filter by project ID"),
+    status: str | None = Query(None, description="Filter by sprint status"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all sprints with optional project and status filters."""
+    sprint_status = None
+    if status:
+        try:
+            sprint_status = SprintStatus(status)
+        except ValueError:
+            pass
+    return await sprint_service.get_all_sprints(db, project_id=project_id, status=sprint_status)
+
+
 @router.get("/project/{project_id}", response_model=list[SprintRead])
+
 async def get_sprints_by_project(
     project_id: int,
     current_user: User = Depends(get_current_user),
@@ -248,3 +266,13 @@ async def get_awaiting_approval(
 ):
     """Get all sprints pending admin approval. ADMIN only."""
     return await sprint_service.get_sprints_awaiting_approval(db)
+
+
+@router.get("/active", response_model=list[SprintRead])
+async def get_active_sprints(
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all active and in-progress sprints for admin monitoring. ADMIN only."""
+    return await sprint_service.get_active_sprints(db)
+

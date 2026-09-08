@@ -88,6 +88,28 @@ class ContentStats(BaseModel):
     unread_notifications: int
 
 
+class SprintStats(BaseModel):
+    """System sprint metrics."""
+    total: int
+    planned: int
+    active: int
+    in_progress: int
+    ready_for_approval: int
+    completed: int
+    archived: int
+
+
+class BacklogStats(BaseModel):
+    """Defect backlog metrics."""
+    total: int
+    unassigned: int
+    critical: int
+    high_priority: int
+    resolved: int
+    closed: int
+    kaggle_count: int
+
+
 class DashboardResponse(BaseModel):
     """Complete admin dashboard statistics snapshot.
 
@@ -101,3 +123,6 @@ class DashboardResponse(BaseModel):
     recent: RecentActivity
     notifications: NotificationStats
     content: ContentStats
+    sprints: SprintStats
+    backlog: BacklogStats
+

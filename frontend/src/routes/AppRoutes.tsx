@@ -7,7 +7,10 @@ import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
 import { AdminPage } from '../pages/AdminPage';
 import { AdminDashboardPage } from '../pages/AdminDashboardPage';
+import { AdminSprintsPage } from '../pages/AdminSprintsPage';
+import { AdminSprintApprovalsPage } from '../pages/AdminSprintApprovalsPage';
 import { AnalyticsPage } from '../pages/AnalyticsPage';
+
 import { DashboardPage } from '../pages/DashboardPage';
 import { HomePage } from '../pages/HomePage';
 import { IssueDetailPage } from '../pages/IssueDetailPage';
@@ -48,8 +51,14 @@ export const AppRoutes: React.FC = () => {
             {/* Admin-only Protected Route */}
             <Route element={<RoleProtectedRoute allowedRoles={['ADMIN']} />}>
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin-management" element={<AdminPage />} />
               <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
+              <Route path="/admin/sprints" element={<AdminSprintsPage />} />
+              <Route path="/admin-sprints" element={<AdminSprintsPage />} />
+              <Route path="/admin/sprint-approvals" element={<AdminSprintApprovalsPage />} />
+              <Route path="/admin-sprint-approvals" element={<AdminSprintApprovalsPage />} />
             </Route>
+
 
             {/* Tester / Developer Protected Routes */}
             <Route element={<RoleProtectedRoute allowedRoles={['TESTER', 'DEVELOPER']} />}>

@@ -121,4 +121,16 @@ export const SprintService = {
     const response = await apiClient.get('/sprints/awaiting-approval');
     return response.data;
   },
+
+  getAllSprints: async (params?: { project_id?: number; status?: string }): Promise<Sprint[]> => {
+    const response = await apiClient.get('/sprints', { params });
+    return response.data;
+  },
+
+  getActiveSprints: async (): Promise<Sprint[]> => {
+    const response = await apiClient.get('/sprints/active');
+    return response.data;
+  },
 };
+
+

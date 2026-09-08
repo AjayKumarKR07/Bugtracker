@@ -868,11 +868,55 @@ async def get_sprints_awaiting_approval(db: AsyncSession) -> Sequence[Sprint]:
             selectinload(Sprint.assigned_tester),
             selectinload(Sprint.submitted_by),
             selectinload(Sprint.approved_by),
+            selectinload(Sprint.project),
+            selectinload(Sprint.issues),
         )
         .where(Sprint.status == SprintStatus.READY_FOR_APPROVAL)
         .order_by(Sprint.submitted_at.asc())
     )
     return result.scalars().all()
+
+
+async def get_active_sprints(db: AsyncSession) -> Sequence[Sprint]:
+    """Return all ACTIVE and IN_PROGRESS sprints, ordered by start date desc."""
+    result = await db.execute(
+        select(Sprint)
+        .options(
+            selectinload(Sprint.assigned_tester),
+            selectinload(Sprint.submitted_by),
+            selectinload(Sprint.approved_by),
+            selectinload(Sprint.project),
+            selectinload(Sprint.issues),
+        )
+        .where(Sprint.status.in_([SprintStatus.ACTIVE, SprintStatus.IN_PROGRESS]))
+        .order_by(Sprint.start_date.desc())
+    )
+    return result.scalars().all()
+
+
+async def get_all_sprints(
+    db: AsyncSession, project_id: int | None = None, status: SprintStatus | None = None
+) -> Sequence[Sprint]:
+    """Return all sprints with optional project_id and status filters."""
+    query = (
+        select(Sprint)
+        .options(
+            selectinload(Sprint.assigned_tester),
+            selectinload(Sprint.submitted_by),
+            selectinload(Sprint.approved_by),
+            selectinload(Sprint.project),
+            selectinload(Sprint.issues),
+        )
+        .order_by(Sprint.start_date.desc())
+    )
+    if project_id is not None:
+        query = query.where(Sprint.project_id == project_id)
+    if status is not None:
+        query = query.where(Sprint.status == status)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
 
 
 async def begin_work(
