@@ -95,8 +95,10 @@ export interface SprintAnalytics {
   closed_issues: number;
   total_capacity_hours: number | null;
   workload: {
-    developer_id: number;
-    developer_name: string;
+    tester_id?: number;
+    tester_name?: string;
+    developer_id?: number;
+    developer_name?: string;
     role?: string;
     assigned_issues: number;
     estimated_effort?: number;

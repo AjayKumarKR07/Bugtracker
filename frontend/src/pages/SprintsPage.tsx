@@ -158,7 +158,7 @@ const TeamWorkloadChart: React.FC<{ workload: SprintAnalytics["workload"] }> = (
     </div>
   );
   const data = workload.map((wl) => ({
-    name: wl.developer_name.split(" ")[0],
+    name: (wl.tester_name || wl.developer_name || "Tester").split(" ")[0],
     Completed: wl.completed_issues,
     "In Progress": wl.in_progress_issues,
     Open: wl.open_issues,
@@ -196,15 +196,15 @@ const TeamWorkloadChart: React.FC<{ workload: SprintAnalytics["workload"] }> = (
           </thead>
           <tbody>
             {workload.map((wl) => (
-              <tr key={wl.developer_id}>
-                <td style={{ fontWeight: 600, color: "#f8fafc" }}>{wl.developer_name}</td>
+              <tr key={wl.tester_id || wl.developer_id}>
+                <td style={{ fontWeight: 600, color: "#f8fafc" }}>{wl.tester_name || wl.developer_name}</td>
                 <td>
                   <span style={{
                     fontSize: "0.7rem",
                     padding: "0.15rem 0.5rem",
                     borderRadius: "10px",
-                    background: wl.role === "TESTER" ? "rgba(99,102,241,0.15)" : "rgba(16,185,129,0.15)",
-                    color: wl.role === "TESTER" ? "#818cf8" : "#34d399",
+                    background: "rgba(99,102,241,0.15)",
+                    color: "#818cf8",
                     fontWeight: 600,
                   }}>
                     {wl.role || "TESTER"}

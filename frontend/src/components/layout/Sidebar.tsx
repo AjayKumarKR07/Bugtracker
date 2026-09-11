@@ -47,8 +47,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
         return 'role-badge-admin';
       case 'TESTER':
         return 'role-badge-tester';
-      case 'DEVELOPER':
-        return 'role-badge-developer';
       case 'USER':
         return 'role-badge-user';
       default:
@@ -192,8 +190,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
           )}
 
 
-          {/* TESTER / DEVELOPER: Tester-specific Navigation */}
-          {(user?.role === 'TESTER' || user?.role === 'DEVELOPER') && (
+          {/* TESTER: Tester-specific Navigation */}
+          {user?.role === 'TESTER' && (
             <>
               <NavLink
                 to="/tester-dashboard"

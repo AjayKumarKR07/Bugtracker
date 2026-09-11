@@ -3,7 +3,7 @@ Issue model.
 
 The central entity of the defect tracking system.
 An Issue belongs to a Project and is reported by a User.
-It may optionally be assigned to a Developer.
+It may optionally be assigned to a Tester.
 
 Phase 4: Added defect detail columns (environment, steps_to_reproduce,
 expected_result, actual_result, resolution_summary, resolved_at).
@@ -61,8 +61,8 @@ class IssueStatus(str, enum.Enum):
 # Enforced by the issue service — not a DB constraint.                #
 # ------------------------------------------------------------------ #
 
-# Developer-driven transitions (from → set of allowed targets)
-DEVELOPER_TRANSITIONS: dict[IssueStatus, set[IssueStatus]] = {
+# Tester-driven transitions (from → set of allowed targets)
+TESTER_TRANSITIONS: dict[IssueStatus, set[IssueStatus]] = {
     IssueStatus.ASSIGNED:       {IssueStatus.IN_DEVELOPMENT},
     IssueStatus.IN_DEVELOPMENT: {IssueStatus.IN_REVIEW},
     IssueStatus.IN_REVIEW:      {IssueStatus.IN_TESTING, IssueStatus.IN_DEVELOPMENT},

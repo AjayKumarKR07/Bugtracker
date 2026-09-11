@@ -53,15 +53,15 @@ from app.main import app
 from tests.conftest import (
     admin_token,
     auth_header,
-    dev_token,
     tester2_token,
+    tester3_token,
     tester_token,
     user2_token,
     user_token,
 )
 
 _admin_tok = admin_token
-_dev_tok = dev_token
+_tester3_tok = tester3_token
 _tester_tok = tester_token
 _tester2_tok = tester2_token
 _user_tok = user_token
@@ -165,16 +165,16 @@ _PROJ_KEY = _fresh_key("ATT")
 _proj_id: int = 0
 _issue_by_tester: int = 0
 _issue_by_tester2: int = 0
-_issue_assigned_to_dev: int = 0
+_issue_assigned_to_tester: int = 0
 
 
 def _setup():
-    global _proj_id, _issue_by_tester, _issue_by_tester2, _issue_assigned_to_dev
+    global _proj_id, _issue_by_tester, _issue_by_tester2, _issue_assigned_to_tester
     _proj_id = _get_or_create_project(_PROJ_KEY, f"Attachment Test Project {_PROJ_KEY}")
     _issue_by_tester = _create_issue(_proj_id, _user_tok())
     _issue_by_tester2 = _create_issue(_proj_id, _user2_tok())
-    _issue_assigned_to_dev = _create_issue(_proj_id, _user_tok())
-    _assign_issue(_issue_assigned_to_dev, "dev.p4ci@example.com")
+    _issue_assigned_to_tester = _create_issue(_proj_id, _user_tok())
+    _assign_issue(_issue_assigned_to_tester, "tester3.p4ci@example.com")
 
 
 _setup()
@@ -237,8 +237,8 @@ def test_tester_upload_to_own_issue(tmp_path):
     assert r.status_code == 201
 
 
-def test_developer_upload_to_assigned_issue(tmp_path):
-    r = _upload(_issue_assigned_to_dev, _dev_tok(), _make_png(), "dev.png", "image/png", tmp_path)
+def test_assigned_tester_upload_to_assigned_issue(tmp_path):
+    r = _upload(_issue_assigned_to_tester, _tester3_tok(), _make_png(), "tester.png", "image/png", tmp_path)
     assert r.status_code == 201
 
 
@@ -465,14 +465,14 @@ def test_admin_can_delete_any_attachment(tmp_path):
     assert r.status_code == 204
 
 
-def test_developer_cannot_delete_another_users_attachment_returns_403(tmp_path):
-    # User uploads to issue assigned to dev; dev should not be able to delete it
+def test_assigned_tester_cannot_delete_another_users_attachment_returns_403(tmp_path):
+    # User uploads to issue assigned to tester; tester should not be able to delete it
     upload_r = _upload(
-        _issue_assigned_to_dev, _user_tok(), _make_png(), "dev_cant_del.png", "image/png", tmp_path
+        _issue_assigned_to_tester, _user_tok(), _make_png(), "tester_cant_del.png", "image/png", tmp_path
     )
     attachment_id = upload_r.json()["id"]
 
-    r = client.delete(f"/attachments/{attachment_id}", headers=auth_header(_dev_tok()))
+    r = client.delete(f"/attachments/{attachment_id}", headers=auth_header(_tester3_tok()))
     assert r.status_code == 403
 
 

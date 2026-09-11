@@ -91,10 +91,10 @@ async def triage_recommendation(
 async def create_issue(
     body: IssueCreate,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_role(UserRole.USER, UserRole.DEVELOPER, UserRole.ADMIN)),
+    current_user: User = Depends(require_role(UserRole.USER, UserRole.TESTER, UserRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Report a new defect. **USER, DEVELOPER (legacy), or ADMIN.**
+    """Report a new defect. **USER, TESTER, or ADMIN.**
     The reporter is automatically set to the authenticated user.
     Status is always set to REPORTED. Assignee is always NULL.
     ADMINs receive a real-time WebSocket notification via BackgroundTask.
@@ -202,7 +202,7 @@ async def update_issue(
 @router.patch(
     "/{issue_id}/assign",
     response_model=IssueDetailResponse,
-    summary="Assign issue to a developer",
+    summary="Assign issue to a tester",
 )
 async def assign_issue(
     issue_id: int,
@@ -211,7 +211,7 @@ async def assign_issue(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Assign or reassign an issue to a developer. **ADMIN only.**"""
+    """Assign or reassign an issue to a tester. **ADMIN only.**"""
     from app.services.websocket_manager import ws_manager
     detail, notifications = await issue_service.assign_issue(issue_id, body, current_user, db)
     for notif in notifications:
@@ -241,11 +241,11 @@ async def update_issue_status(
     issue_id: int,
     body: IssueStatusUpdate,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.DEVELOPER, UserRole.ADMIN)),
+    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
     """Transition an issue through the investigation workflow.
-    **TESTER (or legacy DEVELOPER)** — must be assigned to the issue.
+    **TESTER** — must be assigned to the issue.
     **ADMIN** — can force-change status on any issue.
 
     Valid transitions:
@@ -283,10 +283,10 @@ async def resolve_issue(
     issue_id: int,
     body: IssueResolve,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_role(UserRole.TESTER, UserRole.DEVELOPER)),
+    current_user: User = Depends(require_role(UserRole.TESTER)),
     db: AsyncSession = Depends(get_db),
 ) -> IssueDetailResponse:
-    """Mark an assigned issue as RESOLVED. **TESTER (or legacy DEVELOPER)** — must be assigned."""
+    """Mark an assigned issue as RESOLVED. **TESTER** — must be assigned."""
     from app.services.websocket_manager import ws_manager
     detail, notifications = await issue_service.resolve_issue(issue_id, body, current_user, db)
     for notif in notifications:
@@ -426,15 +426,15 @@ async def bulk_assign_sprint(
 
 
 # --------------------------------------------------------------------------- #
-# Smart Developer Matcher (DYNAMIC — after static routes)                      #
+# Smart Tester Matcher / Smart Assignee Matcher (DYNAMIC — after static)      #
 # --------------------------------------------------------------------------- #
 
 @router.get(
     "/{issue_id}/suggest-assignee",
     response_model=DeveloperMatchResponse,
-    summary="Smart Developer Matcher — ranked assignee suggestions",
+    summary="Smart Assignee Matcher — ranked tester suggestions",
     description=(
-        "Return a ranked list of TESTER/DEVELOPER users for the given issue, "
+        "Return a ranked list of active TESTER users for the given issue, "
         "scored by resolution rate, current workload, and average resolution speed."
     ),
 )

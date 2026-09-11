@@ -231,13 +231,16 @@ async def export_issues_report(
 
 
 # --------------------------------------------------------------------------- #
-# 7. Developer Performance (STATIC ROUTE - Admin Only)                         #
+# 7. Tester Workload & Performance (Compatibility Route - Admin Only)         #
+# Note: Endpoint path '/developers' is retained temporarily for client        #
+# compatibility; returned metrics strictly represent active TESTER accounts.  #
 # --------------------------------------------------------------------------- #
 
 @router.get(
     "/developers",
     response_model=DeveloperAnalyticsResponse,
-    summary="Developer performance metrics",
+    summary="Tester Workload & Performance metrics (compatibility route)",
+    description="Return workload, resolution rates, and resolution speed for active testers. Admin only.",
     responses={
         401: {"description": "Not authenticated"},
         403: {"description": "ADMIN access required"},
@@ -249,7 +252,7 @@ async def developer_performance(
     current_user: User = _ADMIN,
     db: AsyncSession = Depends(get_db),
 ) -> DeveloperAnalyticsResponse:
-    """Return workload, resolution rates, and resolution speed for developers.
+    """Return workload, resolution rates, and resolution speed for active testers.
 
     **ADMIN only.**
     """

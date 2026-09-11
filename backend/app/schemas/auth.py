@@ -27,16 +27,10 @@ class RegisterRequest(BaseModel):
 
     @field_validator("role")
     @classmethod
-    def role_must_not_be_admin(cls, v: UserRole) -> UserRole:
-        """
-        TODO: In production, public ADMIN registration must be disabled or restricted.
-        Currently enabled for development/demo purposes.
-        """
-        if v == UserRole.DEVELOPER:
-            raise ValueError(
-                "DEVELOPER is a legacy role and cannot be registered publicly. "
-                "Use USER or TESTER instead."
-            )
+    def validate_role(cls, v: UserRole) -> UserRole:
+        """Enforce valid application roles for registration."""
+        if v not in (UserRole.USER, UserRole.TESTER, UserRole.ADMIN):
+            raise ValueError("Role must be USER, TESTER, or ADMIN.")
         return v
 
 

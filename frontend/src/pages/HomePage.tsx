@@ -24,10 +24,10 @@ import {
   CheckSquare,
   Layers,
   Crown,
-  Code2,
   TestTube,
   Wifi,
   BookOpen,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -180,7 +180,7 @@ export const HomePage: React.FC = () => {
   const getDashboardPath = () => {
     if (!user) return '/login';
     if (user.role === 'ADMIN') return '/admin-dashboard';
-    if (user.role === 'TESTER' || user.role === 'DEVELOPER') return '/tester-dashboard';
+    if (user.role === 'TESTER') return '/tester-dashboard';
     return '/dashboard';
   };
 
@@ -462,7 +462,7 @@ export const HomePage: React.FC = () => {
               {
                 emoji: '📊', icon: <BarChart3 size={20} />, accent: '#a855f7',
                 title: 'Real-Time Analytics',
-                desc: 'Monitor issue trends, resolution performance, developer workload, sprint health, and project progress.',
+                desc: 'Monitor issue trends, resolution performance, tester workload, sprint health, and project progress.',
                 action: () => handleProtectedNavigation('/analytics'),
               },
               {
@@ -480,7 +480,7 @@ export const HomePage: React.FC = () => {
               {
                 emoji: '🔐', icon: <ShieldCheck size={20} />, accent: '#ef4444',
                 title: 'Role-Based Access',
-                desc: 'Secure workflows with dedicated permissions for Admins, Developers, Testers, and Users.',
+                desc: 'Secure workflows with dedicated permissions for Admins, Testers, and Users.',
                 action: () => scrollToSection('roles'),
               },
             ].map(({ emoji, icon, accent, title, desc, action }) => (
@@ -616,31 +616,31 @@ export const HomePage: React.FC = () => {
               ]}
             />
             <RoleCard
-              icon={<Code2 size={26} />}
+              icon={<TestTube size={26} />}
               accent="#6366f1"
-              role="Developer"
-              subtitle="Focus on building"
+              role="Tester"
+              subtitle="Quality Assurance & Verification"
               capabilities={[
-                'View and manage assigned issues',
-                'Update issue status and progress',
-                'Resolve defects and document fixes',
-                'Track personal workload',
-                'Participate in active sprints',
-                'Collaborate via issue comments',
+                'Investigate and verify reported defects',
+                'Update issue progress and test transitions',
+                'Execute assigned sprint testing work',
+                'Validate fixes against quality benchmarks',
+                'Track personal workload and velocity',
+                'Collaborate via issue comments and attachments',
               ]}
             />
             <RoleCard
-              icon={<TestTube size={26} />}
+              icon={<Users size={26} />}
               accent="#22c55e"
-              role="Tester"
-              subtitle="Quality assurance"
+              role="User"
+              subtitle="Issue Reporter & Collaborator"
               capabilities={[
-                'Report detailed bug reports',
-                'Track and monitor reported issues',
-                'Add comments and attachments',
-                'Verify issue resolutions',
-                'Escalate critical defects',
-                'Manage testing workflows',
+                'Submit detailed defect and bug reports',
+                'Track real-time resolution progress',
+                'Add comments and upload screenshots',
+                'Receive live system notifications',
+                'Verify fixes on reported issues',
+                'Collaborate across open projects',
               ]}
             />
           </div>
@@ -766,7 +766,7 @@ export const HomePage: React.FC = () => {
               { emoji: '🐞', title: 'Intelligent Issue Tracking', desc: 'Track defects with severity, priority, assignments, comments, and attachments.' },
               { emoji: '🏃', title: 'Advanced Sprint Management', desc: 'Plan sprints, track capacity, monitor health, manage rollovers, and generate sprint reports.' },
               { emoji: '📊', title: 'Actionable Analytics', desc: 'Monitor resolution trends, team workload, project metrics, and sprint performance.' },
-              { emoji: '🔐', title: 'Role-Based Security', desc: 'Controlled workflows for administrators, developers, testers, and reporters.' },
+              { emoji: '🔐', title: 'Role-Based Security', desc: 'Controlled workflows for administrators, testers, and reporters.' },
               { emoji: '🔔', title: 'Real-Time Updates', desc: 'Important system and sprint events delivered through real-time notification infrastructure.' },
               { emoji: '📝', title: 'Complete Audit Trail', desc: 'Traceable activity records maintained for all important system operations.' },
             ].map(({ emoji, title, desc }) => (
@@ -912,7 +912,7 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ icon, accent, title, desc, on
 const workflowSteps = [
   { icon: <CheckSquare size={18} />, label: 'BACKLOG', desc: 'All issues and feature requests collected and prioritized', accent: '#6366f1' },
   { icon: <Layers size={18} />, label: 'SPRINT PLANNING', desc: 'Team selects backlog items, estimates effort, assigns capacity', accent: '#8b5cf6' },
-  { icon: <Activity size={18} />, label: 'ACTIVE SPRINT', desc: 'Developers and testers work through sprint issues in real-time', accent: '#a855f7' },
+  { icon: <Activity size={18} />, label: 'ACTIVE SPRINT', desc: 'Testers and team leads work through sprint issues in real-time', accent: '#a855f7' },
   { icon: <Bug size={18} />, label: 'ISSUE RESOLUTION', desc: 'Bugs investigated, fixed, reviewed, and marked resolved', accent: '#22c55e' },
   { icon: <BarChart3 size={18} />, label: 'ANALYTICS', desc: 'Sprint velocity, burndown, and resolution metrics reviewed', accent: '#0ea5e9' },
   { icon: <FileText size={18} />, label: 'RELEASE', desc: 'Sprint closed, report generated, next sprint begins', accent: '#f59e0b' },

@@ -40,17 +40,17 @@ from app.main import app
 from tests.conftest import (
     admin_token,
     auth_header,
-    dev2_token,
-    dev_token,
     tester2_token,
+    tester3_token,
+    tester4_token,
     tester_token,
     user2_token,
     user_token,
 )
 
 _admin_tok = admin_token
-_dev_tok = dev_token
-_dev2_tok = dev2_token
+_tester3_tok = tester3_token
+_tester4_tok = tester4_token
 _tester_tok = tester_token
 _tester2_tok = tester2_token
 _user_tok = user_token
@@ -122,16 +122,16 @@ _PROJ_KEY = _fresh_key("CMT")
 _proj_id: int = 0
 _issue_by_tester: int = 0      # reported by user
 _issue_by_tester2: int = 0     # reported by user2
-_issue_assigned_to_dev: int = 0  # reported by user, assigned to dev
+_issue_assigned_to_tester: int = 0  # reported by user, assigned to tester3
 
 
 def _setup():
-    global _proj_id, _issue_by_tester, _issue_by_tester2, _issue_assigned_to_dev
+    global _proj_id, _issue_by_tester, _issue_by_tester2, _issue_assigned_to_tester
     _proj_id = _get_or_create_project(_PROJ_KEY, f"Comment Test Project {_PROJ_KEY}")
     _issue_by_tester = _create_issue(_proj_id, _user_tok(), "OwnedByUser")
     _issue_by_tester2 = _create_issue(_proj_id, _user2_tok(), "OwnedByUser2")
-    _issue_assigned_to_dev = _create_issue(_proj_id, _user_tok(), "AssignedToDev")
-    _assign_issue(_issue_assigned_to_dev, "dev.p4ci@example.com")
+    _issue_assigned_to_tester = _create_issue(_proj_id, _user_tok(), "AssignedToTester")
+    _assign_issue(_issue_assigned_to_tester, "tester3.p4ci@example.com")
 
 
 _setup()
@@ -174,8 +174,8 @@ def test_tester_can_comment_on_own_issue():
     assert r.status_code == 201
 
 
-def test_developer_can_comment_on_assigned_issue():
-    r = _post_comment(_issue_assigned_to_dev, "Dev comment on assigned issue.", _dev_tok())
+def test_assigned_tester_can_comment_on_assigned_issue():
+    r = _post_comment(_issue_assigned_to_tester, "Tester comment on assigned issue.", _tester3_tok())
     assert r.status_code == 201
 
 
@@ -184,8 +184,8 @@ def test_admin_can_comment_on_any_issue():
     assert r.status_code == 201
 
 
-def test_developer_cannot_comment_on_unassigned_issue_returns_403():
-    r = _post_comment(_issue_by_tester, "Dev should not comment here.", _dev_tok())
+def test_unassigned_tester_cannot_comment_on_unassigned_issue_returns_403():
+    r = _post_comment(_issue_by_tester, "Unassigned tester should not comment here.", _tester3_tok())
     assert r.status_code == 403
 
 

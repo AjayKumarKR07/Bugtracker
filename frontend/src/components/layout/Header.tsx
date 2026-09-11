@@ -59,7 +59,6 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
       case 'ADMIN':      return '#f97316';  // orange
       case 'TESTER':     return '#22c55e';  // green
       case 'USER':       return '#6366f1';  // indigo
-      case 'DEVELOPER':  return '#818cf8';  // indigo-light (legacy)
       default:           return '#6366f1';
     }
   };

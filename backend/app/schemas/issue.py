@@ -7,7 +7,7 @@ Enums are imported from the model to avoid duplication.
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.issue import IssueStatus, IssueType, Priority, Severity
 
@@ -84,19 +84,28 @@ class IssueUpdate(BaseModel):
 
 
 class IssueAssign(BaseModel):
-    """Payload for ADMIN to assign an issue to a developer."""
+    """Payload for ADMIN to assign an issue to a tester."""
 
-    developer_id: int
+    tester_id: int | None = None
+    developer_id: int | None = None  # Legacy client compatibility alias
+
+    @model_validator(mode="after")
+    def resolve_assignee(self) -> "IssueAssign":
+        if self.tester_id is None and self.developer_id is None:
+            raise ValueError("tester_id is required.")
+        if self.tester_id is None and self.developer_id is not None:
+            self.tester_id = self.developer_id
+        return self
 
 
 class IssueStatusUpdate(BaseModel):
-    """Payload for DEVELOPER to change their issue status."""
+    """Payload for TESTER to change their assigned issue status."""
 
     status: IssueStatus
 
 
 class IssueResolve(BaseModel):
-    """Payload for DEVELOPER to mark an issue as resolved."""
+    """Payload for TESTER to mark an assigned issue as resolved."""
 
     resolution_summary: str = Field(..., min_length=10)
     resolution_notes: str | None = None  # stored in resolution_summary if provided

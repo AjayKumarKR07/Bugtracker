@@ -57,8 +57,8 @@ async def create_comment(
     NEVER accepts author_id from request body.
 
     - **ADMIN**: can comment on any issue
-    - **DEVELOPER**: can comment on issues assigned to them
-    - **TESTER**: can comment on issues they reported
+    - **TESTER**: can comment on issues assigned to them or reported by them
+    - **USER**: can comment on issues they reported
     """
     from app.services.websocket_manager import ws_manager
     comment, notifications = await comment_service.create_comment(issue_id, body, current_user, db)

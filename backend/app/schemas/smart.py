@@ -1,5 +1,5 @@
 """
-Pydantic schemas for Smart Priority Calculator and Smart Developer Matcher.
+Pydantic schemas for Smart Priority Calculator and Smart Tester Matcher.
 Updated to match mentor's exact formula specification.
 """
 
@@ -49,19 +49,21 @@ class PriorityCalcResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Smart Developer Matcher                                                      #
+# Smart Tester Matcher                                                         #
 # --------------------------------------------------------------------------- #
 
 class DeveloperSuggestion(BaseModel):
-    """Mentor-spec developer suggestion with keyword/skill matching."""
+    """Smart tester suggestion with keyword/skill matching."""
 
+    tester_id: int | None = None
+    tester_name: str | None = None
     developer_id: int
     developer_name: str
     email: str
     role: str
     match_percentage: float = Field(..., description="0–100 match score")
     matched_skills: list[str] = Field(..., description="Keywords matched from issue text")
-    active_task_count: int = Field(..., description="Current open issues assigned to this developer")
+    active_task_count: int = Field(..., description="Current open issues assigned to this tester")
     explanation: str = Field(..., description="e.g. 'John Doe - 92% match (PostgreSQL expert, 1 active task)'")
 
     # Legacy fields for backward compat with existing frontend
@@ -74,9 +76,16 @@ class DeveloperSuggestion(BaseModel):
     match_score: float
     reasons: list[str]
 
+    def __init__(self, **data):
+        if "tester_id" not in data and "developer_id" in data:
+            data["tester_id"] = data["developer_id"]
+        if "tester_name" not in data and "developer_name" in data:
+            data["tester_name"] = data["developer_name"]
+        super().__init__(**data)
+
 
 class DeveloperMatchResponse(BaseModel):
-    """Ranked (top 3) developer suggestions for an issue."""
+    """Ranked (top 3) tester suggestions for an issue."""
 
     issue_id: int
     issue_key: str

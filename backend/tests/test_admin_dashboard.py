@@ -22,7 +22,6 @@ from tests.conftest import (
     _run_sync,
     _ensure_verified_user,
     admin_token,
-    dev_token,
     tester_token,
     user_token,
     auth_header,
@@ -49,8 +48,8 @@ class TestDashboardRBAC:
         r = _CLIENT.get("/admin/dashboard")
         assert r.status_code == 401
 
-    def test_developer_returns_403(self):
-        r = _CLIENT.get("/admin/dashboard", headers=auth_header(dev_token()))
+    def test_user_returns_403(self):
+        r = _CLIENT.get("/admin/dashboard", headers=auth_header(user_token()))
         assert r.status_code == 403
 
     def test_tester_returns_403(self):
@@ -76,7 +75,7 @@ class TestDashboardSchema:
         d = self._dashboard()
         assert "users" in d
         users = d["users"]
-        for field in ["total", "active", "inactive", "admins", "developers", "testers",
+        for field in ["total", "active", "inactive", "admins", "testers", "users",
                       "verified", "unverified"]:
             assert field in users, f"Missing users.{field}"
 
@@ -150,8 +149,8 @@ class TestDashboardUserCounts:
     def test_role_counts_sum_equals_total(self):
         d = self._dashboard()
         u = d["users"]
-        # admins + developers + testers + users (USER role) should equal total
-        assert u["admins"] + u["developers"] + u["testers"] + u["users"] == u["total"]
+        # admins + testers + users (USER role) should equal total
+        assert u["admins"] + u["testers"] + u["users"] == u["total"]
 
     def test_verified_unverified_sum_equals_total(self):
         d = self._dashboard()
@@ -165,7 +164,7 @@ class TestDashboardUserCounts:
     def test_creating_new_user_increments_total(self):
         before = self._dashboard()["users"]["total"]
         email = f"counter_{secrets.token_hex(6)}.p6dash@example.com"
-        _run_sync(_ensure_verified_user(email=email, full_name="Counter User", role=UserRole.DEVELOPER))
+        _run_sync(_ensure_verified_user(email=email, full_name="Counter User", role=UserRole.TESTER))
         after = self._dashboard()["users"]["total"]
         assert after >= before + 1
 

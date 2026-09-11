@@ -12,10 +12,10 @@ from tests.conftest import (
 
 
 def _get_tester3_id() -> int:
-    r = _CLIENT.get('/users', params={'role': 'TESTER', 'page_size': 100},
+    email = _ci_email('tester3')
+    r = _CLIENT.get('/users', params={'role': 'TESTER', 'search': email, 'page_size': 10},
                     headers=auth_header(admin_token()))
     assert r.status_code == 200
-    email = _ci_email('tester3')
     for u in r.json().get('items', []):
         if u['email'] == email:
             return u['id']
@@ -23,10 +23,10 @@ def _get_tester3_id() -> int:
 
 
 def _get_admin_id() -> int:
-    r = _CLIENT.get('/users', params={'role': 'ADMIN', 'page_size': 100},
+    email = _ci_email('admin')
+    r = _CLIENT.get('/users', params={'role': 'ADMIN', 'search': email, 'page_size': 10},
                     headers=auth_header(admin_token()))
     assert r.status_code == 200
-    email = _ci_email('admin')
     for u in r.json().get('items', []):
         if u['email'] == email:
             return u['id']

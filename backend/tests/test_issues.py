@@ -40,8 +40,6 @@ from app.main import app
 from tests.conftest import (
     admin_token,
     auth_header,
-    dev_token,
-    dev2_token,
     tester3_token,
     tester4_token,
     user_token,
@@ -58,7 +56,6 @@ _tester_tok = _get_tester_token
 _tester2_tok = _get_tester2_token
 _user_tok = user_token
 _user2_tok = user2_token
-_legacy_dev_tok = dev_token   # kept for RBAC-exclusion tests only
 
 client = TestClient(app)
 
@@ -170,25 +167,14 @@ class TestIssueCreation:
         assert data["project"]["id"] == pid
         assert "password_hash" not in str(data)
 
-    def test_tester_cannot_create_issue_403(self) -> None:
-        """TESTER role cannot create issues (reporting is USER role)."""
-        pid = _get_or_create_project(_fresh_key("TCREA"), "Tester Create Forbidden")
+    def test_tester_can_create_issue(self) -> None:
+        """TESTER can create issues."""
+        pid = _get_or_create_project(_fresh_key("DCREA"), "Tester Create Allowed")
         r = client.post(
             "/issues",
-            json={"project_id": pid, "title": "Tester bug report here", "description": "D" * 20},
+            json={"project_id": pid, "title": "Tester bug report here", "description": "T" * 20},
             headers=auth_header(_tester_tok()),
         )
-        assert r.status_code == 403
-
-    def test_developer_cannot_create_issue_403(self) -> None:
-        """DEVELOPER-role (legacy) CAN create issues (treated same as TESTER for creation)."""
-        pid = _get_or_create_project(_fresh_key("DCREA"), "Dev Create Allowed")
-        r = client.post(
-            "/issues",
-            json={"project_id": pid, "title": "Dev bug report here", "description": "D" * 20},
-            headers=auth_header(_legacy_dev_tok()),
-        )
-        # DEVELOPER is a legacy role allowed to create issues
         assert r.status_code == 201
 
     def test_admin_can_create_issue(self) -> None:
@@ -396,18 +382,17 @@ class TestIssueAssignment:
         assert r.status_code == 403
 
     def test_cannot_assign_non_tester_400(self) -> None:
-        """DEVELOPER-role users CAN be assigned issues (DEVELOPER is a valid legacy role for assignment)."""
+        """Non-TESTER (e.g. USER) cannot be assigned issues."""
         pid = _get_or_create_project(_fresh_key("ASSI"), "Invalid Assign Test")
         issue = _create_issue(pid)
-        # _legacy_dev_tok is a DEVELOPER-role user — now a valid assignment target
-        legacy_dev_id = client.get("/auth/me", headers=auth_header(_legacy_dev_tok())).json()["id"]
+        user_id = client.get("/auth/me", headers=auth_header(_user_tok())).json()["id"]
         r = client.patch(
             f"/issues/{issue['id']}/assign",
-            json={"developer_id": legacy_dev_id},
+            json={"tester_id": user_id},
             headers=auth_header(_admin_tok()),
         )
-        # DEVELOPER is a legacy role accepted for issue assignment
-        assert r.status_code == 200
+        assert r.status_code == 400
+        assert "TESTER" in r.text
 
     def test_cannot_assign_nonexistent_user_404(self) -> None:
         pid = _get_or_create_project(_fresh_key("ASSG5"), "Ghost Assign Test")
@@ -613,13 +598,13 @@ class TestIssueReopen:
         assert r.status_code == 200
         assert r.json()["status"] == "REOPENED"
 
-    def test_developer_cannot_reopen_403(self) -> None:
-        """A DEVELOPER-role user (legacy) cannot reopen issues."""
+    def test_non_reporter_tester_cannot_reopen_403(self) -> None:
+        """A non-reporter TESTER cannot reopen issues."""
         issue = self._resolved_issue("ROPND")
         r = client.patch(
             f"/issues/{issue['id']}/reopen",
-            json={"reason": "Legacy dev tries to reopen."},
-            headers=auth_header(_legacy_dev_tok()),
+            json={"reason": "Non-reporter tester tries to reopen."},
+            headers=auth_header(_tester2_tok()),
         )
         assert r.status_code == 403
 

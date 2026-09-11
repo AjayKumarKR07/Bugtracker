@@ -76,6 +76,9 @@ export interface DeveloperAnalyticsItem {
   developer_id: number;
   developer_name: string;
   developer_email: string;
+  tester_id?: number;
+  tester_name?: string;
+  tester_email?: string;
   assigned_issues: number;
   resolved_issues: number;
   open_issues: number;
@@ -137,6 +140,8 @@ export interface PriorityCalcResponse {
 
 // Developer Matcher — mentor spec
 export interface DeveloperSuggestion {
+  tester_id?: number;
+  tester_name?: string;
   developer_id: number;
   developer_name: string;
   email: string;

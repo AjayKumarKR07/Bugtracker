@@ -1,12 +1,10 @@
 // UserRole values as returned by the backend.
-// Backend enum: ADMIN | DEVELOPER | TESTER | USER
-// DEVELOPER is a legacy role kept for backward compatibility.
-// UI role semantics:
+// Backend enum: ADMIN | TESTER | USER
+// Three-role model:
 //   ADMIN     → Administrator (full system control)
 //   TESTER    → Tester (investigates assigned defects)
 //   USER      → User (submits & tracks their own issues)
-//   DEVELOPER → Developer (legacy — treated same as TESTER in UI)
-export type UserRole = 'ADMIN' | 'DEVELOPER' | 'TESTER' | 'USER';
+export type UserRole = 'ADMIN' | 'TESTER' | 'USER';
 
 /** Human-readable display label for each backend role. */
 export function getRoleLabel(role: UserRole): string {
@@ -17,8 +15,6 @@ export function getRoleLabel(role: UserRole): string {
       return 'Tester';
     case 'USER':
       return 'User';
-    case 'DEVELOPER':
-      return 'Developer (Legacy)';
     default:
       return String(role);
   }
@@ -33,8 +29,6 @@ export function getRoleDescription(role: UserRole): string {
       return 'Investigates assigned defects · Updates issue progress';
     case 'USER':
       return 'Submits & tracks their own issues · Views progress';
-    case 'DEVELOPER':
-      return 'Resolves defects & manages workflow (legacy role)';
     default:
       return '';
   }
@@ -47,7 +41,7 @@ export function canReportIssues(role: UserRole): boolean {
 
 /** Returns true if the role works on assigned investigations. */
 export function isInvestigator(role: UserRole): boolean {
-  return role === 'TESTER' || role === 'DEVELOPER';
+  return role === 'TESTER';
 }
 
 export interface User {
@@ -60,7 +54,7 @@ export interface User {
   created_at: string;
 }
 
-// Backend RegisterRequest.role accepts USER or TESTER (not ADMIN or DEVELOPER).
+// Backend RegisterRequest.role accepts USER or TESTER (not ADMIN).
 export interface RegisterRequest {
   full_name: string;
   email: string;

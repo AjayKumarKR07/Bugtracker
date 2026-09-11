@@ -103,7 +103,8 @@ export interface IssueUpdate {
 }
 
 export interface IssueAssign {
-  developer_id: number;
+  tester_id?: number;
+  developer_id?: number;
 }
 
 export interface IssueStatusUpdate {

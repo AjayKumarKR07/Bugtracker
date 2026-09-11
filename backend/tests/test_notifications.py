@@ -23,8 +23,8 @@ from app.models.notification import NotificationType
 from tests.conftest import (
     admin_token,
     auth_header,
-    dev_token,
-    dev2_token,
+    tester3_token,
+    tester4_token,
     tester_token,
     tester2_token,
     user_token,
@@ -135,7 +135,7 @@ class TestNotificationPreferences:
         assert data["attachment_added"] is True
 
     def test_patch_preferences_partial(self):
-        tok = dev_token()
+        tok = tester3_token()
         # Update email_enabled and issue_commented only
         r = client.patch(
             "/notifications/preferences",
@@ -169,7 +169,7 @@ class TestNotificationPreferences:
 class TestNotificationOperations:
     def test_assignment_triggers_notification_and_operations(self):
         adm = admin_token()
-        dev = dev_token()
+        dev = tester3_token()
         usr = user_token()
         tst = tester_token()
 
@@ -177,7 +177,7 @@ class TestNotificationOperations:
         proj_id = _create_project(adm)
         issue_id = _create_issue(proj_id, usr)
 
-        dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
+        dev_id = _get_user_id_by_email("tester3.p4ci@example.com", adm)
 
         # Get dev's initial unread count
         r_count_init = client.get("/notifications/unread-count", headers=auth_header(dev))
@@ -187,7 +187,7 @@ class TestNotificationOperations:
         # Admin assigns issue to dev
         r_assign = client.patch(
             f"/issues/{issue_id}/assign",
-            json={"developer_id": dev_id},
+            json={"tester_id": dev_id},
             headers=auth_header(adm),
         )
         assert r_assign.status_code == 200
@@ -241,16 +241,16 @@ class TestNotificationOperations:
 
     def test_mark_all_read(self):
         adm = admin_token()
-        dev = dev_token()
+        dev = tester3_token()
         usr = user_token()
 
         proj_id = _create_project(adm)
         issue_id1 = _create_issue(proj_id, usr)
         issue_id2 = _create_issue(proj_id, usr)
-        dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
+        dev_id = _get_user_id_by_email("tester3.p4ci@example.com", adm)
 
-        client.patch(f"/issues/{issue_id1}/assign", json={"developer_id": dev_id}, headers=auth_header(adm))
-        client.patch(f"/issues/{issue_id2}/assign", json={"developer_id": dev_id}, headers=auth_header(adm))
+        client.patch(f"/issues/{issue_id1}/assign", json={"tester_id": dev_id}, headers=auth_header(adm))
+        client.patch(f"/issues/{issue_id2}/assign", json={"tester_id": dev_id}, headers=auth_header(adm))
 
         # Bulk mark all read
         r_bulk = client.patch("/notifications/read-all", headers=auth_header(dev))
@@ -270,15 +270,15 @@ class TestNotificationOperations:
 class TestNotificationEventTriggers:
     def test_status_update_and_resolve_and_reopen_notifications(self):
         adm = admin_token()
-        dev = dev_token()
+        dev = tester3_token()
         usr = user_token()
 
         proj_id = _create_project(adm)
         issue_id = _create_issue(proj_id, usr)
-        dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
+        dev_id = _get_user_id_by_email("tester3.p4ci@example.com", adm)
 
         # 1. Admin assigns issue to dev
-        client.patch(f"/issues/{issue_id}/assign", json={"developer_id": dev_id}, headers=auth_header(adm))
+        client.patch(f"/issues/{issue_id}/assign", json={"tester_id": dev_id}, headers=auth_header(adm))
 
         # 2. Dev changes status to IN_DEVELOPMENT -> Reporter (user) gets notified
         r_status = client.patch(
@@ -330,13 +330,13 @@ class TestNotificationEventTriggers:
 
     def test_comment_and_attachment_notifications(self):
         adm = admin_token()
-        dev = dev_token()
+        dev = tester3_token()
         usr = user_token()
 
         proj_id = _create_project(adm)
         issue_id = _create_issue(proj_id, usr)
-        dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
-        client.patch(f"/issues/{issue_id}/assign", json={"developer_id": dev_id}, headers=auth_header(adm))
+        dev_id = _get_user_id_by_email("tester3.p4ci@example.com", adm)
+        client.patch(f"/issues/{issue_id}/assign", json={"tester_id": dev_id}, headers=auth_header(adm))
 
         # Dev comments -> User gets notified, Dev (actor) is NOT notified
         r_comment = client.post(
@@ -376,13 +376,13 @@ class TestNotificationEventTriggers:
 
     def test_user_management_notifications(self):
         adm = admin_token()
-        dev2 = dev2_token()
-        dev2_id = _get_user_id_by_email("dev2.p4ci@example.com", adm)
+        dev2 = tester4_token()
+        dev2_id = _get_user_id_by_email("tester4.p4ci@example.com", adm)
 
         # Role change notification
         r_role = client.patch(
             f"/users/{dev2_id}/role",
-            json={"role": "TESTER"},
+            json={"role": "ADMIN"},
             headers=auth_header(adm),
         )
         assert r_role.status_code == 200
@@ -394,10 +394,10 @@ class TestNotificationEventTriggers:
         assert r_dev2_role.status_code == 200
         assert len(r_dev2_role.json()["items"]) >= 1
 
-        # Revert role back to DEVELOPER
+        # Revert role back to TESTER
         client.patch(
             f"/users/{dev2_id}/role",
-            json={"role": "DEVELOPER"},
+            json={"role": "TESTER"},
             headers=auth_header(adm),
         )
 

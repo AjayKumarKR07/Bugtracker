@@ -135,7 +135,7 @@ class ProjectAnalyticsListResponse(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class DeveloperAnalyticsItem(BaseModel):
-    """Performance metrics for an individual developer."""
+    """Performance metrics for an individual tester (legacy schema name preserved for client compatibility)."""
 
     developer_id: int
     developer_name: str

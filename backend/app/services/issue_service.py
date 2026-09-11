@@ -20,8 +20,8 @@ from sqlalchemy.orm import selectinload
 from app.models.audit_log import AuditAction, AuditLog
 from app.schemas.audit import AuditLogResponse
 from app.models.issue import (
-    DEVELOPER_TRANSITIONS,
     REOPENABLE_STATUSES,
+    TESTER_TRANSITIONS,
     Issue,
     IssueStatus,
     IssueType,
@@ -199,7 +199,7 @@ async def get_issue_detail(
                 detail="You can only view issues you reported.",
             )
         elif (
-            current_user.role in (UserRole.TESTER, UserRole.DEVELOPER)
+            current_user.role == UserRole.TESTER
             and issue.assignee_id != current_user.id
             and issue.reporter_id != current_user.id
         ):
@@ -235,7 +235,6 @@ async def list_issues(
       ADMIN     — sees all issues
       TESTER    — only issues assigned to them (assignee_id)
       USER      — only issues they personally reported (reporter_id)
-      DEVELOPER — only issues assigned to them (legacy)
     """
     query = select(Issue)
 
@@ -245,9 +244,6 @@ async def list_issues(
         query = query.where(Issue.reporter_id == current_user.id)
     elif current_user.role == UserRole.TESTER:
         # Testers see only issues assigned to them
-        query = query.where(Issue.assignee_id == current_user.id)
-    elif current_user.role == UserRole.DEVELOPER:
-        # Legacy role — assigned issues only
         query = query.where(Issue.assignee_id == current_user.id)
     # ADMIN sees all — no base filter
 
@@ -433,19 +429,20 @@ async def assign_issue(
     issue = await _get_issue_or_404(issue_id, db)
 
     # Validate target user exists and has TESTER role
-    dev_result = await db.execute(select(User).where(User.id == body.developer_id))
-    developer: User | None = dev_result.scalar_one_or_none()
-    if developer is None:
+    target_assignee_id = body.tester_id or body.developer_id
+    dev_result = await db.execute(select(User).where(User.id == target_assignee_id))
+    tester: User | None = dev_result.scalar_one_or_none()
+    if tester is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {body.developer_id} not found.",
+            detail=f"User {target_assignee_id} not found.",
         )
-    if developer.role not in (UserRole.TESTER, UserRole.DEVELOPER):
+    if tester.role != UserRole.TESTER:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Issues can only be assigned to a TESTER.",
         )
-    if not developer.is_active:
+    if not tester.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot assign issue to an inactive user.",
@@ -454,7 +451,7 @@ async def assign_issue(
     old_assignee_id = issue.assignee_id
     old_status = issue.status
 
-    issue.assignee_id = body.developer_id
+    issue.assignee_id = target_assignee_id
     if issue.status == IssueStatus.REPORTED:
         issue.status = IssueStatus.ASSIGNED
 
@@ -470,21 +467,21 @@ async def assign_issue(
         entity_key=issue.issue_key,
         description=(
             f"Admin {current_user.full_name!r} assigned issue {issue.issue_key} "
-            f"to {developer.full_name!r}"
+            f"to {tester.full_name!r}"
         ),
         old_values={
             "assignee_id": old_assignee_id,
             "status": old_status,
         },
         new_values={
-            "assignee_id": body.developer_id,
-            "assignee_name": developer.full_name,
+            "assignee_id": target_assignee_id,
+            "assignee_name": tester.full_name,
             "status": issue.status,
         },
     )
 
     # Notify the assigned tester and reporter (actor = admin, never notified)
-    notify_recipients = [developer.id]
+    notify_recipients = [tester.id]
     if issue.reporter_id and issue.reporter_id != current_user.id:
         notify_recipients.append(issue.reporter_id)
 
@@ -493,7 +490,7 @@ async def assign_issue(
         user_ids=notify_recipients,
         notification_type=NotificationType.ISSUE_ASSIGNED,
         title="Issue assigned to tester",
-        message=f"Issue {issue.issue_key} has been assigned to {developer.full_name}.",
+        message=f"Issue {issue.issue_key} has been assigned to {tester.full_name}.",
         actor_id=current_user.id,
         entity_type="ISSUE",
         entity_id=issue.id,
@@ -510,7 +507,7 @@ async def assign_issue(
 async def update_issue_status(
     issue_id: int, body: IssueStatusUpdate, current_user: User, db: AsyncSession
 ) -> tuple[IssueDetailResponse, list]:
-    """TESTER/DEVELOPER: transition their assigned issue. ADMIN: force-set any status."""
+    """TESTER: transition their assigned issue. ADMIN: force-set any status."""
     issue = await _get_issue_or_404(issue_id, db)
 
     if current_user.role == UserRole.ADMIN:
@@ -524,7 +521,7 @@ async def update_issue_status(
                 detail="You can only update status on issues assigned to you.",
             )
 
-        allowed = DEVELOPER_TRANSITIONS.get(issue.status, set())
+        allowed = TESTER_TRANSITIONS.get(issue.status, set())
         if body.status not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -555,7 +552,7 @@ async def update_issue_status(
         new_values={"status": body.status},
     )
 
-    # Notify the reporter (not the developer who changed the status)
+    # Notify the reporter (not the user who changed the status)
     notifications = await notification_service.notify_users(
         db=db,
         user_ids=[reporter_id] if reporter_id else [],
@@ -581,7 +578,7 @@ async def update_issue_status(
 async def resolve_issue(
     issue_id: int, body: IssueResolve, current_user: User, db: AsyncSession
 ) -> tuple[IssueDetailResponse, list]:
-    """DEVELOPER: mark their assigned issue as resolved."""
+    """TESTER: mark their assigned issue as resolved."""
     issue = await _get_issue_or_404(issue_id, db)
 
     if issue.assignee_id != current_user.id:
@@ -625,7 +622,7 @@ async def resolve_issue(
         entity_id=issue.id,
         entity_key=issue.issue_key,
         description=(
-            f"Developer {current_user.full_name!r} resolved issue {issue.issue_key}"
+            f"Tester {current_user.full_name!r} resolved issue {issue.issue_key}"
         ),
         old_values={"status": old_status},
         new_values={
@@ -635,7 +632,7 @@ async def resolve_issue(
         },
     )
 
-    # Notify the reporter (not the developer who resolved)
+    # Notify the reporter (not the tester who resolved)
     notifications = await notification_service.notify_users(
         db=db,
         user_ids=[reporter_id] if reporter_id else [],

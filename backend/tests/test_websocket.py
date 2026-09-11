@@ -19,8 +19,8 @@ from app.services.websocket_manager import ws_manager
 from tests.conftest import (
     admin_token,
     auth_header,
-    dev_token,
-    dev2_token,
+    tester3_token,
+    tester4_token,
     tester_token,
 )
 
@@ -74,7 +74,7 @@ def _get_user_id_by_email(email: str, token: str) -> int:
 
 class TestWebSocketAuth:
     def test_ws_connect_success(self):
-        tok = dev_token()
+        tok = tester3_token()
         with client.websocket_connect(f"/ws/notifications?token={tok}") as ws:
             # Connection open, send keepalive text frame
             ws.send_text("ping")
@@ -93,8 +93,8 @@ class TestWebSocketAuth:
 
     def test_ws_connect_deactivated_user_rejected_4003(self):
         adm = admin_token()
-        dev2 = dev2_token()
-        dev2_id = _get_user_id_by_email("dev2.p4ci@example.com", adm)
+        dev2 = tester4_token()
+        dev2_id = _get_user_id_by_email("tester4.p4ci@example.com", adm)
 
         # Deactivate dev2
         r_deact = client.patch(f"/users/{dev2_id}/deactivate", headers=auth_header(adm))
@@ -116,9 +116,9 @@ class TestWebSocketAuth:
 
 class TestWebSocketRealTimeDelivery:
     def test_ws_direct_send(self):
-        tok = dev_token()
+        tok = tester3_token()
         adm = admin_token()
-        dev_id = _get_user_id_by_email("dev.p4ci@example.com", adm)
+        dev_id = _get_user_id_by_email("tester3.p4ci@example.com", adm)
 
         with client.websocket_connect(f"/ws/notifications?token={tok}") as ws:
             # Test direct connection dispatch

@@ -645,6 +645,8 @@ async def get_sprint_analytics(db: AsyncSession, sprint_id: int) -> SprintAnalyt
         rem_cnt = max(0, assigned_cnt - comp_cnt)
         role_name = wl.role.value if hasattr(wl.role, "value") else str(wl.role)
         workload.append({
+            "tester_id": wl.id,
+            "tester_name": wl.full_name,
             "developer_id": wl.id,
             "developer_name": wl.full_name,
             "role": role_name,
@@ -664,6 +666,8 @@ async def get_sprint_analytics(db: AsyncSession, sprint_id: int) -> SprintAnalyt
             seen_user_ids.add(tester_user.id)
             t_role = tester_user.role.value if hasattr(tester_user.role, "value") else str(tester_user.role)
             workload.append({
+                "tester_id": tester_user.id,
+                "tester_name": tester_user.full_name,
                 "developer_id": tester_user.id,
                 "developer_name": tester_user.full_name,
                 "role": t_role,
@@ -684,7 +688,7 @@ async def get_sprint_analytics(db: AsyncSession, sprint_id: int) -> SprintAnalyt
             select(User)
             .where(
                 User.is_active == True,
-                User.role.in_([UserRole.TESTER, UserRole.DEVELOPER]),
+                User.role == UserRole.TESTER,
                 User.id.notin_(seen_user_ids)
             )
             .order_by(User.id)
@@ -694,6 +698,8 @@ async def get_sprint_analytics(db: AsyncSession, sprint_id: int) -> SprintAnalyt
             seen_user_ids.add(u.id)
             u_role = u.role.value if hasattr(u.role, "value") else str(u.role)
             workload.append({
+                "tester_id": u.id,
+                "tester_name": u.full_name,
                 "developer_id": u.id,
                 "developer_name": u.full_name,
                 "role": u_role,
@@ -892,15 +898,15 @@ async def assign_tester(
     """Assign a tester to a sprint. ADMIN only."""
     sprint = await get_sprint_by_id(db, sprint_id)
 
-    # Validate tester exists and has TESTER/DEVELOPER role
+    # Validate tester exists and has TESTER role
     tester_result = await db.execute(select(User).where(User.id == tester_id))
     tester = tester_result.scalar_one_or_none()
     if not tester:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tester user not found")
-    if tester.role not in (UserRole.TESTER, UserRole.DEVELOPER):
+    if tester.role != UserRole.TESTER:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"User '{tester.full_name}' does not have TESTER or DEVELOPER role"
+            detail=f"User '{tester.full_name}' does not have TESTER role"
         )
 
     old_tester_id = sprint.assigned_tester_id

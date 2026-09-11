@@ -65,8 +65,8 @@ export function getNotificationDestination(
 
   // Rule 2 & 5: Sprint & Approval notifications
   if (isSprintRelated || isApprovalText) {
-    // TESTER / DEVELOPER:
-    if (role === 'TESTER' || role === 'DEVELOPER') {
+    // TESTER:
+    if (role === 'TESTER') {
       return withQueryParam('/tester-sprints', 'sprintId', entityId);
     }
 
@@ -146,7 +146,7 @@ export function getNotificationDestination(
     const dest = notif.destination.trim();
     if (dest.startsWith('/admin') && role !== 'ADMIN') {
       // Forbidden for non-admin
-    } else if (dest.startsWith('/tester') && role !== 'TESTER' && role !== 'DEVELOPER') {
+    } else if (dest.startsWith('/tester') && role !== 'TESTER') {
       // Forbidden for non-tester
     } else {
       return dest;
@@ -155,6 +155,6 @@ export function getNotificationDestination(
 
   // Rule 12: Safe fallback to appropriate dashboard per role
   if (role === 'ADMIN') return '/admin-dashboard';
-  if (role === 'TESTER' || role === 'DEVELOPER') return '/tester-dashboard';
+  if (role === 'TESTER') return '/tester-dashboard';
   return '/dashboard';
 }

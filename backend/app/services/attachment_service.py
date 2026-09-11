@@ -27,8 +27,8 @@ Transaction safety:
 
 RBAC:
   ADMIN     → any issue
-  DEVELOPER → assigned issues only
-  TESTER    → own reported issues only
+  TESTER    → assigned or reported issues
+  USER      → own reported issues only
 """
 
 import math
@@ -233,7 +233,6 @@ def _check_issue_access(issue: Issue, current_user: User) -> None:
     ADMIN     → any issue
     TESTER    → issues assigned to them OR that they reported
     USER      → only issues they reported
-    DEVELOPER → only assigned issues (legacy)
     """
     if current_user.role == UserRole.ADMIN:
         return
@@ -243,11 +242,11 @@ def _check_issue_access(issue: Issue, current_user: User) -> None:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only upload attachments to issues you reported.",
             )
-    elif current_user.role in (UserRole.TESTER, UserRole.DEVELOPER):
-        if issue.assignee_id != current_user.id:
+    elif current_user.role == UserRole.TESTER:
+        if issue.assignee_id != current_user.id and issue.reporter_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only upload attachments to issues assigned to you.",
+                detail="You can only upload attachments to issues assigned to or reported by you.",
             )
 
 

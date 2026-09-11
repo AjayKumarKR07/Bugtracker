@@ -52,7 +52,7 @@ export const IssueDetailPage: React.FC = () => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activityLogs, setActivityLogs] = useState<AuditLogItem[]>([]);
-  const [developers, setDevelopers] = useState<UserDetail[]>([]);
+  const [testers, setTesters] = useState<UserDetail[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +61,7 @@ export const IssueDetailPage: React.FC = () => {
 
   // Modals & Action States
   const [isAssignOpen, setIsAssignOpen] = useState<boolean>(false);
-  const [selectedDevId, setSelectedDevId] = useState<number | ''>('');
+  const [selectedTesterId, setSelectedTesterId] = useState<number | ''>('');
   const [isResolveOpen, setIsResolveOpen] = useState<boolean>(false);
   const [resolutionSummary, setResolutionSummary] = useState<string>('');
   const [isReopenOpen, setIsReopenOpen] = useState<boolean>(false);
@@ -107,13 +107,13 @@ export const IssueDetailPage: React.FC = () => {
     }
   };
 
-  const fetchDevelopers = async () => {
+  const fetchTesters = async () => {
     if (user?.role === 'ADMIN') {
       try {
         const data = await usersApi.list({ role: 'TESTER', is_active: true });
-        setDevelopers(data.items || []);
+        setTesters(data.items || []);
         if (data.items.length > 0) {
-          setSelectedDevId(data.items[0].id);
+          setSelectedTesterId(data.items[0].id);
         }
       } catch {
         // Ignore
@@ -123,17 +123,17 @@ export const IssueDetailPage: React.FC = () => {
 
   useEffect(() => {
     fetchIssueData();
-    fetchDevelopers();
+    fetchTesters();
   }, [issueId]);
 
   // Actions
   const handleAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDevId) return;
+    if (!selectedTesterId) return;
     setIsActionSubmitting(true);
     setActionError(null);
     try {
-      const updated = await issuesApi.assign(issueId, { developer_id: Number(selectedDevId) });
+      const updated = await issuesApi.assign(issueId, { tester_id: Number(selectedTesterId) });
       setIssue(updated);
       setIsAssignOpen(false);
       fetchIssueData();
@@ -305,7 +305,7 @@ export const IssueDetailPage: React.FC = () => {
     return <ErrorMessage message={error || 'Defect not found'} onRetry={fetchIssueData} />;
   }
 
-  const isAssignedDev = (user?.role === 'TESTER' || user?.role === 'DEVELOPER') && issue.assignee?.id === user?.id;
+  const isAssignedDev = user?.role === 'TESTER' && issue.assignee?.id === user?.id;
   const isReporter = issue.reporter?.id === user?.id;
   const canReopen = (isReporter || user?.role === 'ADMIN') && ['RESOLVED', 'CLOSED', 'IN_TESTING'].includes(issue.status);
   const canClose = (isReporter || user?.role === 'ADMIN') && issue.status === 'RESOLVED';
@@ -1233,7 +1233,7 @@ export const IssueDetailPage: React.FC = () => {
         </Modal>
       )}
 
-      {/* Assign Developer Modal (ADMIN only) */}
+      {/* Assign Tester Modal (ADMIN only) */}
       <Modal
         isOpen={isAssignOpen}
         onClose={() => setIsAssignOpen(false)}
@@ -1250,15 +1250,15 @@ export const IssueDetailPage: React.FC = () => {
               Select Active Tester
             </label>
             <select
-              id="dev-select"
+              id="tester-select"
               required
               className="form-select"
-              value={selectedDevId}
-              onChange={(e) => setSelectedDevId(Number(e.target.value))}
+              value={selectedTesterId}
+              onChange={(e) => setSelectedTesterId(Number(e.target.value))}
             >
-              {developers.map((dev) => (
-                <option key={dev.id} value={dev.id}>
-                  {dev.full_name} ({dev.email})
+              {testers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.full_name} ({t.email})
                 </option>
               ))}
             </select>

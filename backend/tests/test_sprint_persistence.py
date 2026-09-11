@@ -46,11 +46,11 @@ def test_sprint_database_persistence_end_to_end():
     project_id = r_proj.json()["id"]
 
     # Get tester user ID
+    target_email = _ci_email("tester3")
     r_users = _CLIENT.get(
-        "/users", params={"role": "TESTER", "page_size": 100}, headers=admin_headers
+        "/users", params={"role": "TESTER", "search": target_email, "page_size": 10}, headers=admin_headers
     )
     assert r_users.status_code == 200
-    target_email = _ci_email("tester3")
     tester_id = None
     for u in r_users.json().get("items", []):
         if u["email"] == target_email:

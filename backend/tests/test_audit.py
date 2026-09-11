@@ -92,9 +92,6 @@ _run_sync(_get_or_create_user(
     f"admin.{_CI_SUFFIX}@example.com", "Admin P5CI", UserRole.ADMIN
 ))
 _run_sync(_get_or_create_user(
-    f"dev.{_CI_SUFFIX}@example.com", "Dev P5CI", UserRole.DEVELOPER
-))
-_run_sync(_get_or_create_user(
     f"tester.{_CI_SUFFIX}@example.com", "Tester P5CI", UserRole.TESTER
 ))
 _run_sync(_get_or_create_user(
@@ -104,7 +101,6 @@ _run_sync(_get_or_create_user(
 # NOTE: These are separate p5ci tokens, not the shared conftest tokens,
 # to avoid cross-contamination with Phase 4 tests.
 _ADMIN_TOKEN = _login("admin")
-_DEV_TOKEN = _login("dev")
 _TESTER_TOKEN = _login("tester")
 _USER_TOKEN = _login("user")
 
@@ -113,7 +109,7 @@ def _admin_hdr():
     return auth_header(_ADMIN_TOKEN)
 
 def _dev_hdr():
-    return auth_header(_DEV_TOKEN)
+    return auth_header(_TESTER_TOKEN)
 
 def _tester_hdr():
     return auth_header(_TESTER_TOKEN)

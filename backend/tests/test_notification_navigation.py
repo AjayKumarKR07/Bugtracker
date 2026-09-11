@@ -33,7 +33,6 @@ from app.schemas.notification import NotificationResponse
 from tests.conftest import (
     admin_token,
     auth_header,
-    dev_token,
     tester_token,
     user_token,
 )

@@ -271,7 +271,7 @@ export const AdminDashboardPage: React.FC = () => {
     if (!selectedIssueId) return;
     setAssigning(true);
     try {
-      await issuesApi.assign(selectedIssueId, { developer_id: testerId });
+      await issuesApi.assign(selectedIssueId, { tester_id: testerId });
       setToastMessage({ type: 'success', text: 'Issue assigned successfully' });
       setAssignModalOpen(false);
       fetchData(true);
@@ -1800,7 +1800,7 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="card-header">
               <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Activity size={18} />
-                Team Workload (Testers &amp; Developers)
+                Team Workload (Testers)
               </h2>
             </div>
             {workloads.length === 0 ? (
@@ -1808,9 +1808,9 @@ export const AdminDashboardPage: React.FC = () => {
                 <p>No workload data available.</p>
               </div>
             ) : (
-              <div className="table-container" style={{ borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderRadius: 0 }}>
+              <div className="table-container" style={{ borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderRadius: 0, maxHeight: '420px', overflowY: 'auto' }}>
                 <table className="data-table">
-                  <thead>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg-surface-raised, #182234)' }}>
                     <tr>
                       <th>Name</th>
                       <th>Assigned</th>
@@ -1826,12 +1826,14 @@ export const AdminDashboardPage: React.FC = () => {
                       return (
                         <tr key={w.developer_id} style={{ background: isHighLoad ? 'rgba(239,68,68,0.05)' : undefined }}>
                           <td style={{ fontWeight: '500' }}>
-                            {w.developer_name}
-                            {isHighLoad && (
-                              <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', color: '#ef4444', fontWeight: '600', padding: '0.1rem 0.3rem', border: '1px solid #ef4444', borderRadius: '4px' }}>
-                                HIGH LOAD
-                              </span>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                              <span>{w.developer_name}</span>
+                              {isHighLoad && (
+                                <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: '600', padding: '0.1rem 0.3rem', border: '1px solid #ef4444', borderRadius: '4px' }}>
+                                  HIGH LOAD
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td>{w.assigned_issues}</td>
                           <td>{w.open_issues}</td>
@@ -2000,7 +2002,6 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="card-body">
               <BarRow label="Users" count={stats.users.users} total={stats.users.total} color="#3b82f6" />
               <BarRow label="Testers" count={stats.users.testers} total={stats.users.total} color="#22c55e" />
-              <BarRow label="Developers" count={stats.users.developers} total={stats.users.total} color="#8b5cf6" />
               <BarRow label="Admins" count={stats.users.admins} total={stats.users.total} color="#f97316" />
 
               <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem' }}>
@@ -2027,10 +2028,10 @@ export const AdminDashboardPage: React.FC = () => {
               </h2>
             </div>
             <div className="card-body">
-              <BarRow label="Blocker" count={stats.severity.blocker} total={stats.issues.unresolved} color="#ef4444" />
-              <BarRow label="Critical" count={stats.severity.critical} total={stats.issues.unresolved} color="#f97316" />
-              <BarRow label="Major" count={stats.severity.major} total={stats.issues.unresolved} color="#f59e0b" />
-              <BarRow label="Minor" count={stats.severity.minor} total={stats.issues.unresolved} color="#3b82f6" />
+              <BarRow label="Blocker" count={stats.severity.blocker} total={stats.issues.total} color="#ef4444" />
+              <BarRow label="Critical" count={stats.severity.critical} total={stats.issues.total} color="#f97316" />
+              <BarRow label="Major" count={stats.severity.major} total={stats.issues.total} color="#f59e0b" />
+              <BarRow label="Minor" count={stats.severity.minor} total={stats.issues.total} color="#3b82f6" />
             </div>
           </section>
         </div>

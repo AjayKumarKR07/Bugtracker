@@ -103,7 +103,7 @@ async def register(
     body: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
-    """Register a new DEVELOPER or TESTER account.
+    """Register a new user (TESTER or USER) account.
 
     Validates input, hashes password, creates user, generates OTP,
     and sends verification email. ADMIN registration is blocked.

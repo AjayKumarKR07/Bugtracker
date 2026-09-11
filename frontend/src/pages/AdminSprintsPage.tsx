@@ -197,6 +197,7 @@ export const AdminSprintsPage: React.FC = () => {
       };
 
       const created = await SprintService.createSprint(payload);
+
       setToastMessage({ type: 'success', text: `Sprint '${createForm.name}' created successfully (placed at TOP)` });
       setCreateModalOpen(false);
       setCreateForm({
@@ -888,11 +889,19 @@ export const AdminSprintsPage: React.FC = () => {
               value={createForm.project_id}
               onChange={(e) => setCreateForm({ ...createForm, project_id: Number(e.target.value) })}
             >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.project_key} — {p.name}
-                </option>
-              ))}
+              {projects
+                .filter((p) => p.status === 'ACTIVE')
+                .slice()
+                .sort((a, b) => {
+                  if (a.project_key === 'ISEC') return -1;
+                  if (b.project_key === 'ISEC') return 1;
+                  return a.name.localeCompare(b.name);
+                })
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.project_key} — {p.name}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -1052,12 +1061,32 @@ export const AdminSprintsPage: React.FC = () => {
               <LoadingSpinner message="Fetching backlog issues..." />
             </div>
           ) : projectBacklogIssues.length === 0 ? (
-            <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-              No unassigned backlog issues found in this project.
+            <div
+              style={{
+                padding: '2rem 1.5rem',
+                textAlign: 'center',
+                backgroundColor: 'var(--bg-surface-elevated)',
+                borderRadius: '10px',
+                border: '1px dashed var(--border-subtle)',
+              }}
+            >
+              <Layers size={32} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
+                No unassigned backlog defects in this project yet
+              </div>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '380px', margin: '0 auto' }}>
+                All defects in this project are currently assigned to active sprints or already resolved.
+              </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '420px', overflowY: 'auto' }}>
-              {projectBacklogIssues.map((issue) => (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                  {projectBacklogIssues.length} available backlog defect{projectBacklogIssues.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '380px', overflowY: 'auto' }}>
+                {projectBacklogIssues.map((issue) => (
                 <div
                   key={issue.id}
                   style={{
@@ -1094,7 +1123,8 @@ export const AdminSprintsPage: React.FC = () => {
                 </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
         </div>
       </Modal>
 

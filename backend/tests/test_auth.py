@@ -46,7 +46,7 @@ client = TestClient(app)
 # Helpers                                                                      #
 # =========================================================================== #
 
-def _make_token(user_id: int = 1, role: str = "DEVELOPER", expire_delta_minutes: int = 60) -> str:
+def _make_token(user_id: int = 1, role: str = "TESTER", expire_delta_minutes: int = 60) -> str:
     """Create a JWT token directly (bypasses DB — for unit tests)."""
     now = datetime.now(UTC)
     payload = {
@@ -98,7 +98,7 @@ class TestPasswordHashing:
 
 class TestJWT:
     def test_create_token_returns_string(self) -> None:
-        token = create_access_token(user_id=42, role="DEVELOPER")
+        token = create_access_token(user_id=42, role="TESTER")
         assert isinstance(token, str) and len(token) > 10
 
     def test_decode_valid_token_returns_payload(self) -> None:
@@ -126,9 +126,8 @@ class TestJWT:
 # =========================================================================== #
 
 class TestRegistration:
-    def test_valid_developer_registration(self) -> None:
-        """POST /auth/register with DEVELOPER role returns 422 — DEVELOPER is a legacy role
-        that cannot be registered publicly. Only USER and TESTER are allowed."""
+    def test_developer_registration_rejected_422(self) -> None:
+        """POST /auth/register with DEVELOPER role returns 422 — DEVELOPER is rejected in three-role model."""
         with patch("app.routes.auth.send_otp_email", new_callable=AsyncMock):
             response = client.post("/auth/register", json={
                 "full_name": "Test Developer",
@@ -337,7 +336,7 @@ class TestLogin:
                 "full_name": "Login OK",
                 "email": email,
                 "password": password,
-                "role": "DEVELOPER",
+                "role": "TESTER",
             })
 
         if reg.status_code == 409:
@@ -418,7 +417,7 @@ class TestAuthMe:
                 "full_name": "Me Test User",
                 "email": email,
                 "password": password,
-                "role": "DEVELOPER",
+                "role": "TESTER",
             })
 
         if reg.status_code == 201 and captured_otp:
@@ -442,9 +441,9 @@ class TestAuthMe:
 
 class TestRBAC:
     def test_correct_role_allowed(self) -> None:
-        """require_role(DEVELOPER) allows a DEVELOPER token."""
+        """require_role(TESTER) returns a callable dependency."""
         from app.dependencies.auth import require_role
-        dep = require_role(UserRole.DEVELOPER)
+        dep = require_role(UserRole.TESTER)
         assert callable(dep)
 
     def test_wrong_role_returns_403(self) -> None:
@@ -530,7 +529,7 @@ class TestPasswordlessAuth:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
         assert data["user"]["email"] == email
-        assert data["user"]["role"] in ("DEVELOPER", "TESTER", "ADMIN", "USER")
+        assert data["user"]["role"] in ("TESTER", "ADMIN", "USER")
         assert data["user"]["is_active"] is True
         assert data["user"]["is_email_verified"] is True
 

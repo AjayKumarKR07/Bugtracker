@@ -69,8 +69,8 @@ async def upload_attachment(
 
     **Access:**
     - ADMIN: any issue
-    - DEVELOPER: assigned issues only
-    - TESTER: own reported issues only
+    - TESTER: assigned or reported issues
+    - USER: own reported issues only
     """
     from app.services.websocket_manager import ws_manager
     attachment, notifications = await attachment_service.save_attachment(

@@ -431,12 +431,12 @@ def generate_sprint_report(
     # -------------------------------------------------------------------------
     # 5. TEAM WORKLOAD ALLOCATION
     # -------------------------------------------------------------------------
-    story.append(Paragraph("<b>Team Workload & Developer Distribution</b>", section_heading_style))
+    story.append(Paragraph("<b>Team Workload (Testers)</b>", section_heading_style))
     story.append(Spacer(1, 6))
 
     if analytics.workload and len(analytics.workload) > 0:
         wl_headers = [
-            Paragraph("Team Member / Developer", tbl_header_style),
+            Paragraph("Tester", tbl_header_style),
             Paragraph("Assigned", tbl_header_style),
             Paragraph("Completed", tbl_header_style),
             Paragraph("In Progress", tbl_header_style),
@@ -452,7 +452,7 @@ def generate_sprint_report(
             row_bg = colors.HexColor("#FFFFFF") if i % 2 == 0 else colors.HexColor("#F8FAFC")
 
             wl_rows.append([
-                Paragraph(f"<b>{wl['developer_name']}</b>", tbl_cell_left_style),
+                Paragraph(f"<b>{wl.get('tester_name') or wl.get('developer_name')}</b>", tbl_cell_left_style),
                 Paragraph(str(assigned), tbl_cell_style),
                 Paragraph(f"<font color='#10B981'><b>{done}</b></font>", tbl_cell_style),
                 Paragraph(str(wl["in_progress_issues"]), tbl_cell_style),
@@ -480,7 +480,7 @@ def generate_sprint_report(
     else:
         empty_wl_data = [[
             Paragraph(
-                "<i>No team workload recorded. There are currently no issues assigned to developers within this sprint.</i>",
+                "<i>No team workload recorded. There are currently no issues assigned to testers within this sprint.</i>",
                 ParagraphStyle("EmptyWL", parent=styles["Normal"], fontName="Helvetica-Oblique", fontSize=8.5, textColor=colors.HexColor("#64748B")),
             )
         ]]

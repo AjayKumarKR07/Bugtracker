@@ -27,7 +27,7 @@ class UserStats(BaseModel):
     active: int
     inactive: int
     admins: int
-    developers: int
+    developers: int = 0
     testers: int
     users: int          # USER role (issue reporters)
     verified: int

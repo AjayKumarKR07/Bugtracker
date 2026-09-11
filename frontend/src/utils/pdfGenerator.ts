@@ -297,7 +297,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(15, 23, 42);
-    doc.text('4. Tester & Developer Productivity', 14, yPos);
+    doc.text('4. Tester Productivity & Workload', 14, yPos);
     yPos += 4;
 
     const devRows = data.devAnalytics.map((dev) => [
@@ -311,7 +311,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
 
     autoTable(doc, {
       startY: yPos,
-      head: [['Member Name', 'Email', 'Assigned', 'Resolved', 'Open', 'Resolution Rate']],
+      head: [['Tester Name', 'Email', 'Assigned', 'Resolved', 'Open', 'Resolution Rate']],
       body: devRows,
       theme: 'grid',
       headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },

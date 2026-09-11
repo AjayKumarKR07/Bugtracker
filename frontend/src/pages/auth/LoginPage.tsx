@@ -29,7 +29,7 @@ function getRoleRedirect(role: UserRole, requestedFrom: string): string {
     return requestedFrom;
   }
   if (role === 'ADMIN') return '/admin-dashboard';
-  if (role === 'TESTER' || role === 'DEVELOPER') return '/tester-dashboard';
+  if (role === 'TESTER') return '/tester-dashboard';
   return '/dashboard';
 }
 

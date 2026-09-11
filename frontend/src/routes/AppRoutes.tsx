@@ -60,8 +60,8 @@ export const AppRoutes: React.FC = () => {
             </Route>
 
 
-            {/* Tester / Developer Protected Routes */}
-            <Route element={<RoleProtectedRoute allowedRoles={['TESTER', 'DEVELOPER']} />}>
+            {/* Tester Protected Routes */}
+            <Route element={<RoleProtectedRoute allowedRoles={['TESTER']} />}>
               <Route path="/tester-dashboard" element={<TesterDashboardPage />} />
               <Route path="/tester-sprints" element={<TesterSprintsPage />} />
               <Route path="/tester-issues" element={<TesterIssuesPage />} />

@@ -228,7 +228,7 @@ def _extract_keywords_from_text(text: str) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
-# Feature 2: Smart Developer Matcher (Mentor spec)                             #
+# Feature 2: Smart Tester Matcher / Smart Assignee Matcher                   #
 # --------------------------------------------------------------------------- #
 
 async def suggest_assignee(
@@ -236,7 +236,7 @@ async def suggest_assignee(
     db: AsyncSession,
 ) -> DeveloperMatchResponse:
     """
-    Return TOP 3 ranked developers for the given issue using:
+    Return TOP 3 ranked testers for the given issue using:
     1. Keyword/skill match from issue title+description
     2. Current open bug workload (fewer = better)
     3. Historical resolution rate
@@ -258,10 +258,10 @@ async def suggest_assignee(
     if type_domain not in required_domains:
         required_domains.append(type_domain)
 
-    # Fetch all active TESTER/DEVELOPER users
+    # Fetch all active TESTER users
     users_result = await db.execute(
         select(User).where(
-            User.role.in_([UserRole.TESTER, UserRole.DEVELOPER]),
+            User.role == UserRole.TESTER,
             User.is_active == True,  # noqa: E712
         )
     )

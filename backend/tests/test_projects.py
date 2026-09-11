@@ -23,12 +23,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from tests.conftest import admin_token, auth_header, dev_token
+from tests.conftest import admin_token, auth_header, user_token
 from tests.conftest import tester_token as _get_tester_token
 
 # Define local wrappers to avoid pytest collecting 'tester_*' names
 _admin_tok = admin_token
-_dev_tok = dev_token
+_user_tok = user_token
 _tester_tok = _get_tester_token
 
 client = TestClient(app)
@@ -124,11 +124,11 @@ class TestProjectCreation:
         )
         assert r.status_code == 422
 
-    def test_developer_cannot_create_project_403(self) -> None:
+    def test_user_cannot_create_project_403(self) -> None:
         r = client.post(
             "/projects",
-            json={"name": "Dev Project", "project_key": _fresh_key("DEVP")},
-            headers=auth_header(_dev_tok()),
+            json={"name": "User Project", "project_key": _fresh_key("USRP")},
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 403
 
@@ -163,8 +163,8 @@ class TestProjectListing:
         assert "page" in data
         assert "total_pages" in data
 
-    def test_developer_can_list_projects(self) -> None:
-        r = client.get("/projects", headers=auth_header(_dev_tok()))
+    def test_user_can_list_projects(self) -> None:
+        r = client.get("/projects", headers=auth_header(_user_tok()))
         assert r.status_code == 200
 
     def test_tester_can_list_projects(self) -> None:
@@ -225,12 +225,12 @@ class TestProjectUpdate:
         assert r.status_code == 200
         assert r.json()["description"] == "New description here"
 
-    def test_developer_cannot_update_project_403(self) -> None:
-        proj = _create_project(_fresh_key("UDV"), "Dev Update Forbidden")
+    def test_user_cannot_update_project_403(self) -> None:
+        proj = _create_project(_fresh_key("UDV"), "User Update Forbidden")
         r = client.patch(
             f"/projects/{proj['id']}",
             json={"name": "Hacked Name"},
-            headers=auth_header(_dev_tok()),
+            headers=auth_header(_user_tok()),
         )
         assert r.status_code == 403
 
@@ -258,9 +258,9 @@ class TestProjectUpdate:
         r = client.patch(f"/projects/{proj['id']}/deactivate", headers=auth_header(_admin_tok()))
         assert r.status_code == 400
 
-    def test_developer_cannot_deactivate_403(self) -> None:
-        proj = _create_project(_fresh_key("DVDC"), "Dev Deactivate Forbidden")
-        r = client.patch(f"/projects/{proj['id']}/deactivate", headers=auth_header(_dev_tok()))
+    def test_user_cannot_deactivate_403(self) -> None:
+        proj = _create_project(_fresh_key("DVDC"), "User Deactivate Forbidden")
+        r = client.patch(f"/projects/{proj['id']}/deactivate", headers=auth_header(_user_tok()))
         assert r.status_code == 403
 
     def test_tester_cannot_deactivate_403(self) -> None:

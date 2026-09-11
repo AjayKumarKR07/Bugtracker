@@ -29,8 +29,6 @@ from tests.conftest import (
     _run_sync,
     admin_token,
     auth_header,
-    dev_token,
-    dev2_token,
     tester2_token,
     tester3_token,
     tester_token,
@@ -103,8 +101,8 @@ class TestSystemOverview:
         r = _CLIENT.get("/analytics/overview")
         assert r.status_code == 401
 
-    def test_developer_returns_403(self):
-        r = _CLIENT.get("/analytics/overview", headers=auth_header(dev_token()))
+    def test_user_returns_403(self):
+        r = _CLIENT.get("/analytics/overview", headers=auth_header(user_token()))
         assert r.status_code == 403
 
     def test_tester_returns_403(self):
@@ -373,8 +371,8 @@ class TestDeveloperAnalytics:
         r = _CLIENT.get("/analytics/developers")
         assert r.status_code == 401
 
-    def test_developer_returns_403(self):
-        r = _CLIENT.get("/analytics/developers", headers=auth_header(dev_token()))
+    def test_user_returns_403(self):
+        r = _CLIENT.get("/analytics/developers", headers=auth_header(user_token()))
         assert r.status_code == 403
 
     def test_tester_returns_403(self):

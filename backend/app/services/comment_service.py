@@ -5,8 +5,8 @@ Business logic for issue comment CRUD operations.
 
 RBAC (mirrors existing issue visibility):
   ADMIN     → can comment on / view comments for any issue
-  DEVELOPER → can comment on / view comments for assigned issues only
-  TESTER    → can comment on / view comments for their own reported issues
+  TESTER    → can comment on / view comments for assigned or reported issues
+  USER      → can comment on / view comments for their own reported issues
 
 Update / Delete ownership:
   Only the original author can edit/delete their comment.
@@ -64,7 +64,6 @@ def _check_issue_access(issue: Issue, current_user: User) -> None:
     ADMIN      → any issue
     TESTER     → issues assigned to them OR that they reported
     USER       → only issues they reported
-    DEVELOPER  → only assigned issues (legacy)
 
     Raises HTTP 403 if access is denied.
     """
@@ -76,11 +75,11 @@ def _check_issue_access(issue: Issue, current_user: User) -> None:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only comment on issues you reported.",
             )
-    elif current_user.role in (UserRole.TESTER, UserRole.DEVELOPER):
-        if issue.assignee_id != current_user.id:
+    elif current_user.role == UserRole.TESTER:
+        if issue.assignee_id != current_user.id and issue.reporter_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only comment on issues assigned to you.",
+                detail="You can only comment on issues assigned to or reported by you.",
             )
 
 

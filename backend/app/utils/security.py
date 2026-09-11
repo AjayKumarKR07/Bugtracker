@@ -61,7 +61,7 @@ def create_access_token(user_id: int, role: str) -> str:
 
     Payload:
       sub   — str(user_id)
-      role  — user role string (e.g. "DEVELOPER")
+      role  — user role string (e.g. "TESTER")
       iat   — issued-at (UTC)
       exp   — expiry (UTC, ACCESS_TOKEN_EXPIRE_MINUTES from now)
     """

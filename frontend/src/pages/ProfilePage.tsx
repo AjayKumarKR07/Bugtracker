@@ -399,13 +399,7 @@ export const ProfilePage: React.FC = () => {
                     <li>Full organization-wide administration and project management.</li>
                     <li>Assign defects to testers and reassign workloads.</li>
                     <li>Manage user accounts, roles, and activation status.</li>
-                    <li>View global defect analytics and developer productivity metrics.</li>
-                  </>
-                )}
-                {profile.role === 'DEVELOPER' && (
-                  <>
-                    <li>Legacy developer role — full access to assigned defect workflows.</li>
-                    <li>Investigate and resolve assigned defects.</li>
+                    <li>View global defect analytics and tester productivity metrics.</li>
                   </>
                 )}
               </ul>

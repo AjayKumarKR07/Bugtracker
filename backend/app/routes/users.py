@@ -5,8 +5,8 @@ All routes are ADMIN-only.
 
 RBAC:
   ADMIN       → 200 / 201
-  DEVELOPER   → 403
   TESTER      → 403
+  USER        → 403
   Unauth      → 401
 
 Endpoints:
@@ -252,7 +252,7 @@ async def change_user_role(
 ) -> UserDetailResponse:
     """Change the role of a user. **ADMIN only.**
 
-    Allowed roles: ADMIN, DEVELOPER, TESTER.
+    Allowed roles: ADMIN, TESTER, USER.
 
     Will refuse if the target is the last active ADMIN and the new role
     is not ADMIN (last-admin protection).

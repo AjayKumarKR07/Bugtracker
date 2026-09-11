@@ -3,8 +3,8 @@ Project management routes — Phase 4.
 
 RBAC:
   POST   /projects                    → ADMIN
-  GET    /projects                    → ADMIN, DEVELOPER, TESTER (all authenticated)
-  GET    /projects/{id}               → ADMIN, DEVELOPER, TESTER
+  GET    /projects                    → ADMIN, TESTER, USER (all authenticated)
+  GET    /projects/{id}               → ADMIN, TESTER, USER
   PATCH  /projects/{id}               → ADMIN
   PATCH  /projects/{id}/deactivate    → ADMIN
 """

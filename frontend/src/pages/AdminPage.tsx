@@ -144,7 +144,7 @@ export const AdminPage: React.FC = () => {
   const [usersError, setUsersError] = useState<string | null>(null);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
-  const [targetRole, setTargetRole] = useState<UserRole>('DEVELOPER');
+  const [targetRole, setTargetRole] = useState<UserRole>('TESTER');
   const [roleModalError, setRoleModalError] = useState<string | null>(null);
   const [isSubmittingRole, setIsSubmittingRole] = useState(false);
 
@@ -298,7 +298,7 @@ export const AdminPage: React.FC = () => {
     setAssignLoading(true);
     setAssignError(null);
     try {
-      await issuesApi.assign(assignModalIssue.id, { developer_id: Number(selectedDevId) });
+      await issuesApi.assign(assignModalIssue.id, { tester_id: Number(selectedDevId) });
       setAssignModalIssue(null);
       fetchIssues();
     } catch (err) {
@@ -1158,8 +1158,8 @@ export const AdminPage: React.FC = () => {
               <select className="form-select" style={{ width: 'auto', minWidth: '130px' }} value={usersRoleFilter} onChange={(e) => { setUsersRoleFilter(e.target.value as UserRole | ''); setUsersPage(1); }}>
                 <option value="">All Roles</option>
                 <option value="ADMIN">ADMIN</option>
-                <option value="DEVELOPER">DEVELOPER</option>
                 <option value="TESTER">TESTER</option>
+                <option value="USER">USER</option>
               </select>
               <select className="form-select" style={{ width: 'auto', minWidth: '130px' }} value={usersActiveFilter === '' ? '' : usersActiveFilter ? 'true' : 'false'} onChange={(e) => { setUsersActiveFilter(e.target.value === '' ? '' : e.target.value === 'true'); setUsersPage(1); }}>
                 <option value="">All Statuses</option>
@@ -1209,7 +1209,7 @@ export const AdminPage: React.FC = () => {
                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{u.email}</div>
                             </td>
                             <td>
-                              <span className={`user-role-badge ${u.role === 'ADMIN' ? 'role-admin' : u.role === 'DEVELOPER' ? 'role-developer' : 'role-tester'}`}>
+                              <span className={`user-role-badge ${u.role === 'ADMIN' ? 'role-admin' : u.role === 'TESTER' ? 'role-tester' : 'role-user'}`}>
                                 {u.role}
                               </span>
                             </td>
@@ -1342,7 +1342,7 @@ export const AdminPage: React.FC = () => {
             <select id="new-role-select" className="form-select" value={targetRole} onChange={(e) => setTargetRole(e.target.value as UserRole)}>
               <option value="ADMIN">ADMIN (Full management access)</option>
               <option value="TESTER">TESTER (Issue investigation & resolution)</option>
-              <option value="DEVELOPER">DEVELOPER (Legacy — issue assignee)</option>
+              <option value="USER">USER (Issue reporting & tracking)</option>
             </select>
             <span className="form-help">
               Note: Last active admin protection is enforced automatically by the server.

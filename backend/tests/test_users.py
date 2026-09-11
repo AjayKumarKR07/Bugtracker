@@ -27,8 +27,8 @@ from tests.conftest import (
     _ensure_verified_user,
     _ci_email,
     admin_token,
-    dev_token,
     tester_token,
+    user_token,
     auth_header,
 )
 from app.main import app
@@ -52,9 +52,9 @@ def _u(tag: str) -> str:
 def _setup_p6_users() -> None:
     """Ensure a fixed set of Phase 6 test users exist."""
     users = [
-        (_u("dev_a"),    "Dev A P6",    UserRole.DEVELOPER),
-        (_u("dev_b"),    "Dev B P6",    UserRole.DEVELOPER),
         (_u("tester_a"), "Tester A P6", UserRole.TESTER),
+        (_u("tester_b"), "Tester B P6", UserRole.TESTER),
+        (_u("user_a"),   "User A P6",   UserRole.USER),
     ]
     for email, name, role in users:
         _run_sync(_ensure_verified_user(email=email, full_name=name, role=role))
@@ -103,8 +103,8 @@ class TestUserListRBAC:
         r = _CLIENT.get("/users")
         assert r.status_code == 401
 
-    def test_developer_returns_403(self):
-        r = _CLIENT.get("/users", headers=auth_header(dev_token()))
+    def test_user_returns_403(self):
+        r = _CLIENT.get("/users", headers=auth_header(user_token()))
         assert r.status_code == 403
 
     def test_tester_returns_403(self):
@@ -159,20 +159,20 @@ class TestUserListSearch:
     def test_search_by_email(self):
         r = _CLIENT.get(
             "/users",
-            params={"search": "dev_a.p6um"},
+            params={"search": "tester_a.p6um"},
             headers=auth_header(admin_token()),
         )
         assert r.status_code == 200
         items = r.json()["items"]
-        assert any(_u("dev_a") in u["email"] for u in items)
+        assert any(_u("tester_a") in u["email"] for u in items)
 
     def test_search_by_name(self):
         # The user's name may have been updated by a previous run of test_admin_can_update_full_name.
         # Fetch the current name first so the search term is always accurate.
-        uid = _get_user_id(_u("dev_b"))
+        uid = _get_user_id(_u("tester_b"))
         current_name = _CLIENT.get(f"/users/{uid}", headers=auth_header(admin_token())).json()["full_name"]
         # Use a stable prefix that will always appear in the name
-        search_term = current_name[:8]  # e.g. "Dev B P6" or "Updated "
+        search_term = current_name[:8]  # e.g. "Tester B" or "Updated "
         r = _CLIENT.get(
             "/users",
             params={"search": search_term},
@@ -181,15 +181,23 @@ class TestUserListSearch:
         assert r.status_code == 200
         assert any(u["id"] == uid for u in r.json()["items"])
 
-    def test_filter_by_role_developer(self):
+    def test_filter_by_role_tester(self):
+        r = _CLIENT.get(
+            "/users",
+            params={"role": "TESTER"},
+            headers=auth_header(admin_token()),
+        )
+        assert r.status_code == 200
+        for u in r.json()["items"]:
+            assert u["role"] == "TESTER"
+
+    def test_filter_by_role_developer_rejected_422(self):
         r = _CLIENT.get(
             "/users",
             params={"role": "DEVELOPER"},
             headers=auth_header(admin_token()),
         )
-        assert r.status_code == 200
-        for u in r.json()["items"]:
-            assert u["role"] == "DEVELOPER"
+        assert r.status_code == 422
 
     def test_filter_by_role_admin(self):
         r = _CLIENT.get(
@@ -249,13 +257,13 @@ class TestUserDetail:
         r = _CLIENT.get("/users/999999", headers=auth_header(admin_token()))
         assert r.status_code == 404
 
-    def test_developer_cannot_get_user_403(self):
-        uid = _get_user_id(_u("dev_a"))
-        r = _CLIENT.get(f"/users/{uid}", headers=auth_header(dev_token()))
+    def test_user_cannot_get_user_403(self):
+        uid = _get_user_id(_u("tester_a"))
+        r = _CLIENT.get(f"/users/{uid}", headers=auth_header(user_token()))
         assert r.status_code == 403
 
     def test_tester_cannot_get_user_403(self):
-        uid = _get_user_id(_u("dev_a"))
+        uid = _get_user_id(_u("tester_a"))
         r = _CLIENT.get(f"/users/{uid}", headers=auth_header(tester_token()))
         assert r.status_code == 403
 
@@ -270,8 +278,8 @@ class TestUserDetail:
 
 class TestUserUpdate:
     def test_admin_can_update_full_name(self):
-        uid = _get_user_id(_u("dev_b"))
-        new_name = f"Updated Dev B {secrets.token_hex(4)}"
+        uid = _get_user_id(_u("tester_b"))
+        new_name = f"Updated Tester B {secrets.token_hex(4)}"
         r = _CLIENT.patch(
             f"/users/{uid}",
             json={"full_name": new_name},
@@ -298,8 +306,8 @@ class TestUserUpdate:
         )
 
     def test_duplicate_email_returns_409(self):
-        uid_a = _get_user_id(_u("dev_a"))
-        uid_b = _get_user_id(_u("dev_b"))
+        uid_a = _get_user_id(_u("tester_a"))
+        uid_b = _get_user_id(_u("tester_b"))
         email_a = _CLIENT.get(f"/users/{uid_a}", headers=auth_header(admin_token())).json()["email"]
         r = _CLIENT.patch(
             f"/users/{uid_b}",
@@ -309,7 +317,7 @@ class TestUserUpdate:
         assert r.status_code == 409
 
     def test_no_change_is_allowed(self):
-        uid = _get_user_id(_u("dev_a"))
+        uid = _get_user_id(_u("tester_a"))
         r = _CLIENT.patch(
             f"/users/{uid}",
             json={},
@@ -325,17 +333,17 @@ class TestUserUpdate:
         )
         assert r.status_code == 404
 
-    def test_developer_cannot_update_403(self):
-        uid = _get_user_id(_u("dev_a"))
+    def test_user_cannot_update_403(self):
+        uid = _get_user_id(_u("tester_a"))
         r = _CLIENT.patch(
             f"/users/{uid}",
             json={"full_name": "Hacked"},
-            headers=auth_header(dev_token()),
+            headers=auth_header(user_token()),
         )
         assert r.status_code == 403
 
     def test_tester_cannot_update_403(self):
-        uid = _get_user_id(_u("dev_a"))
+        uid = _get_user_id(_u("tester_a"))
         r = _CLIENT.patch(
             f"/users/{uid}",
             json={"full_name": "Hacked"},
@@ -344,7 +352,7 @@ class TestUserUpdate:
         assert r.status_code == 403
 
     def test_no_sensitive_data_in_update_response(self):
-        uid = _get_user_id(_u("dev_a"))
+        uid = _get_user_id(_u("tester_a"))
         r = _CLIENT.patch(
             f"/users/{uid}",
             json={"full_name": "Safe Name"},
@@ -360,9 +368,9 @@ class TestUserUpdate:
 
 class TestActivateDeactivate:
     def _create_temp_user(self) -> tuple[int, str]:
-        """Create a fresh inactive DEVELOPER for activate/deactivate tests."""
-        email = f"temp_dev_{secrets.token_hex(6)}.p6um@example.com"
-        _run_sync(_ensure_verified_user(email=email, full_name="Temp Dev", role=UserRole.DEVELOPER))
+        """Create a fresh inactive TESTER for activate/deactivate tests."""
+        email = f"temp_user_{secrets.token_hex(6)}.p6um@example.com"
+        _run_sync(_ensure_verified_user(email=email, full_name="Temp User", role=UserRole.TESTER))
         uid = _get_user_id(email)
         return uid, email
 
@@ -396,9 +404,9 @@ class TestActivateDeactivate:
         r = _CLIENT.patch("/users/999999/deactivate", headers=auth_header(admin_token()))
         assert r.status_code == 404
 
-    def test_developer_cannot_deactivate_403(self):
+    def test_user_cannot_deactivate_403(self):
         uid, _ = self._create_temp_user()
-        r = _CLIENT.patch(f"/users/{uid}/deactivate", headers=auth_header(dev_token()))
+        r = _CLIENT.patch(f"/users/{uid}/deactivate", headers=auth_header(user_token()))
         assert r.status_code == 403
 
     def test_tester_cannot_activate_403(self):
@@ -492,7 +500,7 @@ class TestLastAdminProtection:
         try:
             r = _CLIENT.patch(
                 f"/users/{ci_uid}/role",
-                json={"role": "DEVELOPER"},
+                json={"role": "TESTER"},
                 headers=auth_header(admin_token()),
             )
             assert r.status_code == 400
@@ -522,14 +530,14 @@ class TestLastAdminProtection:
 # --------------------------------------------------------------------------- #
 
 class TestRoleManagement:
-    def _create_temp_developer(self) -> tuple[int, str]:
+    def _create_temp_tester(self) -> tuple[int, str]:
         email = f"temp_role_{secrets.token_hex(6)}.p6um@example.com"
-        _run_sync(_ensure_verified_user(email=email, full_name="Temp Role", role=UserRole.DEVELOPER))
+        _run_sync(_ensure_verified_user(email=email, full_name="Temp Role", role=UserRole.TESTER))
         uid = _get_user_id(email)
         return uid, email
 
-    def test_admin_can_promote_developer_to_admin(self):
-        uid, _ = self._create_temp_developer()
+    def test_admin_can_promote_tester_to_admin(self):
+        uid, _ = self._create_temp_tester()
         r = _CLIENT.patch(
             f"/users/{uid}/role",
             json={"role": "ADMIN"},
@@ -538,29 +546,29 @@ class TestRoleManagement:
         assert r.status_code == 200
         assert r.json()["role"] == "ADMIN"
         # Demote back
-        _CLIENT.patch(f"/users/{uid}/role", json={"role": "DEVELOPER"}, headers=auth_header(admin_token()))
+        _CLIENT.patch(f"/users/{uid}/role", json={"role": "TESTER"}, headers=auth_header(admin_token()))
 
-    def test_admin_can_change_developer_to_tester(self):
-        uid, _ = self._create_temp_developer()
+    def test_admin_can_change_tester_to_user(self):
+        uid, _ = self._create_temp_tester()
+        r = _CLIENT.patch(
+            f"/users/{uid}/role",
+            json={"role": "USER"},
+            headers=auth_header(admin_token()),
+        )
+        assert r.status_code == 200
+        assert r.json()["role"] == "USER"
+
+    def test_same_role_returns_400(self):
+        uid, _ = self._create_temp_tester()
         r = _CLIENT.patch(
             f"/users/{uid}/role",
             json={"role": "TESTER"},
             headers=auth_header(admin_token()),
         )
-        assert r.status_code == 200
-        assert r.json()["role"] == "TESTER"
-
-    def test_same_role_returns_400(self):
-        uid, _ = self._create_temp_developer()
-        r = _CLIENT.patch(
-            f"/users/{uid}/role",
-            json={"role": "DEVELOPER"},
-            headers=auth_header(admin_token()),
-        )
         assert r.status_code == 400
 
     def test_invalid_role_returns_422(self):
-        uid, _ = self._create_temp_developer()
+        uid, _ = self._create_temp_tester()
         r = _CLIENT.patch(
             f"/users/{uid}/role",
             json={"role": "SUPERUSER"},
@@ -568,17 +576,27 @@ class TestRoleManagement:
         )
         assert r.status_code == 422
 
-    def test_developer_cannot_change_role_403(self):
-        uid, _ = self._create_temp_developer()
+    def test_developer_role_rejected_422(self):
+        """Negative test proving DEVELOPER role is rejected."""
+        uid, _ = self._create_temp_tester()
+        r = _CLIENT.patch(
+            f"/users/{uid}/role",
+            json={"role": "DEVELOPER"},
+            headers=auth_header(admin_token()),
+        )
+        assert r.status_code == 422
+
+    def test_user_cannot_change_role_403(self):
+        uid, _ = self._create_temp_tester()
         r = _CLIENT.patch(
             f"/users/{uid}/role",
             json={"role": "ADMIN"},
-            headers=auth_header(dev_token()),
+            headers=auth_header(user_token()),
         )
         assert r.status_code == 403
 
     def test_tester_cannot_change_role_403(self):
-        uid, _ = self._create_temp_developer()
+        uid, _ = self._create_temp_tester()
         r = _CLIENT.patch(
             f"/users/{uid}/role",
             json={"role": "ADMIN"},
@@ -587,15 +605,15 @@ class TestRoleManagement:
         assert r.status_code == 403
 
     def test_unauth_cannot_change_role_401(self):
-        uid, _ = self._create_temp_developer()
+        uid, _ = self._create_temp_tester()
         r = _CLIENT.patch(f"/users/{uid}/role", json={"role": "ADMIN"})
         assert r.status_code == 401
 
     def test_no_sensitive_data_in_role_response(self):
-        uid, _ = self._create_temp_developer()
+        uid, _ = self._create_temp_tester()
         r = _CLIENT.patch(
             f"/users/{uid}/role",
-            json={"role": "TESTER"},
+            json={"role": "ADMIN"},
             headers=auth_header(admin_token()),
         )
         assert r.status_code == 200
@@ -619,7 +637,7 @@ class TestUserAuditEvents:
         return r.json()["items"]
 
     def test_user_updated_audit_created(self):
-        uid = _get_user_id(_u("dev_a"))
+        uid = _get_user_id(_u("tester_a"))
         new_name = f"Audit Test {secrets.token_hex(4)}"
         _CLIENT.patch(f"/users/{uid}", json={"full_name": new_name}, headers=auth_header(admin_token()))
         logs = self._get_audit_logs()
@@ -628,7 +646,7 @@ class TestUserAuditEvents:
 
     def test_user_activated_audit_created(self):
         email = f"audit_act_{secrets.token_hex(6)}.p6um@example.com"
-        _run_sync(_ensure_verified_user(email=email, full_name="Audit Act", role=UserRole.DEVELOPER))
+        _run_sync(_ensure_verified_user(email=email, full_name="Audit Act", role=UserRole.TESTER))
         uid = _get_user_id(email)
         _CLIENT.patch(f"/users/{uid}/deactivate", headers=auth_header(admin_token()))
         _CLIENT.patch(f"/users/{uid}/activate", headers=auth_header(admin_token()))
@@ -638,7 +656,7 @@ class TestUserAuditEvents:
 
     def test_user_deactivated_audit_created(self):
         email = f"audit_dea_{secrets.token_hex(6)}.p6um@example.com"
-        _run_sync(_ensure_verified_user(email=email, full_name="Audit Dea", role=UserRole.DEVELOPER))
+        _run_sync(_ensure_verified_user(email=email, full_name="Audit Dea", role=UserRole.TESTER))
         uid = _get_user_id(email)
         _CLIENT.patch(f"/users/{uid}/deactivate", headers=auth_header(admin_token()))
         logs = self._get_audit_logs()
@@ -647,9 +665,9 @@ class TestUserAuditEvents:
 
     def test_user_role_changed_audit_created(self):
         email = f"audit_role_{secrets.token_hex(6)}.p6um@example.com"
-        _run_sync(_ensure_verified_user(email=email, full_name="Audit Role", role=UserRole.DEVELOPER))
+        _run_sync(_ensure_verified_user(email=email, full_name="Audit Role", role=UserRole.TESTER))
         uid = _get_user_id(email)
-        _CLIENT.patch(f"/users/{uid}/role", json={"role": "TESTER"}, headers=auth_header(admin_token()))
+        _CLIENT.patch(f"/users/{uid}/role", json={"role": "USER"}, headers=auth_header(admin_token()))
         logs = self._get_audit_logs()
         actions = [l["action"] for l in logs]
         assert "USER_ROLE_CHANGED" in actions

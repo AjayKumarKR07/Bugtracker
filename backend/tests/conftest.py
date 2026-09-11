@@ -84,15 +84,13 @@ _CI_SUFFIX = "p4ci"
 _PASSWORD = "SecurePass123"
 
 _USERS = {
-    "admin":   ("admin",   UserRole.ADMIN,     "Admin CI"),
-    "dev":     ("dev",     UserRole.DEVELOPER, "Developer CI"),
-    "dev2":    ("dev2",    UserRole.DEVELOPER, "Developer2 CI"),
-    "tester":  ("tester",  UserRole.TESTER,    "Tester CI"),
-    "tester2": ("tester2", UserRole.TESTER,    "Tester2 CI"),
-    "tester3": ("tester3", UserRole.TESTER,    "Tester3 CI"),   # worker tester (assignee)
-    "tester4": ("tester4", UserRole.TESTER,    "Tester4 CI"),   # worker tester 2 (assignee)
-    "user":    ("user",    UserRole.USER,      "User CI"),      # issue reporter (USER role)
-    "user2":   ("user2",   UserRole.USER,      "User2 CI"),     # second USER for isolation tests
+    "admin":   ("admin",   UserRole.ADMIN,  "Admin CI"),
+    "tester":  ("tester",  UserRole.TESTER, "Tester CI"),
+    "tester2": ("tester2", UserRole.TESTER, "Tester2 CI"),
+    "tester3": ("tester3", UserRole.TESTER, "Tester3 CI"),   # worker tester (assignee)
+    "tester4": ("tester4", UserRole.TESTER, "Tester4 CI"),   # worker tester 2 (assignee)
+    "user":    ("user",    UserRole.USER,   "User CI"),      # issue reporter (USER role)
+    "user2":   ("user2",   UserRole.USER,   "User2 CI"),     # second USER for isolation tests
 }
 
 
@@ -136,14 +134,6 @@ def get_token(tag: str) -> str:
 
 def admin_token() -> str:
     return get_token("admin")
-
-
-def dev_token() -> str:
-    return get_token("dev")
-
-
-def dev2_token() -> str:
-    return get_token("dev2")
 
 
 def tester_token() -> str:
