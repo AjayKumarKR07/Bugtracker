@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
+  ArrowLeftRight,
   BarChart3,
   Bug,
   ClipboardCheck,
@@ -18,6 +19,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
 import { getRoleLabel, getRoleDescription } from '../../types/auth';
+import { SwitchRoleModal } from './SwitchRoleModal';
 
 interface SidebarProps {
   mobileOpen: boolean;
@@ -27,6 +29,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) => {
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
+  const [switchRoleOpen, setSwitchRoleOpen] = useState(false);
 
   const getInitials = (name?: string) => {
     if (!name) return 'U';
@@ -242,8 +245,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
           </NavLink>
         </nav>
 
-        {/* Footer Logout */}
+        {/* Footer: Switch Role + Sign Out */}
         <div className="sidebar-footer">
+          <button
+            onClick={() => setSwitchRoleOpen(true)}
+            className="btn btn-secondary"
+            style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.45rem' }}
+          >
+            <ArrowLeftRight size={16} />
+            <span>Switch Role</span>
+          </button>
           <button
             onClick={() => logout()}
             className="btn btn-secondary"
@@ -254,6 +265,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
           </button>
         </div>
       </aside>
+
+      {/* Switch Role Modal — rendered outside aside so z-index stacking works */}
+      <SwitchRoleModal
+        isOpen={switchRoleOpen}
+        onClose={() => setSwitchRoleOpen(false)}
+      />
     </>
   );
 };

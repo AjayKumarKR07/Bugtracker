@@ -67,40 +67,62 @@ class SprintRead(SprintBase):
     project_key: str | None = None
     total_issues: int = 0
     completed_issues: int = 0
+    remaining_issues: int = 0
     progress_percentage: int = 0
+    total_estimated_effort: int = 0
+    completed_estimated_effort: int = 0
+    velocity: int = 0
+    burndown_points: list[dict] = Field(default_factory=list)
+    burndown_data: list[dict] = Field(default_factory=list)
+    workload: list[dict] = Field(default_factory=list)
+    workload_distribution: list[dict] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def model_validate(cls, obj, **kwargs):
-        # Resolve related user names if ORM object without triggering lazy IO
         instance = super().model_validate(obj, **kwargs)
         try:
-            if hasattr(obj, "__dict__"):
-                tester = obj.__dict__.get("assigned_tester")
+            from sqlalchemy import inspect as sa_inspect
+            insp = sa_inspect(obj, raiseerr=False)
+            unloaded = insp.unloaded if insp else set()
+
+            if "assigned_tester" not in unloaded:
+                tester = getattr(obj, "assigned_tester", None)
                 if tester and hasattr(tester, "full_name"):
                     instance.assigned_tester_name = tester.full_name
-                proj = obj.__dict__.get("project")
+
+            if "project" not in unloaded:
+                proj = getattr(obj, "project", None)
                 if proj:
                     instance.project_name = getattr(proj, "name", None)
                     instance.project_key = getattr(proj, "project_key", None)
-                issues = obj.__dict__.get("issues")
+
+            if "issues" not in unloaded:
+                issues = getattr(obj, "issues", None)
                 if issues is not None:
                     tot = len(issues)
-                    comp = sum(
-                        1
-                        for i in issues
-                        if getattr(i, "status", None) in ("RESOLVED", "CLOSED")
-                        or (
-                            hasattr(getattr(i, "status", None), "value")
-                            and getattr(i, "status").value in ("RESOLVED", "CLOSED")
-                        )
-                    )
+                    comp = 0
+                    tot_eff = 0
+                    comp_eff = 0
+                    for i in issues:
+                        eff = getattr(i, "estimated_effort", 0) or 0
+                        tot_eff += eff
+                        st = getattr(i, "status", None)
+                        st_val = st.value if hasattr(st, "value") else str(st)
+                        if st_val in ("RESOLVED", "CLOSED"):
+                            comp += 1
+                            comp_eff += eff
                     instance.total_issues = tot
                     instance.completed_issues = comp
+                    instance.remaining_issues = max(0, tot - comp)
+                    instance.total_estimated_effort = tot_eff
+                    instance.completed_estimated_effort = comp_eff
                     instance.progress_percentage = round((comp / tot) * 100) if tot > 0 else 0
-        except Exception:
-            pass
+                    instance.velocity = comp
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Error in SprintRead.model_validate: %s", e)
         return instance
 
 

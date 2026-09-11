@@ -142,3 +142,7 @@ def test_sprint_database_persistence_end_to_end():
             assert row[7] == tester_id
 
     _run_sync(_verify_raw_postgresql())
+
+    # Teardown test sprint and project
+    _CLIENT.delete(f"/sprints/{sprint_id}", headers=admin_headers)
+    _CLIENT.delete(f"/projects/{project_id}", headers=admin_headers)

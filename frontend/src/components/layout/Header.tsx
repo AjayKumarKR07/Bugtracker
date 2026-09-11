@@ -90,20 +90,22 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
         {/* Notifications Dropdown */}
         <NotificationDropdown />
 
-        {/* User Pill — shows name and role */}
+        {/* User Pill — clearly indicates active account and active role */}
         {user && (
           <Link
             to="/profile"
+            title={`Active Account: ${user.full_name} (${getRoleLabel(user.role)})`}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.6rem',
-              padding: '0.35rem 0.65rem',
+              padding: '0.3rem 0.75rem',
               borderRadius: 'var(--radius-full)',
               backgroundColor: 'var(--bg-surface-elevated)',
-              border: '1px solid var(--border-subtle)',
+              border: `1px solid ${getRoleColor(user.role)}40`,
               color: 'var(--text-primary)',
               textDecoration: 'none',
+              transition: 'all 0.15s ease',
             }}
           >
             {/* Role-coloured avatar */}
@@ -125,23 +127,29 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
               {user.full_name[0]?.toUpperCase() || 'U'}
             </span>
 
-            {/* Name + Role label */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: '600', lineHeight: 1.2 }}>
-                {user.full_name.split(' ')[0]}
+            {/* Name + Active Role label badge */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: '600', lineHeight: 1.2 }}>
+                {user.full_name}
               </span>
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  color: getRoleColor(user.role),
-                  fontWeight: '700',
-                  lineHeight: 1,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                {getRoleLabel(user.role)}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    color: getRoleColor(user.role),
+                    fontWeight: '700',
+                    lineHeight: 1,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    backgroundColor: `${getRoleColor(user.role)}18`,
+                    padding: '0.1rem 0.35rem',
+                    borderRadius: '4px',
+                    display: 'inline-block',
+                  }}
+                >
+                  {getRoleLabel(user.role)}
+                </span>
+              </div>
             </div>
           </Link>
         )}

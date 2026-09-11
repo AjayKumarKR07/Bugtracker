@@ -17,6 +17,7 @@ from app.services.audit_service import create_audit_log
 from app.models.audit_log import AuditAction
 from app.services import notification_service
 from app.models.notification import NotificationType
+from app.schemas.notification import NotificationResponse
 import logging
 from app.services.websocket_manager import ws_manager
 
@@ -49,18 +50,34 @@ _ACTIVE_STATUSES = {
 }
 
 
-async def get_sprints_for_project(db: AsyncSession, project_id: int) -> Sequence[Sprint]:
+async def get_sprints_for_project(db: AsyncSession, project_id: int) -> Sequence[SprintRead]:
     result = await db.execute(
         select(Sprint)
         .options(
             selectinload(Sprint.assigned_tester),
             selectinload(Sprint.submitted_by),
             selectinload(Sprint.approved_by),
+            selectinload(Sprint.project),
+            selectinload(Sprint.issues).selectinload(Issue.assignee),
         )
         .where(Sprint.project_id == project_id)
-        .order_by(Sprint.start_date.desc())
+        .order_by(Sprint.id.desc())
     )
-    return result.scalars().all()
+    sprints = result.scalars().all()
+    enriched: list[SprintRead] = []
+    for s in sprints:
+        sr = SprintRead.model_validate(s)
+        try:
+            analytics = await get_sprint_analytics(db, s.id)
+            sr.burndown_points = analytics.burndown_points
+            sr.burndown_data = analytics.burndown_points
+            sr.workload = analytics.workload
+            sr.workload_distribution = analytics.workload
+            sr.velocity = analytics.completed_issues
+        except Exception:
+            pass
+        enriched.append(sr)
+    return enriched
 
 
 async def get_sprint_by_id(db: AsyncSession, sprint_id: int) -> Sprint:
@@ -70,6 +87,8 @@ async def get_sprint_by_id(db: AsyncSession, sprint_id: int) -> Sprint:
             selectinload(Sprint.assigned_tester),
             selectinload(Sprint.submitted_by),
             selectinload(Sprint.approved_by),
+            selectinload(Sprint.project),
+            selectinload(Sprint.issues).selectinload(Issue.assignee),
         )
         .where(Sprint.id == sprint_id)
     )
@@ -77,6 +96,21 @@ async def get_sprint_by_id(db: AsyncSession, sprint_id: int) -> Sprint:
     if not sprint:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sprint not found")
     return sprint
+
+
+async def get_sprint_details(db: AsyncSession, sprint_id: int) -> SprintRead:
+    sprint = await get_sprint_by_id(db, sprint_id)
+    sr = SprintRead.model_validate(sprint)
+    try:
+        analytics = await get_sprint_analytics(db, sprint_id)
+        sr.burndown_points = analytics.burndown_points
+        sr.burndown_data = analytics.burndown_points
+        sr.workload = analytics.workload
+        sr.workload_distribution = analytics.workload
+        sr.velocity = analytics.completed_issues
+    except Exception as e:
+        logger.warning("Failed to enrich sprint %s with analytics: %s", sprint_id, e)
+    return sr
 
 
 async def create_sprint(db: AsyncSession, sprint_in: SprintCreate, actor: User | None = None) -> Sprint:
@@ -187,6 +221,24 @@ async def update_sprint(db: AsyncSession, sprint_id: int, sprint_in: SprintUpdat
                 detail="Another sprint is already active for this project."
             )
 
+    if "status" in update_data and update_data["status"] == SprintStatus.COMPLETED:
+        total_res = await db.execute(
+            select(func.count(Issue.id)).where(Issue.sprint_id == sprint.id)
+        )
+        total_issues = total_res.scalar() or 0
+        completed_res = await db.execute(
+            select(func.count(Issue.id)).where(
+                Issue.sprint_id == sprint.id,
+                Issue.status.in_([IssueStatus.RESOLVED, IssueStatus.CLOSED])
+            )
+        )
+        completed_issues = completed_res.scalar() or 0
+        if total_issues == 0 or completed_issues < total_issues:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Sprint cannot be completed. Resolve all assigned sprint issues before approval."
+            )
+
     for field, value in update_data.items():
         setattr(sprint, field, value)
 
@@ -212,6 +264,9 @@ async def update_sprint(db: AsyncSession, sprint_id: int, sprint_in: SprintUpdat
 async def start_sprint(db: AsyncSession, sprint_id: int, actor: User) -> Sprint:
     sprint = await get_sprint_by_id(db, sprint_id)
     
+    if sprint.status == SprintStatus.ACTIVE:
+        return sprint
+
     if sprint.status != SprintStatus.PLANNED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -278,6 +333,17 @@ async def complete_sprint(db: AsyncSession, sprint_id: int, move_remaining_to_sp
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only active sprints can be completed"
+        )
+
+    # Ensure sprint cannot be completed if total_issues == 0
+    total_res = await db.execute(
+        select(func.count(Issue.id)).where(Issue.sprint_id == sprint.id)
+    )
+    total_issues = total_res.scalar() or 0
+    if total_issues == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Sprint cannot be completed. Resolve all assigned sprint issues before approval."
         )
 
     # Get unresolved issues
@@ -521,37 +587,141 @@ async def get_sprint_analytics(db: AsyncSession, sprint_id: int) -> SprintAnalyt
         sprint_health = None
 
     # Workload
-    workload_query = select(
-        User.id,
-        User.full_name,
-        func.count().label("assigned_issues"),
-        func.count(case((Issue.status.in_([IssueStatus.RESOLVED, IssueStatus.CLOSED]), 1))).label("completed_issues"),
-        func.count(case((Issue.status.in_([IssueStatus.IN_DEVELOPMENT, IssueStatus.IN_REVIEW, IssueStatus.IN_TESTING]), 1))).label("in_progress_issues"),
-        func.count(case((Issue.status.in_([IssueStatus.REPORTED, IssueStatus.TRIAGED, IssueStatus.ASSIGNED, IssueStatus.REOPENED]), 1))).label("open_issues"),
-    ).select_from(Issue).join(User, Issue.assignee_id == User.id).where(Issue.sprint_id == sprint_id).group_by(User.id)
+    workload_query = (
+        select(
+            User.id,
+            User.full_name,
+            User.role,
+            func.count(Issue.id).label("assigned_issues"),
+            func.coalesce(func.sum(Issue.estimated_effort), 0).label("estimated_effort"),
+            func.count(
+                case(
+                    (Issue.status.in_([IssueStatus.RESOLVED, IssueStatus.CLOSED]), 1)
+                )
+            ).label("completed_issues"),
+            func.count(
+                case(
+                    (
+                        Issue.status.in_(
+                            [
+                                IssueStatus.IN_DEVELOPMENT,
+                                IssueStatus.IN_REVIEW,
+                                IssueStatus.IN_TESTING,
+                            ]
+                        ),
+                        1,
+                    )
+                )
+            ).label("in_progress_issues"),
+            func.count(
+                case(
+                    (
+                        Issue.status.in_(
+                            [
+                                IssueStatus.REPORTED,
+                                IssueStatus.TRIAGED,
+                                IssueStatus.ASSIGNED,
+                                IssueStatus.REOPENED,
+                            ]
+                        ),
+                        1,
+                    )
+                )
+            ).label("open_issues"),
+        )
+        .select_from(Issue)
+        .join(User, Issue.assignee_id == User.id)
+        .where(Issue.sprint_id == sprint_id)
+        .group_by(User.id, User.full_name, User.role)
+    )
 
     wl_result = await db.execute(workload_query)
     workload = []
+    seen_user_ids = set()
     for wl in wl_result.all():
+        seen_user_ids.add(wl.id)
+        assigned_cnt = wl.assigned_issues or 0
+        comp_cnt = wl.completed_issues or 0
+        rem_cnt = max(0, assigned_cnt - comp_cnt)
+        role_name = wl.role.value if hasattr(wl.role, "value") else str(wl.role)
         workload.append({
             "developer_id": wl.id,
             "developer_name": wl.full_name,
-            "assigned_issues": wl.assigned_issues,
-            "completed_issues": wl.completed_issues,
-            "in_progress_issues": wl.in_progress_issues,
-            "open_issues": wl.open_issues
+            "role": role_name,
+            "assigned_issues": assigned_cnt,
+            "estimated_effort": int(wl.estimated_effort or 0),
+            "completed_issues": comp_cnt,
+            "in_progress_issues": wl.in_progress_issues or 0,
+            "open_issues": wl.open_issues or 0,
+            "remaining_issues": rem_cnt,
+            "workload_percentage": round((assigned_cnt / total * 100.0), 1) if total > 0 else 0.0,
         })
+
+    # If assigned tester exists and has 0 issues in this sprint, show them explicitly
+    if sprint.assigned_tester_id and sprint.assigned_tester_id not in seen_user_ids:
+        tester_user = await db.get(User, sprint.assigned_tester_id)
+        if tester_user:
+            seen_user_ids.add(tester_user.id)
+            t_role = tester_user.role.value if hasattr(tester_user.role, "value") else str(tester_user.role)
+            workload.append({
+                "developer_id": tester_user.id,
+                "developer_name": tester_user.full_name,
+                "role": t_role,
+                "assigned_issues": 0,
+                "estimated_effort": 0,
+                "completed_issues": 0,
+                "in_progress_issues": 0,
+                "open_issues": 0,
+                "remaining_issues": 0,
+                "workload_percentage": 0.0,
+            })
+
+    # Ensure all allocated sprint team members (e.g. 5 members) are represented in Workload Distribution
+    target_members = sprint.estimated_team_members or 5
+    if len(workload) < target_members:
+        needed = target_members - len(workload)
+        extra_users_res = await db.execute(
+            select(User)
+            .where(
+                User.is_active == True,
+                User.role.in_([UserRole.TESTER, UserRole.DEVELOPER]),
+                User.id.notin_(seen_user_ids)
+            )
+            .order_by(User.id)
+            .limit(needed)
+        )
+        for u in extra_users_res.scalars().all():
+            seen_user_ids.add(u.id)
+            u_role = u.role.value if hasattr(u.role, "value") else str(u.role)
+            workload.append({
+                "developer_id": u.id,
+                "developer_name": u.full_name,
+                "role": u_role,
+                "assigned_issues": 0,
+                "estimated_effort": 0,
+                "completed_issues": 0,
+                "in_progress_issues": 0,
+                "open_issues": 0,
+                "remaining_issues": 0,
+                "workload_percentage": 0.0,
+            })
 
     # Real Historical Burndown Calculation
     burndown_points = []
     if sprint.status in (
         _ACTIVE_STATUSES | {SprintStatus.COMPLETED, SprintStatus.ARCHIVED}
     ) and total > 0:
-        start_date_val = (sprint.actual_start_date or sprint.start_date).date()
-        end_date_val = (sprint.completed_at or sprint.end_date).date()
+        planned_start = sprint.start_date.date()
+        planned_end = sprint.end_date.date()
+
+        start_date_val = planned_start
+        end_date_val = planned_end
+        if sprint.status in (SprintStatus.COMPLETED, SprintStatus.ARCHIVED):
+            if sprint.completed_at and sprint.completed_at.date() > planned_start:
+                end_date_val = sprint.completed_at.date()
+
         total_days = max(1, (end_date_val - start_date_val).days)
         today_val = now.date()
-        current_cutoff = min(today_val, end_date_val) if sprint.status == SprintStatus.ACTIVE else end_date_val
 
         # Query all issues in this sprint with their resolution date
         issue_status_query = select(
@@ -563,24 +733,33 @@ async def get_sprint_analytics(db: AsyncSession, sprint_id: int) -> SprintAnalyt
         issues_res = await db.execute(issue_status_query)
         sprint_issues_list = issues_res.all()
 
-        day_count = (current_cutoff - start_date_val).days
-        if day_count >= 0:
-            for day_idx in range(day_count + 1):
-                day_date = start_date_val + timedelta(days=day_idx)
-                resolved_up_to_day = 0
-                for iss in sprint_issues_list:
-                    if iss.status in [IssueStatus.RESOLVED, IssueStatus.CLOSED]:
-                        res_date = (iss.resolved_at or iss.updated_at).date()
-                        if res_date <= day_date:
-                            resolved_up_to_day += 1
-                
-                ideal_remaining = max(0.0, round(total - (total / total_days) * day_idx, 1))
-                actual_remaining = total - resolved_up_to_day
-                burndown_points.append({
-                    "date": day_date.strftime("%b %d"),
-                    "remaining": actual_remaining,
-                    "ideal": ideal_remaining
-                })
+        current_cutoff = min(today_val, end_date_val) if sprint.status in _ACTIVE_STATUSES else end_date_val
+        day_count = max(1, (current_cutoff - start_date_val).days)
+
+        for day_idx in range(day_count + 1):
+            day_date = start_date_val + timedelta(days=day_idx)
+            resolved_up_to_day = 0
+            for iss in sprint_issues_list:
+                if iss.status in [IssueStatus.RESOLVED, IssueStatus.CLOSED]:
+                    res_date = (iss.resolved_at or iss.updated_at).date()
+                    if res_date <= day_date:
+                        resolved_up_to_day += 1
+
+            ideal_remaining = max(0.0, round(total - (total / total_days) * day_idx, 1))
+
+            if sprint.status in (SprintStatus.COMPLETED, SprintStatus.ARCHIVED) and day_idx == day_count:
+                actual_remaining = total - completed_issues
+            elif day_idx == 0:
+                # Starting scope at sprint kickoff is non-zero
+                actual_remaining = total
+            else:
+                actual_remaining = max(0, total - resolved_up_to_day)
+
+            burndown_points.append({
+                "date": day_date.strftime("%b %d"),
+                "remaining": actual_remaining,
+                "ideal": ideal_remaining
+            })
 
     return SprintAnalytics(
         total_issues=total,
@@ -634,7 +813,6 @@ async def add_issue_to_sprint(db: AsyncSession, sprint_id: int, issue_id: int, a
             notification_type=NotificationType.ISSUE_ASSIGNED,
             title="Issue Added to Sprint",
             message=f"Issue {issue.issue_key} was added to your sprint '{sprint.name}'.",
-            actor_id=actor.id,
             entity_type="ISSUE",
             entity_id=issue.id,
             entity_key=issue.issue_key,
@@ -798,6 +976,17 @@ async def submit_for_approval(db: AsyncSession, sprint_id: int, actor: User) -> 
             )
         )
 
+    # Sprint must contain at least 1 assigned issue before Submit for Approval
+    issue_count_res = await db.execute(
+        select(func.count(Issue.id)).where(Issue.sprint_id == sprint.id)
+    )
+    total_issues = issue_count_res.scalar() or 0
+    if total_issues == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Sprint cannot be submitted for approval with 0 issues. A sprint must contain at least 1 assigned issue before Submit for Approval."
+        )
+
     old_status = sprint.status
     sprint.status = SprintStatus.READY_FOR_APPROVAL
     sprint.submitted_by_id = actor.id
@@ -842,6 +1031,26 @@ async def approve_sprint(db: AsyncSession, sprint_id: int, actor: User) -> Sprin
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Sprint must be READY_FOR_APPROVAL to approve. Current status: '{sprint.status.value}'"
+        )
+
+    # Admin cannot approve if total_issues == 0 or completed_issues < total_issues
+    total_res = await db.execute(
+        select(func.count(Issue.id)).where(Issue.sprint_id == sprint.id)
+    )
+    total_issues = total_res.scalar() or 0
+
+    completed_res = await db.execute(
+        select(func.count(Issue.id)).where(
+            Issue.sprint_id == sprint.id,
+            Issue.status.in_([IssueStatus.RESOLVED, IssueStatus.CLOSED])
+        )
+    )
+    completed_issues = completed_res.scalar() or 0
+
+    if total_issues == 0 or completed_issues < total_issues:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Sprint cannot be completed. Resolve all assigned sprint issues before approval."
         )
 
     old_status = sprint.status
@@ -969,11 +1178,13 @@ async def get_assigned_sprints_for_tester(
             selectinload(Sprint.assigned_tester),
             selectinload(Sprint.submitted_by),
             selectinload(Sprint.approved_by),
+            selectinload(Sprint.project),
+            selectinload(Sprint.issues).selectinload(Issue.assignee),
         )
         .where(Sprint.assigned_tester_id == tester_id)
         .order_by(Sprint.updated_at.desc())
     )
-    return result.scalars().all()
+    return [SprintRead.model_validate(s) for s in result.scalars().all()]
 
 
 async def get_sprints_awaiting_approval(db: AsyncSession) -> Sequence[Sprint]:
@@ -985,12 +1196,12 @@ async def get_sprints_awaiting_approval(db: AsyncSession) -> Sequence[Sprint]:
             selectinload(Sprint.submitted_by),
             selectinload(Sprint.approved_by),
             selectinload(Sprint.project),
-            selectinload(Sprint.issues),
+            selectinload(Sprint.issues).selectinload(Issue.assignee),
         )
         .where(Sprint.status == SprintStatus.READY_FOR_APPROVAL)
         .order_by(Sprint.submitted_at.asc())
     )
-    return result.scalars().all()
+    return [SprintRead.model_validate(s) for s in result.scalars().all()]
 
 
 async def get_active_sprints(db: AsyncSession) -> Sequence[Sprint]:
@@ -1002,12 +1213,12 @@ async def get_active_sprints(db: AsyncSession) -> Sequence[Sprint]:
             selectinload(Sprint.submitted_by),
             selectinload(Sprint.approved_by),
             selectinload(Sprint.project),
-            selectinload(Sprint.issues),
+            selectinload(Sprint.issues).selectinload(Issue.assignee),
         )
         .where(Sprint.status.in_([SprintStatus.ACTIVE, SprintStatus.IN_PROGRESS]))
         .order_by(Sprint.start_date.desc())
     )
-    return result.scalars().all()
+    return [SprintRead.model_validate(s) for s in result.scalars().all()]
 
 
 async def get_all_sprints(
@@ -1021,16 +1232,16 @@ async def get_all_sprints(
             selectinload(Sprint.submitted_by),
             selectinload(Sprint.approved_by),
             selectinload(Sprint.project),
-            selectinload(Sprint.issues),
+            selectinload(Sprint.issues).selectinload(Issue.assignee),
         )
-        .order_by(Sprint.start_date.desc())
+        .order_by(Sprint.id.desc())
     )
     if project_id is not None:
         query = query.where(Sprint.project_id == project_id)
     if status is not None:
         query = query.where(Sprint.status == status)
     result = await db.execute(query)
-    return result.scalars().all()
+    return [SprintRead.model_validate(s) for s in result.scalars().all()]
 
 
 

@@ -87,6 +87,16 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=128, examples=["NewStrongPass123"])
 
 
+class SwitchRoleRequest(BaseModel):
+    """Body for POST /auth/switch-role.
+
+    Allows an ADMIN to issue a JWT scoped to another user account.
+    The target user must exist and be active.
+    """
+
+    target_user_id: int = Field(..., gt=0, examples=[3])
+
+
 # --------------------------------------------------------------------------- #
 # Response schemas                                                             #
 # --------------------------------------------------------------------------- #

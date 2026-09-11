@@ -22,7 +22,8 @@ from app.schemas.project import (
     ProjectResponse,
     ProjectUpdate,
 )
-from app.services import project_service
+from app.services import project_service, sprint_service
+from app.schemas.sprint import SprintRead
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -99,3 +100,18 @@ async def deactivate_project(
 ) -> ProjectResponse:
     """Set a project to INACTIVE status. **ADMIN only.**"""
     return await project_service.deactivate_project(project_id, db, actor=current_user)
+
+
+@router.get(
+    "/{project_id}/sprints",
+    response_model=list[SprintRead],
+    summary="Get all sprints for a project",
+)
+async def get_project_sprints_endpoint(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all sprints for a project with full Agile metrics."""
+    return await sprint_service.get_sprints_for_project(db, project_id)
+

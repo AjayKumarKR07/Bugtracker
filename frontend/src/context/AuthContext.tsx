@@ -15,6 +15,7 @@ export interface AuthContextType {
   register: (data: RegisterRequest) => Promise<string>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
+  switchRole: (targetUserId: number) => Promise<TokenResponse>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -117,6 +118,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const switchRole = async (targetUserId: number): Promise<TokenResponse> => {
+    setIsLoading(true);
+    try {
+      const tokenResp = await authApi.switchRole(targetUserId);
+      if (tokenResp.access_token) {
+        storage.setToken(tokenResp.access_token);
+        storage.setUser(tokenResp.user);
+        setToken(tokenResp.access_token);
+        setUser(tokenResp.user);
+      }
+      return tokenResp;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     token,
@@ -129,6 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     register,
     logout,
     refreshMe,
+    switchRole,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

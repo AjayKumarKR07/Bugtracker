@@ -11,10 +11,12 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 import { SprintService } from '../services/SprintService';
+import { issuesApi } from '../api/issues';
 import { useNotifications } from '../hooks/useNotifications';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { Modal } from '../components/common/Modal';
+import { SprintLifecycleIndicator } from '../components/sprints/SprintLifecycleIndicator';
 import type { Sprint } from '../types/Sprint';
 import { formatDate, formatRelativeTime } from '../utils/formatters';
 
@@ -28,11 +30,13 @@ export const AdminSprintApprovalsPage: React.FC = () => {
 
   const [awaitingApproval, setAwaitingApproval] = useState<Sprint[]>([]);
   const [allSprints, setAllSprints] = useState<Sprint[]>([]);
+  const [sprintIssues, setSprintIssues] = useState<Record<number, any[]>>({});
 
   // Action states
   const [requestChangesSprintId, setRequestChangesSprintId] = useState<number | null>(null);
   const [requestChangesComment, setRequestChangesComment] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+  const [resolvingIssueId, setResolvingIssueId] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const fetchData = useCallback(async (background = false) => {
@@ -47,6 +51,21 @@ export const AdminSprintApprovalsPage: React.FC = () => {
       ]);
       setAwaitingApproval(pending || []);
       setAllSprints(all || []);
+
+      if (pending && pending.length > 0) {
+        const issueMap: Record<number, any[]> = {};
+        await Promise.all(
+          pending.map(async (s) => {
+            try {
+              const res = await issuesApi.list({ sprint_id: s.id, page_size: 50 });
+              issueMap[s.id] = res.items || [];
+            } catch {
+              issueMap[s.id] = [];
+            }
+          })
+        );
+        setSprintIssues(issueMap);
+      }
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to load approval requests');
     } finally {
@@ -123,11 +142,28 @@ export const AdminSprintApprovalsPage: React.FC = () => {
     }
   };
 
+  const handleResolveIssue = async (_sprintId: number, issueId: number) => {
+    setResolvingIssueId(issueId);
+    try {
+      await issuesApi.updateStatus(issueId, { status: 'RESOLVED' as any });
+      setToastMessage({ type: 'success', text: 'Issue marked as RESOLVED! Sprint is now ready for approval.' });
+      await fetchData(true);
+    } catch (err: any) {
+      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to update issue status' });
+    } finally {
+      setResolvingIssueId(null);
+    }
+  };
+
   const handleRequestChanges = async () => {
     if (!requestChangesSprintId) return;
+    if (!requestChangesComment.trim()) {
+      setToastMessage({ type: 'error', text: 'Please enter a review comment explaining what changes are requested.' });
+      return;
+    }
     setActionLoadingId(requestChangesSprintId);
     try {
-      await SprintService.requestChanges(requestChangesSprintId, requestChangesComment || null);
+      await SprintService.requestChanges(requestChangesSprintId, requestChangesComment.trim());
       setToastMessage({ type: 'success', text: 'Changes requested. Sprint returned to IN_PROGRESS.' });
       setRequestChangesSprintId(null);
       setRequestChangesComment('');
@@ -153,46 +189,47 @@ export const AdminSprintApprovalsPage: React.FC = () => {
   }
 
   return (
-    <div className="page-container" style={{ maxWidth: '1440px', margin: '0 auto', paddingBottom: '3rem' }}>
-      {/* Header */}
-      <header
-        className="page-header"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          marginBottom: '1.5rem',
-          paddingBottom: '1.25rem',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}
-      >
+    <div className="page-container">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: 9999,
+            padding: '0.85rem 1.25rem',
+            borderRadius: '8px',
+            background: toastMessage.type === 'success' ? '#059669' : '#dc2626',
+            color: '#fff',
+            fontWeight: 600,
+            fontSize: '0.88rem',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <span>{toastMessage.text}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', marginLeft: '0.5rem' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Page Header */}
+      <div className="page-header" style={{ marginBottom: '1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
-                background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-              }}
-            >
-              <ClipboardCheck size={20} />
-            </div>
-            <div>
-              <h1 className="page-title" style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>
-                Sprint Approvals
-              </h1>
-              <p className="page-subtitle" style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                Review and approve testing milestones submitted by QA Testers
-              </p>
-            </div>
-          </div>
+          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <ClipboardCheck size={28} style={{ color: 'var(--primary)' }} />
+            Sprint Approvals &amp; Governance
+          </h1>
+          <p className="page-subtitle">
+            Review completed sprint testing deliverables submitted by QA Testers and grant official completion sign-off.
+          </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -200,45 +237,46 @@ export const AdminSprintApprovalsPage: React.FC = () => {
             className="btn btn-secondary"
             onClick={() => fetchData(true)}
             disabled={refreshing}
-            style={{ fontSize: '0.82rem' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
           >
-            <RefreshCw size={15} className={refreshing ? 'spin' : ''} />
-            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
           </button>
         </div>
-      </header>
+      </div>
 
-      {/* Approval Decision Workflow Banner */}
+      {/* Workflow Explainer Ribbon */}
       <div
         style={{
-          padding: '1.25rem',
-          borderRadius: '10px',
-          backgroundColor: 'rgba(99,102,241,0.08)',
+          background: 'linear-gradient(90deg, rgba(99,102,241,0.12), rgba(16,185,129,0.08))',
           border: '1px solid rgba(99,102,241,0.25)',
+          borderRadius: '10px',
+          padding: '0.85rem 1.25rem',
           marginBottom: '2rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          fontSize: '0.85rem',
         }}
       >
-        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
+        <span style={{ fontWeight: 800, color: '#818cf8', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.05em' }}>
           Sprint Approval Gateway Process
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.82rem' }}>
-          <span style={{ fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(99,102,241,0.2)', color: '#818cf8' }}>
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+          <span style={{ padding: '0.15rem 0.5rem', background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderRadius: '4px', fontWeight: 700, fontSize: '0.75rem' }}>
             READY_FOR_APPROVAL
           </span>
           <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
-          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-            Admin Review
-          </span>
+          <span>Admin Review</span>
           <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(16,185,129,0.2)', color: '#34d399' }}>
-              ✓ APPROVE → COMPLETED
-            </span>
-            <span style={{ color: 'var(--text-muted)' }}>or</span>
-            <span style={{ fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(245,158,11,0.2)', color: '#fbbf24' }}>
-              ↺ REQUEST CHANGES → IN_PROGRESS (Tester Rework)
-            </span>
-          </div>
+          <span style={{ padding: '0.15rem 0.5rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', borderRadius: '4px', fontWeight: 700, fontSize: '0.75rem' }}>
+            ✓ APPROVE → COMPLETED
+          </span>
+          <span style={{ color: 'var(--text-muted)' }}>or</span>
+          <span style={{ padding: '0.15rem 0.5rem', background: 'rgba(245,158,11,0.2)', color: '#fbbf24', borderRadius: '4px', fontWeight: 700, fontSize: '0.75rem' }}>
+            ↺ REQUEST CHANGES → IN_PROGRESS (Tester Rework)
+          </span>
         </div>
       </div>
 
@@ -297,6 +335,8 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                 const totalIssues = sprint.total_issues ?? 0;
                 const completedIssues = sprint.completed_issues ?? 0;
                 const pct = sprint.progress_percentage ?? (totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0);
+                const isApprovable = totalIssues > 0 && completedIssues >= totalIssues;
+                const issues = sprintIssues[sprint.id] || [];
 
                 const isTargeted = targetSprintId ? sprint.id === parseInt(targetSprintId, 10) : false;
 
@@ -318,23 +358,35 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                       transition: 'all 0.25s ease',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                    {/* Lifecycle Indicator */}
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+                        Sprint Lifecycle Stage
+                      </div>
+                      <SprintLifecycleIndicator
+                        status={sprint.status}
+                        hasReviewComment={Boolean(sprint.review_comment)}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem' }}>
                       <div style={{ flex: 1, minWidth: '280px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.4rem' }}>
-                          <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {sprint.name}
                           </span>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(99,102,241,0.25)', color: '#818cf8', padding: '0.15rem 0.55rem', borderRadius: '4px' }}>
-                            READY_FOR_APPROVAL
+                          {sprint.project_name && (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.55rem', borderRadius: '6px', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)' }}>
+                              {sprint.project_key ? `[${sprint.project_key}] ` : ''}{sprint.project_name}
+                            </span>
+                          )}
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(99,102,241,0.25)', color: '#818cf8', padding: '0.15rem 0.55rem', borderRadius: '4px', border: '1px solid rgba(99,102,241,0.4)' }}>
+                            AWAITING ADMIN APPROVAL
                           </span>
-                        </div>
-
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                          Project: <strong style={{ color: 'var(--text-primary)' }}>{sprint.project_name || `ID #${sprint.project_id}`}</strong>
                         </div>
 
                         {sprint.goal && (
-                          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.4 }}>
+                          <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.45 }}>
                             <strong>Goal:</strong> {sprint.goal}
                           </div>
                         )}
@@ -348,14 +400,14 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                           </span>
                           {sprint.submitted_at && (
                             <span>
-                              Submitted: <strong style={{ color: 'var(--text-primary)' }}>{formatRelativeTime(sprint.submitted_at)}</strong>
+                              Submitted: <strong style={{ color: '#818cf8' }}>{formatRelativeTime(sprint.submitted_at)}</strong>
                             </span>
                           )}
                         </div>
                       </div>
 
                       {/* Approval Actions */}
-                      <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0, alignItems: 'center' }}>
                         <Link
                           to={`/projects/${sprint.project_id}/sprints`}
                           className="btn btn-secondary"
@@ -365,12 +417,46 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                         </Link>
                         <button
                           className="btn btn-success"
-                          disabled={actionLoadingId === sprint.id}
+                          disabled={actionLoadingId === sprint.id || !isApprovable}
                           onClick={() => handleApproveSprint(sprint.id)}
-                          style={{ fontSize: '0.82rem', padding: '0.5rem 1.1rem', fontWeight: 700 }}
-                          title="Approve Sprint → COMPLETED"
+                          style={{
+                            fontSize: '0.82rem',
+                            padding: '0.5rem 1.1rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            backgroundColor: isApprovable ? '#10b981' : 'rgba(16, 185, 129, 0.15)',
+                            borderColor: isApprovable ? '#10b981' : 'rgba(16, 185, 129, 0.4)',
+                            color: isApprovable ? '#ffffff' : '#6ee7b7',
+                            cursor: isApprovable ? 'pointer' : 'not-allowed',
+                            boxShadow: isApprovable ? '0 2px 10px rgba(16, 185, 129, 0.35)' : 'none',
+                          }}
+                          title={
+                            totalIssues === 0
+                              ? 'Sprint has no issues assigned. Add backlog issues before approving this sprint.'
+                              : completedIssues < totalIssues
+                              ? `Cannot approve: ${totalIssues - completedIssues} of ${totalIssues} defect(s) are still unresolved. Resolve all defects to approve.`
+                              : 'Approve Sprint → Transitions to COMPLETED'
+                          }
                         >
-                          <ThumbsUp size={15} /> Approve Sprint
+                          <ThumbsUp size={15} />
+                          <span>Approve Sprint</span>
+                          {!isApprovable && totalIssues > 0 && (
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '4px',
+                                background: 'rgba(239, 68, 68, 0.25)',
+                                color: '#fca5a5',
+                                fontWeight: 800,
+                                marginLeft: '0.25rem',
+                              }}
+                            >
+                              {completedIssues}/{totalIssues} Done
+                            </span>
+                          )}
                         </button>
                         <button
                           className="btn btn-secondary"
@@ -380,16 +466,64 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                             setRequestChangesComment('');
                           }}
                           style={{ fontSize: '0.82rem', padding: '0.5rem 0.95rem' }}
-                          title="Request changes → Returns to IN_PROGRESS"
+                          title="Request changes → Returns to IN_PROGRESS for tester rework"
                         >
                           <RotateCcw size={15} /> Request Changes
                         </button>
                       </div>
                     </div>
 
-                    {/* Progress Bar and Issue Count */}
-                    <div style={{ background: 'var(--bg-surface)', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.4rem' }}>
+                    {/* Warning if sprint cannot be approved */}
+                    {!isApprovable && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.65rem',
+                          padding: '0.75rem 1rem',
+                          borderRadius: '8px',
+                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: '#f87171',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <AlertCircle size={18} style={{ flexShrink: 0, color: '#ef4444' }} />
+                        <span>
+                          {totalIssues === 0
+                            ? '⚠ Sprint has no issues assigned. Add backlog issues before starting/approving this sprint.'
+                            : `Sprint cannot be completed. ${totalIssues - completedIssues} of ${totalIssues} assigned defect(s) are still unresolved. Resolve all issues before approval.`}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Progress Bar and Agile Metrics Grid */}
+                    <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.65rem', marginBottom: '0.85rem' }}>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Issues</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>{totalIssues}</div>
+                        </div>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Completed</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981' }}>{completedIssues}</div>
+                        </div>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: (totalIssues - completedIssues) > 0 ? '#f59e0b' : '#94a3b8' }}>{Math.max(0, totalIssues - completedIssues)}</div>
+                        </div>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Progress %</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: pct >= 100 ? '#10b981' : '#818cf8' }}>{pct}%</div>
+                        </div>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Estimated Effort</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#a78bfa' }}>{totalIssues * 5} pts</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', marginBottom: '0.4rem' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>
                           Issue Completion: <strong>{completedIssues} / {totalIssues}</strong> issues closed
                         </span>
@@ -409,6 +543,94 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                         />
                       </div>
                     </div>
+
+                    {/* Assigned Sprint Defect List */}
+                    {issues.length > 0 && (
+                      <div style={{ background: 'var(--bg-surface)', padding: '0.9rem 1.1rem', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Sprint Defects / Issues ({issues.length})
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: completedIssues === totalIssues && totalIssues > 0 ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
+                            {completedIssues === totalIssues && totalIssues > 0 ? '✓ All Defects Resolved' : `${totalIssues - completedIssues} Unresolved`}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {issues.map((iss) => {
+                            const isResolved = iss.status === 'RESOLVED' || iss.status === 'CLOSED';
+                            return (
+                              <div
+                                key={iss.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: '0.6rem',
+                                  padding: '0.55rem 0.85rem',
+                                  background: 'var(--bg-surface-elevated)',
+                                  borderRadius: '8px',
+                                  border: isResolved ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(245, 158, 11, 0.25)',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: '220px' }}>
+                                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--primary)' }}>
+                                    {iss.issue_key}
+                                  </span>
+                                  <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                    {iss.title}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      fontWeight: 700,
+                                      padding: '0.15rem 0.45rem',
+                                      borderRadius: '4px',
+                                      backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                      color: isResolved ? '#34d399' : '#fbbf24',
+                                      border: `1px solid ${isResolved ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                                    }}
+                                  >
+                                    {iss.status}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <Link
+                                    to={`/issues/${iss.id}`}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                                    title="View issue details"
+                                  >
+                                    <ExternalLink size={12} /> View
+                                  </Link>
+                                  {!isResolved && (
+                                    <button
+                                      className="btn btn-success btn-sm"
+                                      disabled={resolvingIssueId === iss.id}
+                                      onClick={() => handleResolveIssue(sprint.id, iss.id)}
+                                      style={{
+                                        fontSize: '0.75rem',
+                                        padding: '0.25rem 0.65rem',
+                                        fontWeight: 700,
+                                        backgroundColor: '#10b981',
+                                        borderColor: '#10b981',
+                                        color: '#ffffff',
+                                      }}
+                                      title="Mark issue as RESOLVED so sprint can be approved"
+                                    >
+                                      <CheckCircle2 size={13} />
+                                      <span>{resolvingIssueId === iss.id ? 'Resolving…' : 'Mark Resolved'}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -439,6 +661,8 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                     <th>Sprint Name</th>
                     <th>Project</th>
                     <th>Tester</th>
+                    <th>Issues Resolved</th>
+                    <th>Velocity</th>
                     <th>Completed At</th>
                     <th>Status</th>
                     <th>Action</th>
@@ -447,6 +671,8 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                 <tbody>
                   {recentlyCompleted.map((s) => {
                     const isTargeted = targetSprintId ? s.id === parseInt(targetSprintId, 10) : false;
+                    const comp = s.completed_issues ?? 0;
+                    const tot = s.total_issues ?? 0;
                     return (
                       <tr
                         key={s.id}
@@ -470,12 +696,22 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                           {s.assigned_tester_name || '—'}
                         </span>
                       </td>
+                      <td>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#10b981' }}>
+                          {comp} / {tot} ({tot > 0 ? Math.round((comp / tot) * 100) : 100}%)
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#38bdf8' }}>
+                          {comp} pts
+                        </span>
+                      </td>
                       <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {s.completed_at ? formatRelativeTime(s.completed_at) : '—'}
                       </td>
                       <td>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
-                          COMPLETED
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                          ✓ COMPLETED
                         </span>
                       </td>
                       <td>
@@ -484,7 +720,7 @@ export const AdminSprintApprovalsPage: React.FC = () => {
                           className="btn btn-secondary btn-sm"
                           style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
                         >
-                          View
+                          View Sprint
                         </Link>
                       </td>
                       </tr>
@@ -510,13 +746,14 @@ export const AdminSprintApprovalsPage: React.FC = () => {
           The sprint will be returned to the assigned tester with status <strong>IN_PROGRESS</strong>.
         </p>
         <div className="form-group">
-          <label className="form-label">Review Comment / Feedback (optional)</label>
+          <label className="form-label">Review Comment / Feedback (Required) *</label>
           <textarea
             className="form-textarea"
+            required
             rows={4}
             value={requestChangesComment}
             onChange={(e) => setRequestChangesComment(e.target.value)}
-            placeholder="Describe what issues need to be resolved, retested, or updated before final sign-off..."
+            placeholder="Describe what defects need to be resolved, retested, or updated before final sign-off..."
           />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
@@ -531,7 +768,7 @@ export const AdminSprintApprovalsPage: React.FC = () => {
           </button>
           <button
             className="btn btn-primary"
-            disabled={actionLoadingId !== null}
+            disabled={!requestChangesComment.trim() || actionLoadingId !== null}
             onClick={handleRequestChanges}
           >
             Send Back to Tester

@@ -54,6 +54,7 @@ class AuditAction(str, enum.Enum):
     # Authentication events
     AUTH_LOGIN           = "AUTH_LOGIN"
     AUTH_LOGOUT          = "AUTH_LOGOUT"
+    ADMIN_SWITCH_ROLE    = "ADMIN_SWITCH_ROLE"   # admin session impersonation
 
     # User management (Phase 6)
     USER_UPDATED         = "USER_UPDATED"

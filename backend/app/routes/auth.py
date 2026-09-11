@@ -36,6 +36,7 @@ from app.schemas.auth import (
     RegisterRequest,
     RequestOTPRequest,
     ResendOTPRequest,
+    SwitchRoleRequest,
     TokenResponse,
     UserResponse,
     VerifyOTPRequest,
@@ -430,3 +431,74 @@ async def change_password(
     )
 
     return MessageResponse(message="Password changed successfully.")
+
+
+# --------------------------------------------------------------------------- #
+# POST /auth/switch-role                                                       #
+# --------------------------------------------------------------------------- #
+
+@router.post(
+    "/switch-role",
+    response_model=TokenResponse,
+    summary="Switch session to another user account (ADMIN only)",
+)
+async def switch_role(
+    body: SwitchRoleRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Issue a JWT scoped to a different user account.
+
+    Only ADMIN users may call this endpoint.
+    The target user must be active.
+    This allows administrators to review the system from the perspective
+    of any user role without sharing credentials.
+
+    The issued token is a fully valid JWT for the target user — the caller
+    (admin) is responsible for discarding it when done.
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators may switch to another user account.",
+        )
+
+    result = await db.execute(select(User).where(User.id == body.target_user_id))
+    target: User | None = result.scalar_one_or_none()
+
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target user not found.",
+        )
+
+    if not target.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target user account is inactive.",
+        )
+
+    token = create_access_token(user_id=target.id, role=target.role.value)
+
+    await create_audit_log(
+        db=db,
+        actor=current_user,
+        action=AuditAction.ADMIN_SWITCH_ROLE,
+        entity_type="AUTH",
+        entity_id=target.id,
+        entity_key=target.email,
+        description=(
+            f"Admin {current_user.full_name!r} (ID {current_user.id}) switched session to "
+            f"user {target.full_name!r} (ID {target.id}, Role {target.role.value})"
+        ),
+        old_values={"admin_user_id": current_user.id, "admin_role": current_user.role.value},
+        new_values={"target_user_id": target.id, "target_role": target.role.value, "action": "ADMIN_SWITCH_ROLE"},
+    )
+
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.model_validate(target),
+        message=f"Switched to {target.full_name} ({target.role.value})",
+    )
+

@@ -203,6 +203,7 @@ class Issue(Base):
         "User",
         back_populates="assigned_issues",
         foreign_keys=[assignee_id],
+        lazy="selectin",
     )
     sprint: Mapped["Sprint | None"] = relationship(  # type: ignore[name-defined]
         "Sprint",

@@ -102,12 +102,13 @@ class Sprint(Base):
         "Project",
         back_populates="sprints",
         foreign_keys=[project_id],
+        lazy="selectin",
     )
     issues: Mapped[list["Issue"]] = relationship(  # type: ignore[name-defined]
         "Issue",
         back_populates="sprint",
         cascade="all, save-update",
-        lazy="select",
+        lazy="selectin",
     )
     assigned_tester: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
         "User",

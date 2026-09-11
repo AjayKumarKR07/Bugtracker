@@ -97,10 +97,14 @@ export interface SprintAnalytics {
   workload: {
     developer_id: number;
     developer_name: string;
+    role?: string;
     assigned_issues: number;
+    estimated_effort?: number;
     completed_issues: number;
     in_progress_issues: number;
     open_issues: number;
+    remaining_issues?: number;
+    workload_percentage?: number;
   }[];
   burndown_points: {
     date: string;

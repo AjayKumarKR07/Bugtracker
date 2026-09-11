@@ -276,3 +276,14 @@ async def get_active_sprints(
     """Get all active and in-progress sprints for admin monitoring. ADMIN only."""
     return await sprint_service.get_active_sprints(db)
 
+
+@router.get("/{sprint_id}", response_model=SprintRead)
+async def get_sprint_by_id_endpoint(
+    sprint_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a single sprint by ID with full Agile metrics."""
+    return await sprint_service.get_sprint_details(db, sprint_id)
+
+

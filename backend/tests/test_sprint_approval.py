@@ -73,7 +73,44 @@ class TestSprintApprovalWorkflow:
         self.tester_id = _get_shared_tester_id()
         self.sprint_id = _create_sprint(self.project_id)
 
+    def teardown_method(self):
+        if hasattr(self, 'sprint_id') and self.sprint_id:
+            try:
+                _CLIENT.delete(f'/sprints/{self.sprint_id}', headers=auth_header(admin_token()))
+            except Exception:
+                pass
+
+    @classmethod
+    def teardown_class(cls):
+        global _SHARED_PROJECT_ID
+        if _SHARED_PROJECT_ID is not None:
+            try:
+                _CLIENT.delete(f'/projects/{_SHARED_PROJECT_ID}', headers=auth_header(admin_token()))
+            except Exception:
+                pass
+            _SHARED_PROJECT_ID = None
+
     # ── helpers ───────────────────────────────────────────────────────────────
+    def _add_issue(self, resolve: bool = True) -> int:
+        r = _CLIENT.post('/issues', json={
+            'project_id': self.project_id,
+            'title': f'Approval issue {uuid.uuid4().hex[:6]}',
+            'description': 'Valid defect description meeting the requirements.',
+            'severity': 'MAJOR',
+            'priority': 'HIGH',
+        }, headers=auth_header(admin_token()))
+        assert r.status_code == 201, f'Create issue: {r.text}'
+        issue_id = r.json()['id']
+
+        r_add = _CLIENT.post(f'/sprints/{self.sprint_id}/issues/{issue_id}', headers=auth_header(admin_token()))
+        assert r_add.status_code == 200, f'Add issue to sprint: {r_add.text}'
+
+        if resolve:
+            r_res = _CLIENT.patch(f'/issues/{issue_id}/status', json={'status': 'RESOLVED'}, headers=auth_header(admin_token()))
+            assert r_res.status_code == 200, f'Resolve issue: {r_res.text}'
+
+        return issue_id
+
     def _assign(self):
         r = _CLIENT.post(f'/sprints/{self.sprint_id}/assign-tester',
                          json={'tester_id': self.tester_id},
@@ -85,7 +122,9 @@ class TestSprintApprovalWorkflow:
                          headers=auth_header(tester3_token()))
         assert r.status_code == 200, r.text
 
-    def _submit(self):
+    def _submit(self, add_resolved_issue: bool = True):
+        if add_resolved_issue:
+            self._add_issue(resolve=True)
         r = _CLIENT.post(f'/sprints/{self.sprint_id}/submit-for-approval',
                          headers=auth_header(tester3_token()))
         assert r.status_code == 200, r.text
@@ -144,6 +183,7 @@ class TestSprintApprovalWorkflow:
     def test_submit_for_approval_from_in_progress(self):
         self._assign()
         self._begin_work()
+        self._add_issue(resolve=True)
         r = _CLIENT.post(f'/sprints/{self.sprint_id}/submit-for-approval',
                          headers=auth_header(tester3_token()))
         assert r.status_code == 200, r.text
@@ -152,6 +192,15 @@ class TestSprintApprovalWorkflow:
         assert data['submitted_by_id'] is not None
         assert data['submitted_at'] is not None
         assert data['review_comment'] is None  # cleared on submit
+
+    def test_submit_for_approval_zero_issues_fails(self):
+        """Tester cannot submit sprint with 0 issues."""
+        self._assign()
+        self._begin_work()
+        r = _CLIENT.post(f'/sprints/{self.sprint_id}/submit-for-approval',
+                         headers=auth_header(tester3_token()))
+        assert r.status_code == 400
+        assert "0 issues" in r.json()["detail"]
 
     def test_submit_from_active_without_begin_work_fails(self):
         """Tester cannot submit directly from ACTIVE - must begin-work first."""
@@ -272,4 +321,85 @@ class TestSprintApprovalWorkflow:
         r = _CLIENT.post(f'/sprints/{self.sprint_id}/approve', headers=auth_header(admin_token()))
         assert r.status_code == 200
         assert r.json()['status'] == 'COMPLETED'
+
+    def test_approve_sprint_unresolved_issues_fails(self):
+        """Admin cannot approve sprint if any assigned issues are unresolved."""
+        self._assign()
+        self._begin_work()
+        # Add 1 resolved issue so submit passes (total_issues > 0)
+        self._add_issue(resolve=True)
+        # Add 1 unresolved issue
+        self._add_issue(resolve=False)
+        r_sub = _CLIENT.post(f'/sprints/{self.sprint_id}/submit-for-approval',
+                             headers=auth_header(tester3_token()))
+        assert r_sub.status_code == 200
+
+        r_app = _CLIENT.post(f'/sprints/{self.sprint_id}/approve', headers=auth_header(admin_token()))
+        assert r_app.status_code == 400
+        assert r_app.json()["detail"] == "Sprint cannot be completed. Resolve all assigned sprint issues before approval."
+
+    def test_sprint_metrics_progress_velocity_and_workload(self):
+        """
+        Verify real defect data calculations:
+        - 0/8 completed = 0%
+        - 2/8 completed = 25%
+        - 8/8 completed = 100%
+        - Remaining issues, velocity, burndown points
+        - Team workload distribution includes all allocated members,
+          with 0-issue member displaying 0 workload.
+        """
+        self._assign()
+        self._begin_work()
+
+        # Create 8 issues in this sprint
+        issue_ids = [self._add_issue(resolve=False) for _ in range(8)]
+
+        # 0/8 completed -> 0%
+        r0 = _CLIENT.get(f'/sprints/{self.sprint_id}/analytics', headers=auth_header(admin_token()))
+        assert r0.status_code == 200
+        data0 = r0.json()
+        assert data0['total_issues'] == 8
+        assert data0['completed_issues'] == 0
+        assert data0['remaining_issues'] == 8
+        assert data0['completion_rate'] == 0.0
+
+        # Resolve 2 issues -> 25%
+        for i in range(2):
+            r_res = _CLIENT.patch(f'/issues/{issue_ids[i]}/status', json={'status': 'RESOLVED'}, headers=auth_header(admin_token()))
+            assert r_res.status_code == 200
+
+        r2 = _CLIENT.get(f'/sprints/{self.sprint_id}/analytics', headers=auth_header(admin_token()))
+        assert r2.status_code == 200
+        data2 = r2.json()
+        assert data2['total_issues'] == 8
+        assert data2['completed_issues'] == 2
+        assert data2['remaining_issues'] == 6
+        assert data2['completion_rate'] == 25.0
+
+        # Resolve remaining 6 issues -> 100%
+        for i in range(2, 8):
+            r_res = _CLIENT.patch(f'/issues/{issue_ids[i]}/status', json={'status': 'RESOLVED'}, headers=auth_header(admin_token()))
+            assert r_res.status_code == 200
+
+        r8 = _CLIENT.get(f'/sprints/{self.sprint_id}/analytics', headers=auth_header(admin_token()))
+        assert r8.status_code == 200
+        data8 = r8.json()
+        assert data8['total_issues'] == 8
+        assert data8['completed_issues'] == 8
+        assert data8['remaining_issues'] == 0
+        assert data8['completion_rate'] == 100.0
+
+        # Burndown points
+        assert len(data8['burndown_points']) >= 1
+
+        # Workload has at least 5 members
+        assert len(data8['workload']) >= 5
+        zero_members = [m for m in data8['workload'] if m['assigned_issues'] == 0]
+        assert len(zero_members) > 0
+        for zm in zero_members:
+            assert zm['assigned_issues'] == 0
+            assert zm['estimated_effort'] == 0
+            assert zm['completed_issues'] == 0
+            assert zm['workload_percentage'] == 0.0
+
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
@@ -13,8 +13,11 @@ import {
   Search,
   Trash2,
   UserCheck,
-  Check,
+  TrendingUp,
+  Clock,
+  RotateCcw,
 } from 'lucide-react';
+import { SprintLifecycleIndicator } from '../components/sprints/SprintLifecycleIndicator';
 import { SprintService } from '../services/SprintService';
 import { projectsApi } from '../api/projects';
 import { issuesApi } from '../api/issues';
@@ -101,7 +104,8 @@ export const AdminSprintsPage: React.FC = () => {
       setTesters(testerRes.items || []);
 
       if (projectRes.items.length > 0 && createForm.project_id === 0) {
-        setCreateForm((prev) => ({ ...prev, project_id: projectRes.items[0].id }));
+        const primaryProj = projectRes.items.find((p: Project) => p.project_key === 'ISEC' || p.name.includes('Kaggle')) || projectRes.items[0];
+        setCreateForm((prev) => ({ ...prev, project_id: primaryProj.id }));
       }
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to load sprint planning data');
@@ -192,8 +196,8 @@ export const AdminSprintsPage: React.FC = () => {
         hours_per_day: createForm.hours_per_day,
       };
 
-      await SprintService.createSprint(payload);
-      setToastMessage({ type: 'success', text: `Sprint '${createForm.name}' created successfully` });
+      const created = await SprintService.createSprint(payload);
+      setToastMessage({ type: 'success', text: `Sprint '${createForm.name}' created successfully (placed at TOP)` });
       setCreateModalOpen(false);
       setCreateForm({
         project_id: projects[0]?.id || 0,
@@ -205,7 +209,13 @@ export const AdminSprintsPage: React.FC = () => {
         working_days: 10,
         hours_per_day: 6,
       });
-      fetchData(true);
+      await fetchData(true);
+      setTimeout(() => {
+        const el = document.getElementById(`admin-sprint-row-${created.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
     } catch (err: any) {
       setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to create sprint' });
     } finally {
@@ -226,18 +236,6 @@ export const AdminSprintsPage: React.FC = () => {
     }
   };
 
-  const handleCompleteSprint = async (sprintId: number) => {
-    setActionLoadingId(sprintId);
-    try {
-      await SprintService.completeSprint(sprintId);
-      setToastMessage({ type: 'success', text: 'Sprint completed' });
-      fetchData(true);
-    } catch (err: any) {
-      setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to complete sprint' });
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
 
   const handleDeleteSprint = async (sprint: Sprint) => {
     if (!window.confirm(`Are you sure you want to delete planned sprint '${sprint.name}'?`)) return;
@@ -320,7 +318,7 @@ export const AdminSprintsPage: React.FC = () => {
       if (!matchName && !matchGoal && !matchTester && !matchProject) return false;
     }
     return true;
-  });
+  }).sort((a, b) => b.id - a.id);
 
   if (loading && sprints.length === 0) {
     return (
@@ -501,7 +499,7 @@ export const AdminSprintsPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="card-body" style={{ padding: 0 }}>
+        <div className="card-body" style={{ padding: '1.25rem' }}>
           {filteredSprints.length === 0 ? (
             <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
               <Layers size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
@@ -511,108 +509,153 @@ export const AdminSprintsPage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="table-container" style={{ border: 'none', borderRadius: 0 }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Sprint Name</th>
-                    <th>Project</th>
-                    <th>Status</th>
-                    <th>Assigned Tester</th>
-                    <th>Dates</th>
-                    <th>Issues &amp; Progress</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSprints.map((sprint) => {
-                    const totalIssues = sprint.total_issues ?? 0;
-                    const completedIssues = sprint.completed_issues ?? 0;
-                    const pct = sprint.progress_percentage ?? (totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0);
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {filteredSprints.map((sprint) => {
+                const totalIssues = sprint.total_issues ?? 0;
+                const completedIssues = sprint.completed_issues ?? 0;
+                const remainingIssues = Math.max(0, totalIssues - completedIssues);
+                const pct = sprint.progress_percentage ?? (totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0);
+                const isTargeted = targetSprintId ? sprint.id === parseInt(targetSprintId, 10) : false;
+                const isCompleted = sprint.status === 'COMPLETED';
 
-                    const isTargeted = targetSprintId ? sprint.id === parseInt(targetSprintId, 10) : false;
+                return (
+                  <div
+                    key={sprint.id}
+                    id={`admin-sprint-row-${sprint.id}`}
+                    style={{
+                      backgroundColor: 'var(--bg-surface-elevated)',
+                      border: isTargeted ? '2px solid var(--primary)' : '1px solid var(--border-subtle)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      boxShadow: isTargeted
+                        ? '0 0 0 2px var(--primary), 0 10px 25px -5px rgba(99, 102, 241, 0.35)'
+                        : '0 4px 12px rgba(0, 0, 0, 0.15)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem',
+                      transition: 'all 0.25s ease',
+                    }}
+                  >
+                    {/* 1. Lifecycle Indicator at the top */}
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+                        Sprint Lifecycle Stage
+                      </div>
+                      <SprintLifecycleIndicator
+                        status={sprint.status}
+                        hasReviewComment={Boolean(sprint.review_comment)}
+                      />
+                    </div>
 
-                    return (
-                      <tr
-                        key={sprint.id}
-                        id={`admin-sprint-row-${sprint.id}`}
-                        style={
-                          isTargeted
-                            ? {
-                                backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                                outline: '2px solid var(--primary)',
-                                transition: 'all 0.3s ease',
-                              }
-                            : undefined
-                        }
-                      >
-                        <td>
-                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{sprint.name}</div>
-                          {sprint.goal && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sprint.goal}>
-                              {sprint.goal}
-                            </div>
+                    {/* 2. Top Header & Metadata */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem' }}>
+                      <div style={{ flex: 1, minWidth: '280px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
+                          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {sprint.name}
+                          </h3>
+                          {sprint.project_name && (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.55rem', borderRadius: '6px', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)' }}>
+                              {sprint.project_key ? `[${sprint.project_key}] ` : ''}{sprint.project_name}
+                            </span>
                           )}
-                        </td>
-                        <td>
-                          <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                            {sprint.project_name || `Project #${sprint.project_id}`}
-                          </span>
-                        </td>
-                        <td>
                           <span
                             style={{
                               fontSize: '0.72rem',
-                              fontWeight: 700,
-                              padding: '0.2rem 0.5rem',
+                              fontWeight: 800,
+                              padding: '0.2rem 0.6rem',
                               borderRadius: '4px',
                               backgroundColor:
                                 sprint.status === 'COMPLETED'
                                   ? 'rgba(16,185,129,0.15)'
                                   : sprint.status === 'READY_FOR_APPROVAL'
-                                  ? 'rgba(99,102,241,0.2)'
+                                  ? 'rgba(129,140,248,0.2)'
                                   : sprint.status === 'IN_PROGRESS'
                                   ? 'rgba(245,158,11,0.15)'
                                   : sprint.status === 'ACTIVE'
-                                  ? 'rgba(59,130,246,0.15)'
-                                  : 'rgba(100,116,139,0.15)',
+                                  ? 'rgba(56,189,248,0.15)'
+                                  : 'rgba(148,163,184,0.15)',
                               color:
                                 sprint.status === 'COMPLETED'
                                   ? '#10b981'
                                   : sprint.status === 'READY_FOR_APPROVAL'
                                   ? '#818cf8'
                                   : sprint.status === 'IN_PROGRESS'
-                                  ? '#f59e0b'
+                                  ? '#fbbf24'
                                   : sprint.status === 'ACTIVE'
-                                  ? '#3b82f6'
+                                  ? '#38bdf8'
                                   : '#94a3b8',
+                              border: `1px solid ${
+                                sprint.status === 'COMPLETED'
+                                  ? 'rgba(16,185,129,0.35)'
+                                  : sprint.status === 'READY_FOR_APPROVAL'
+                                  ? 'rgba(129,140,248,0.35)'
+                                  : sprint.status === 'IN_PROGRESS'
+                                  ? 'rgba(245,158,11,0.35)'
+                                  : sprint.status === 'ACTIVE'
+                                  ? 'rgba(56,189,248,0.35)'
+                                  : 'rgba(148,163,184,0.35)'
+                              }`,
                             }}
                           >
-                            {sprint.status}
+                            {sprint.status === 'READY_FOR_APPROVAL' ? 'AWAITING APPROVAL' : sprint.status}
                           </span>
-                        </td>
-                        <td>
-                          {sprint.assigned_tester_name ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#34d399' }}>
+                        </div>
+
+                        {sprint.goal && (
+                          <p style={{ margin: '0.35rem 0 0.5rem', fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                            <strong>Goal:</strong> {sprint.goal}
+                          </p>
+                        )}
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                          <span>
+                            <strong>Window:</strong> {formatDate(sprint.start_date)} → {formatDate(sprint.end_date)}
+                          </span>
+                          {sprint.working_days && (
+                            <span>
+                              <strong>Days:</strong> {sprint.working_days} working days
+                            </span>
+                          )}
+                          {sprint.estimated_team_members && (
+                            <span>
+                              <strong>Capacity:</strong> {sprint.estimated_team_members} members
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Assigned Tester Widget */}
+                      <div style={{ background: 'rgba(15,23,42,0.6)', padding: '0.65rem 0.95rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', minWidth: '220px' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Assigned QA Tester
+                        </div>
+                        {sprint.assigned_tester_name ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.65rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <UserCheck size={16} style={{ color: '#10b981' }} />
+                              <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#34d399' }}>
                                 {sprint.assigned_tester_name}
                               </span>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}
-                                onClick={() => {
-                                  setSelectedSprintForAssign(sprint);
-                                  setAssignModalOpen(true);
-                                }}
-                                title="Change Tester"
-                              >
-                                Reassign
-                              </button>
                             </div>
-                          ) : (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                              onClick={() => {
+                                setSelectedSprintForAssign(sprint);
+                                setAssignModalOpen(true);
+                              }}
+                              title="Change assigned tester"
+                            >
+                              Reassign
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Unassigned</span>
                             <button
                               className="btn btn-primary btn-sm"
-                              style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                              style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem' }}
                               onClick={() => {
                                 setSelectedSprintForAssign(sprint);
                                 setAssignModalOpen(true);
@@ -620,92 +663,211 @@ export const AdminSprintsPage: React.FC = () => {
                             >
                               <UserCheck size={13} /> Assign Tester
                             </button>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)' }}>
-                            {formatDate(sprint.start_date)}
                           </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            to {formatDate(sprint.end_date)}
-                          </div>
-                        </td>
-                        <td style={{ minWidth: '140px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                            <span>{completedIssues} / {totalIssues} issues</span>
-                            <span style={{ fontWeight: 700 }}>{pct}%</span>
-                          </div>
-                          <div style={{ height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-subtle)', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 80 ? '#10b981' : '#6366f1' }} />
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            {/* Manage Backlog / Add Issues */}
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => openBacklogModal(sprint)}
-                              title="Add existing issues to sprint"
-                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-                            >
-                              + Backlog
-                            </button>
+                        )}
+                      </div>
+                    </div>
 
-                            {/* Start Sprint if PLANNED */}
-                            {sprint.status === 'PLANNED' && (
-                              <button
-                                className="btn btn-primary btn-sm"
-                                disabled={actionLoadingId === sprint.id}
-                                onClick={() => handleStartSprint(sprint.id)}
-                                title="Start Sprint"
-                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-                              >
-                                <Play size={13} /> Start
-                              </button>
-                            )}
+                    {/* 3. Real PostgreSQL Issue Progress & Metrics Grid */}
+                    <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '0.85rem' }}>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Scope (Total Issues)</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>{totalIssues}</div>
+                        </div>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Completed Issues</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981' }}>{completedIssues}</div>
+                        </div>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining Issues</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: remainingIssues > 0 ? '#f59e0b' : '#94a3b8' }}>{remainingIssues}</div>
+                        </div>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sprint Progress</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: pct >= 100 ? '#10b981' : '#6366f1' }}>{pct}%</div>
+                        </div>
+                        <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Velocity</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#38bdf8' }}>{completedIssues} pts</div>
+                        </div>
+                      </div>
 
-                            {/* Complete Sprint if ACTIVE or IN_PROGRESS */}
-                            {(sprint.status === 'ACTIVE' || sprint.status === 'IN_PROGRESS') && (
-                              <button
-                                className="btn btn-success btn-sm"
-                                disabled={actionLoadingId === sprint.id}
-                                onClick={() => handleCompleteSprint(sprint.id)}
-                                title="Complete Sprint"
-                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-                              >
-                                <Check size={13} /> Finish
-                              </button>
-                            )}
+                      {/* Progress bar */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                        <span>Real PostgreSQL Defect Progress: {completedIssues} of {totalIssues} issues resolved</span>
+                        <span style={{ fontWeight: 800, color: pct >= 100 ? '#10b981' : '#818cf8' }}>{pct}%</span>
+                      </div>
+                      <div style={{ height: '8px', borderRadius: '4px', backgroundColor: 'var(--border-subtle)', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            backgroundColor: pct >= 100 ? '#10b981' : pct >= 50 ? '#6366f1' : '#f59e0b',
+                            borderRadius: '4px',
+                            transition: 'width 0.6s ease',
+                          }}
+                        />
+                      </div>
+                    </div>
 
-                            {/* Download PDF report */}
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => handleDownloadReport(sprint)}
-                              title="Download PDF Sprint Report"
-                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.45rem' }}
-                            >
-                              <Download size={13} />
-                            </button>
+                    {/* 4. Prominent Completed or Changes-Requested Banner */}
+                    {isCompleted && totalIssues > 0 && (
+                      <div
+                        style={{
+                          padding: '0.85rem 1.15rem',
+                          borderRadius: '8px',
+                          backgroundColor: 'rgba(16,185,129,0.1)',
+                          border: '1px solid rgba(16,185,129,0.35)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '0.75rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+                          <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#34d399' }}>
+                            ✓ Sprint Completed &amp; Approved
+                          </span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            — {completedIssues}/{totalIssues} issues closed ({pct}% progress) • Velocity: {completedIssues} pts
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
-                            {/* Delete if PLANNED */}
-                            {sprint.status === 'PLANNED' && (
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                disabled={actionLoadingId === sprint.id}
-                                onClick={() => handleDeleteSprint(sprint)}
-                                title="Delete Sprint"
-                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.45rem', color: '#ef4444' }}
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    {totalIssues === 0 && (
+                      <div
+                        style={{
+                          padding: '0.85rem 1.15rem',
+                          borderRadius: '8px',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          color: '#f87171',
+                        }}
+                      >
+                        <AlertCircle size={16} />
+                        <span>⚠ Sprint has no issues assigned. Add backlog issues before starting/approving this sprint.</span>
+                      </div>
+                    )}
+
+                    {sprint.review_comment && sprint.status === 'IN_PROGRESS' && (
+                      <div
+                        style={{
+                          padding: '0.85rem 1.15rem',
+                          borderRadius: '8px',
+                          backgroundColor: 'rgba(245,158,11,0.1)',
+                          border: '1px solid rgba(245,158,11,0.35)',
+                          borderLeft: '4px solid #f59e0b',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.6rem',
+                        }}
+                      >
+                        <RotateCcw size={16} style={{ color: '#f59e0b', marginTop: '0.15rem', flexShrink: 0 }} />
+                        <div>
+                          <strong style={{ color: '#fbbf24', fontSize: '0.85rem' }}>Admin Requested Changes (Rework Cycle):</strong>
+                          <p style={{ margin: '0.2rem 0 0', fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
+                            {sprint.review_comment}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 5. Agile Actions Row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                        {/* Add Backlog Issues (available unless completed) */}
+                        {!isCompleted && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => openBacklogModal(sprint)}
+                            style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                            title="Add PostgreSQL backlog issues to this sprint"
+                          >
+                            <Plus size={13} /> Add Backlog Issues
+                          </button>
+                        )}
+
+                        {/* Start Sprint if PLANNED */}
+                        {sprint.status === 'PLANNED' && (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            disabled={actionLoadingId === sprint.id || totalIssues === 0}
+                            onClick={() => handleStartSprint(sprint.id)}
+                            style={{
+                              fontSize: '0.78rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontWeight: 700,
+                              opacity: totalIssues === 0 ? 0.5 : 1,
+                              cursor: totalIssues === 0 ? 'not-allowed' : 'pointer',
+                            }}
+                            title={totalIssues === 0 ? "Add backlog issues before starting this sprint" : "Start Sprint → Transitions to ACTIVE"}
+                          >
+                            <Play size={13} /> Start Sprint (ACTIVE)
+                          </button>
+                        )}
+
+                        {/* Review & Approve Sprint if READY_FOR_APPROVAL */}
+                        {sprint.status === 'READY_FOR_APPROVAL' && (
+                          <Link
+                            to={`/admin/sprint-approvals?sprintId=${sprint.id}`}
+                            className="btn btn-primary btn-sm"
+                            style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, backgroundColor: '#6366f1' }}
+                            title="Open Sprint Approvals to review and sign off"
+                          >
+                            <Clock size={13} /> Review &amp; Approve Sprint
+                          </Link>
+                        )}
+
+                        {/* View Project Sprints / Burndown Charts */}
+                        <Link
+                          to={`/projects/${sprint.project_id}/sprints`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                          title="View Burndown Chart & Team Workload"
+                        >
+                          <TrendingUp size={13} /> Burndown &amp; Workload
+                        </Link>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {/* Download PDF report */}
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleDownloadReport(sprint)}
+                          title="Download PDF Sprint Report"
+                          style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                          <Download size={13} /> PDF Report
+                        </button>
+
+                        {/* Delete if PLANNED */}
+                        {sprint.status === 'PLANNED' && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={actionLoadingId === sprint.id}
+                            onClick={() => handleDeleteSprint(sprint)}
+                            title="Delete Sprint"
+                            style={{ fontSize: '0.78rem', padding: '0.25rem 0.55rem', color: '#ef4444' }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

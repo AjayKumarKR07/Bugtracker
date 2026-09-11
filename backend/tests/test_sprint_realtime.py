@@ -113,6 +113,34 @@ class TestSprintRealtimeWorkflow:
         )
         assert found_in_prog, "Admin did not receive 'Sprint In Progress' notification"
 
+        # Create and assign an issue, mark it RESOLVED so submit and approve succeed
+        iss_res = _CLIENT.post(
+            "/issues",
+            json={
+                "project_id": project_id,
+                "title": f"Realtime issue {uuid.uuid4().hex[:6]}",
+                "description": "Issue description for realtime workflow test.",
+                "severity": "MAJOR",
+                "priority": "HIGH",
+            },
+            headers=auth_header(adm_tok)
+        )
+        assert iss_res.status_code == 201
+        issue_id = iss_res.json()["id"]
+
+        add_iss = _CLIENT.post(
+            f"/sprints/{sprint_id}/issues/{issue_id}",
+            headers=auth_header(adm_tok)
+        )
+        assert add_iss.status_code == 200
+
+        res_iss = _CLIENT.patch(
+            f"/issues/{issue_id}/status",
+            json={"status": "RESOLVED"},
+            headers=auth_header(adm_tok)
+        )
+        assert res_iss.status_code == 200
+
         # 3. TESTER submits sprint for approval -> Admin notified immediately
         submit_res = _CLIENT.post(
             f"/sprints/{sprint_id}/submit-for-approval",
@@ -182,6 +210,10 @@ class TestSprintRealtimeWorkflow:
             for n in notifs_tester.json()["items"]
         )
         assert found_approved, "Tester did not receive 'Sprint approved' notification"
+
+        # Teardown test sprint and project
+        _CLIENT.delete(f"/sprints/{sprint_id}", headers=auth_header(adm_tok))
+        _CLIENT.delete(f"/projects/{project_id}", headers=auth_header(adm_tok))
 
     def test_websocket_broadcast_delivery(self):
         """Verify _broadcast_ws_notification sends format compatible with frontend useWebSocket."""

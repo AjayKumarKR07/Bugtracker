@@ -12,7 +12,8 @@ import { EmptyState } from "../components/common/EmptyState";
 import { getApiErrorMessage } from "../api/client";
 import { Modal } from "../components/common/Modal";
 import { useAuth } from "../hooks/useAuth";
-import { Plus, Download, Play, CheckCircle, Trash2, Calendar, Archive, AlertTriangle, TrendingUp, Activity, Users, Target, UserCheck, RotateCcw } from "lucide-react";
+import { Plus, Download, Play, CheckCircle2, Trash2, Calendar, Archive, AlertTriangle, TrendingUp, Activity, Users, Target, UserCheck, RotateCcw } from "lucide-react";
+import { SprintLifecycleIndicator } from "../components/sprints/SprintLifecycleIndicator";
 import { formatDate } from "../utils/formatters";
 import { Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, ComposedChart } from "recharts";
 
@@ -163,33 +164,88 @@ const TeamWorkloadChart: React.FC<{ workload: SprintAnalytics["workload"] }> = (
     Open: wl.open_issues,
   }));
   return (
-    <div style={{ height: 200 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} barSize={16}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-          <XAxis dataKey="name" stroke="#475569" fontSize={10} tick={{ fill: "#64748b" }} />
-          <YAxis stroke="#475569" fontSize={10} tick={{ fill: "#64748b" }} allowDecimals={false} />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: "0.75rem", color: "#94a3b8" }} />
-          <Bar dataKey="Completed" fill="#10b981" stackId="a" />
-          <Bar dataKey="In Progress" fill="#f59e0b" stackId="a" />
-          <Bar dataKey="Open" fill="#6366f1" stackId="a" radius={[3, 3, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+    <div>
+      <div style={{ height: 190, marginBottom: "1rem" }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} barSize={16}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+            <XAxis dataKey="name" stroke="#475569" fontSize={10} tick={{ fill: "#64748b" }} />
+            <YAxis stroke="#475569" fontSize={10} tick={{ fill: "#64748b" }} allowDecimals={false} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: "0.75rem", color: "#94a3b8" }} />
+            <Bar dataKey="Completed" fill="#10b981" stackId="a" />
+            <Bar dataKey="In Progress" fill="#f59e0b" stackId="a" />
+            <Bar dataKey="Open" fill="#6366f1" stackId="a" radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Real Team Member Workload Breakdown Table */}
+      <div className="table-container" style={{ marginTop: "0.5rem" }}>
+        <table className="data-table" style={{ fontSize: "0.82rem" }}>
+          <thead>
+            <tr>
+              <th>Member Name</th>
+              <th>Role</th>
+              <th>Assigned Issues</th>
+              <th>Estimated Effort</th>
+              <th>Completed</th>
+              <th>Remaining</th>
+              <th>Workload %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {workload.map((wl) => (
+              <tr key={wl.developer_id}>
+                <td style={{ fontWeight: 600, color: "#f8fafc" }}>{wl.developer_name}</td>
+                <td>
+                  <span style={{
+                    fontSize: "0.7rem",
+                    padding: "0.15rem 0.5rem",
+                    borderRadius: "10px",
+                    background: wl.role === "TESTER" ? "rgba(99,102,241,0.15)" : "rgba(16,185,129,0.15)",
+                    color: wl.role === "TESTER" ? "#818cf8" : "#34d399",
+                    fontWeight: 600,
+                  }}>
+                    {wl.role || "TESTER"}
+                  </span>
+                </td>
+                <td style={{ fontWeight: 700 }}>{wl.assigned_issues}</td>
+                <td style={{ color: "#a78bfa", fontWeight: 600 }}>{wl.estimated_effort ?? 0} pts</td>
+                <td style={{ color: "#10b981", fontWeight: 700 }}>{wl.completed_issues}</td>
+                <td style={{ color: (wl.remaining_issues ?? 0) > 0 ? "#f59e0b" : "#94a3b8", fontWeight: 600 }}>
+                  {wl.remaining_issues ?? (wl.assigned_issues - wl.completed_issues)}
+                </td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <div style={{ flex: 1, height: "5px", background: "var(--bg-primary)", borderRadius: "3px", overflow: "hidden", minWidth: "45px" }}>
+                      <div style={{ width: `${wl.workload_percentage ?? 0}%`, height: "100%", background: "#6366f1", borderRadius: "3px" }} />
+                    </div>
+                    <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                      {wl.workload_percentage ?? 0}%
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
 
 const SprintComparisonChart: React.FC<{ sprints: Sprint[]; analytics: Record<number, SprintAnalytics> }> = ({ sprints, analytics }) => {
   const data = sprints.filter((s) => analytics[s.id]).map((s) => ({
-    name: s.name.length > 14 ? s.name.slice(0, 13) + "..." : s.name,
+    name: s.name.length > 18 ? s.name.slice(0, 17) + "..." : s.name,
     "Completion %": analytics[s.id].completion_rate,
     "Total Issues": analytics[s.id].total_issues,
     Completed: analytics[s.id].completed_issues,
+    Velocity: analytics[s.id].completed_issues,
   }));
   if (data.length === 0) return null;
   return (
-    <div style={{ height: 180 }}>
+    <div style={{ height: 200 }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} barGap={4}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -200,7 +256,8 @@ const SprintComparisonChart: React.FC<{ sprints: Sprint[]; analytics: Record<num
           <Legend wrapperStyle={{ fontSize: "0.75rem", color: "#94a3b8" }} />
           <Bar yAxisId="left" dataKey="Total Issues" fill="#334155" barSize={12} radius={[3, 3, 0, 0]} />
           <Bar yAxisId="left" dataKey="Completed" fill="#6366f1" barSize={12} radius={[3, 3, 0, 0]} />
-          <Line yAxisId="right" type="monotone" dataKey="Completion %" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: "#10b981" }} />
+          <Bar yAxisId="left" dataKey="Velocity" fill="#38bdf8" barSize={12} radius={[3, 3, 0, 0]} />
+          <Line yAxisId="right" type="monotone" dataKey="Completion %" stroke="#10b981" strokeWidth={2} dot={{ r: 4, fill: "#10b981" }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -231,9 +288,6 @@ export const SprintsPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [isCompleteOpen, setIsCompleteOpen] = useState(false);
-  const [completeSprintId, setCompleteSprintId] = useState<number | null>(null);
-  const [moveToSprintId, setMoveToSprintId] = useState<number | "">("");
 
   const [isExtendOpen, setIsExtendOpen] = useState(false);
   const [extendSprintId, setExtendSprintId] = useState<number | null>(null);
@@ -253,7 +307,8 @@ export const SprintsPage: React.FC = () => {
         SprintService.getSprintsByProject(projectId),
         SprintService.getProjectSprintSummary(projectId),
       ]);
-      setSprints(sprintsData); setOverview(overviewData);
+      const sortedSprints = [...sprintsData].sort((a, b) => b.id - a.id);
+      setSprints(sortedSprints); setOverview(overviewData);
       const issuesMap: Record<number, Issue[]> = {};
       const analyticsMap: Record<number, SprintAnalytics> = {};
       await Promise.all(sprintsData.map(async (sprint) => {
@@ -281,7 +336,6 @@ export const SprintsPage: React.FC = () => {
   };
 
   const handleStartSprint = async (sprintId: number) => { try { await SprintService.startSprint(sprintId); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
-  const handleCompleteSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!completeSprintId) return; try { await SprintService.completeSprint(completeSprintId, moveToSprintId ? Number(moveToSprintId) : undefined); setIsCompleteOpen(false); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
   const handleRemoveIssue = async (sprintId: number, issueId: number) => { if (!window.confirm("Remove this issue from the sprint?")) return; try { await SprintService.removeIssueFromSprint(sprintId, issueId); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
   const handleArchiveSprint = async (sprintId: number) => { if (!window.confirm("Archive this sprint?")) return; try { await SprintService.archiveSprint(sprintId); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
   const handleDeleteSprint = async (sprintId: number) => { if (!window.confirm("Permanently delete this sprint?")) return; try { await SprintService.deleteSprint(sprintId); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
@@ -356,6 +410,75 @@ export const SprintsPage: React.FC = () => {
             const healthCfg = sa?.sprint_health ? HEALTH_CONFIG[sa.sprint_health] : null;
             return (
               <div key={sprint.id} className="card" style={{ padding: "1.5rem", border: "1px solid var(--border)" }}>
+                {/* Agile Sprint Lifecycle Indicator */}
+                <div style={{ marginBottom: "1.25rem" }}>
+                  <SprintLifecycleIndicator
+                    status={sprint.status}
+                    hasReviewComment={Boolean(sprint.review_comment)}
+                  />
+                </div>
+
+                {/* COMPLETED Sprint Agile Showcase */}
+                {sprint.status === "COMPLETED" && (sa?.total_issues ?? 0) > 0 && (
+                  <div style={{
+                    marginBottom: "1.25rem",
+                    padding: "1rem 1.25rem",
+                    background: "rgba(16, 185, 129, 0.08)",
+                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                    borderRadius: "10px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                        <CheckCircle2 size={20} style={{ color: "#10b981" }} />
+                        <span style={{ fontSize: "1rem", fontWeight: 700, color: "#34d399", letterSpacing: "0.02em" }}>
+                          ✓ COMPLETED
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.75rem" }}>
+                      <div style={{ padding: "0.6rem 0.75rem", background: "var(--bg-secondary)", borderRadius: "6px", border: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Progress</div>
+                        <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#10b981" }}>{sa?.completion_rate ?? 0}%</div>
+                      </div>
+                      <div style={{ padding: "0.6rem 0.75rem", background: "var(--bg-secondary)", borderRadius: "6px", border: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Issues Completed</div>
+                        <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#34d399" }}>{sa?.completed_issues ?? 0} / {sa?.total_issues ?? 0} completed</div>
+                      </div>
+                      <div style={{ padding: "0.6rem 0.75rem", background: "var(--bg-secondary)", borderRadius: "6px", border: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Remaining</div>
+                        <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#94a3b8" }}>{sa?.remaining_issues ?? 0}</div>
+                      </div>
+                      <div style={{ padding: "0.6rem 0.75rem", background: "var(--bg-secondary)", borderRadius: "6px", border: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Velocity</div>
+                        <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#f59e0b" }}>{sa?.completed_issues ?? 0} pts</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {(sa?.total_issues ?? 0) === 0 && (
+                  <div style={{
+                    marginBottom: "1.25rem",
+                    padding: "0.85rem 1.25rem",
+                    background: "rgba(239, 68, 68, 0.1)",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    color: "#f87171",
+                  }}>
+                    <AlertTriangle size={18} />
+                    <span>⚠ Sprint has no issues assigned. Add backlog issues before starting/approving this sprint.</span>
+                  </div>
+                )}
+
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.25rem", borderBottom: "1px solid var(--border)", paddingBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -397,7 +520,7 @@ export const SprintsPage: React.FC = () => {
                     <button className="btn btn-secondary btn-sm" onClick={() => SprintService.downloadSprintReport(sprint.id, sprint.name)}><Download size={14} /> PDF Report</button>
                     {isAdmin && sprint.status === "PLANNED" && <button className="btn btn-primary btn-sm" onClick={() => handleStartSprint(sprint.id)}><Play size={14} /> Start Sprint</button>}
                     {isAdmin && (sprint.status === "ACTIVE" || sprint.status === "PLANNED") && <button className="btn btn-secondary btn-sm" onClick={() => { setExtendSprintId(sprint.id); setIsExtendOpen(true); }}><Calendar size={14} /> Extend</button>}
-                    {isAdmin && sprint.status === "ACTIVE" && <button className="btn btn-success btn-sm" onClick={() => { setCompleteSprintId(sprint.id); setIsCompleteOpen(true); }}><CheckCircle size={14} /> Complete</button>}
+                    {isAdmin && sprint.status === "READY_FOR_APPROVAL" && <Link to="/admin/sprint-approvals" className="btn btn-primary btn-sm"><CheckCircle2 size={14} /> Review in Approvals</Link>}
                     {isAdmin && sprint.status === "COMPLETED" && <button className="btn btn-secondary btn-sm" onClick={() => handleArchiveSprint(sprint.id)}><Archive size={14} /> Archive</button>}
                     {isAdmin && sprint.status === "PLANNED" && <button className="btn btn-danger btn-sm" onClick={() => handleDeleteSprint(sprint.id)}><Trash2 size={14} /> Delete</button>}
                     {isAdmin && (sprint.status === "PLANNED" || sprint.status === "ACTIVE" || sprint.status === "IN_PROGRESS") && (
@@ -518,24 +641,6 @@ export const SprintsPage: React.FC = () => {
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.5rem" }}>
             <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>Create Sprint</button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal isOpen={isCompleteOpen} onClose={() => setIsCompleteOpen(false)} title="Complete Sprint">
-        <form onSubmit={handleCompleteSubmit}>
-          <p style={{ marginBottom: "1rem" }}>Are you sure you want to complete this sprint?</p>
-          <div className="form-group">
-            <label className="form-label">Move Remaining Issues To:</label>
-            <select className="form-select" value={moveToSprintId} onChange={(e) => setMoveToSprintId(Number(e.target.value) || "")}>
-              <option value="">Backlog</option>
-              {sprints.filter((s) => s.status !== "COMPLETED" && s.id !== completeSprintId).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>Any unresolved issues will be moved to the selected destination.</p>
-          </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.25rem" }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setIsCompleteOpen(false)}>Cancel</button>
-            <button type="submit" className="btn btn-success">Complete Sprint</button>
           </div>
         </form>
       </Modal>

@@ -57,4 +57,11 @@ export const authApi = {
     const response = await apiClient.post<LogoutResponse>('/auth/logout');
     return response.data;
   },
+
+  switchRole: async (targetUserId: number): Promise<TokenResponse> => {
+    const response = await apiClient.post<TokenResponse>('/auth/switch-role', {
+      target_user_id: targetUserId,
+    });
+    return response.data;
+  },
 };

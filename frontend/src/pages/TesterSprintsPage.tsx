@@ -28,6 +28,7 @@ import { PriorityBadge } from '../components/common/PriorityBadge';
 import { SeverityBadge } from '../components/common/SeverityBadge';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { EmptyState } from '../components/common/EmptyState';
+import { SprintLifecycleIndicator } from '../components/sprints/SprintLifecycleIndicator';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 import type { Issue } from '../types/issue';
@@ -226,10 +227,15 @@ export const TesterSprintsPage: React.FC = () => {
   const handleQuickIssueTransition = async (sprintId: number, issueId: number, targetStatus: any) => {
     setUpdatingIssueId(issueId);
     try {
-      await issuesApi.updateStatus(issueId, { status: targetStatus });
+      if (targetStatus === 'RESOLVED') {
+        await issuesApi.resolve(issueId, { resolution_summary: 'Verified and resolved during sprint testing' });
+      } else {
+        await issuesApi.updateStatus(issueId, { status: targetStatus });
+      }
       // Refresh issues for this sprint
       const res = await issuesApi.list({ sprint_id: sprintId, page_size: 100 });
       setSprintIssues(prev => ({ ...prev, [sprintId]: res.items || [] }));
+      await loadSprints(true);
       setActionSuccess(`Issue status updated to ${targetStatus}`);
       setTimeout(() => setActionSuccess(null), 4000);
     } catch (err: unknown) {
@@ -710,6 +716,17 @@ export const TesterSprintsPage: React.FC = () => {
                   transition: 'all 0.25s ease',
                 }}
               >
+                {/* ── Sprint Lifecycle Stage Indicator ── */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem' }}>
+                    Sprint Lifecycle Stage
+                  </div>
+                  <SprintLifecycleIndicator
+                    status={sprint.status}
+                    hasReviewComment={Boolean(sprint.review_comment)}
+                  />
+                </div>
+
                 {/* ── Top Header Row ── */}
                 <div
                   style={{
@@ -719,13 +736,15 @@ export const TesterSprintsPage: React.FC = () => {
                     flexWrap: 'wrap',
                     gap: '1rem',
                     marginBottom: '1rem',
+                    borderTop: '1px solid var(--border-subtle)',
+                    paddingTop: '0.85rem',
                   }}
                 >
                   <div style={{ flex: 1, minWidth: '280px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                       <h2
                         style={{
-                          fontSize: '1.2rem',
+                          fontSize: '1.25rem',
                           fontWeight: 700,
                           color: '#f8fafc',
                           margin: 0,
@@ -733,6 +752,11 @@ export const TesterSprintsPage: React.FC = () => {
                       >
                         {sprint.name}
                       </h2>
+                      {sprint.project_name && (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.55rem', borderRadius: '6px', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)' }}>
+                          {sprint.project_key ? `[${sprint.project_key}] ` : ''}{sprint.project_name}
+                        </span>
+                      )}
                       <span
                         style={{
                           fontSize: '0.75rem',
@@ -813,7 +837,7 @@ export const TesterSprintsPage: React.FC = () => {
                         className="btn btn-primary btn-sm"
                         disabled={isSubmittingThis}
                         onClick={() => handleBeginWork(sprint.id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, padding: '0.45rem 0.95rem' }}
                         title="Click Begin Work to start testing and enable submission"
                       >
                         <Play size={14} />
@@ -824,17 +848,24 @@ export const TesterSprintsPage: React.FC = () => {
                     {sprint.status === 'IN_PROGRESS' && (
                       <button
                         className="btn btn-success btn-sm"
-                        disabled={isSubmittingThis}
+                        disabled={isSubmittingThis || (sprint.total_issues ?? 0) === 0}
                         onClick={() => handleSubmitForApproval(sprint.id)}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.4rem',
-                          fontWeight: 600,
-                          backgroundColor: '#10b981',
-                          borderColor: '#10b981',
+                          fontWeight: 700,
+                          backgroundColor: (sprint.total_issues ?? 0) > 0 ? '#10b981' : 'var(--bg-surface-elevated)',
+                          borderColor: (sprint.total_issues ?? 0) > 0 ? '#10b981' : 'var(--border-subtle)',
+                          padding: '0.45rem 0.95rem',
+                          opacity: (sprint.total_issues ?? 0) > 0 ? 1 : 0.5,
+                          cursor: (sprint.total_issues ?? 0) > 0 ? 'pointer' : 'not-allowed',
                         }}
-                        title="Submit sprint testing results to Admin for final approval"
+                        title={
+                          (sprint.total_issues ?? 0) === 0
+                            ? 'Sprint cannot be submitted for approval with 0 issues. Add backlog issues first.'
+                            : 'Submit sprint testing results to Admin for final approval'
+                        }
                       >
                         <ThumbsUp size={14} />
                         <span>{isSubmittingThis ? 'Submitting…' : 'Submit for Approval'}</span>
@@ -856,7 +887,7 @@ export const TesterSprintsPage: React.FC = () => {
                           fontWeight: 600,
                         }}
                       >
-                        <Clock size={14} /> Submitted — Awaiting Admin Review
+                        <Clock size={14} /> Awaiting Admin Approval
                       </span>
                     )}
 
@@ -875,7 +906,7 @@ export const TesterSprintsPage: React.FC = () => {
                           fontWeight: 600,
                         }}
                       >
-                        <CheckCircle2 size={14} /> Approved &amp; Completed
+                        <CheckCircle2 size={14} /> ✓ Approved &amp; Completed
                       </span>
                     )}
 
@@ -893,37 +924,177 @@ export const TesterSprintsPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Warning if sprint has no issues assigned */}
+                {(sprint.total_issues ?? 0) === 0 && (
+                  <div
+                    style={{
+                      padding: '0.85rem 1.15rem',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.6rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#f87171',
+                      marginBottom: '1rem',
+                    }}
+                  >
+                    <AlertCircle size={18} />
+                    <span>⚠ Sprint has no issues assigned. Add backlog issues before starting/approving this sprint.</span>
+                  </div>
+                )}
+
+                {/* ── Sprint Progress & Effort Metrics Box ── */}
+                {(() => {
+                  const totalIssues = sprint.total_issues ?? 0;
+                  const completedIssues = sprint.completed_issues ?? 0;
+                  const remainingIssues = Math.max(0, totalIssues - completedIssues);
+                  const pct = sprint.progress_percentage ?? (totalIssues > 0 ? Math.round((completedIssues / totalIssues) * 100) : 0);
+                  const capacityHrs = sprint.hours_per_day && sprint.working_days && sprint.estimated_team_members
+                    ? sprint.hours_per_day * sprint.working_days * sprint.estimated_team_members
+                    : null;
+                  const estimatedEffort = totalIssues * 5;
+
+                  return (
+                    <div
+                      style={{
+                        background: 'var(--bg-surface-elevated)',
+                        padding: '1rem',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-subtle)',
+                        marginBottom: '1rem',
+                      }}
+                    >
+                      {/* Work in Progress Banner */}
+                      {sprint.status === 'IN_PROGRESS' && (
+                        <div
+                          style={{
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            color: '#fbbf24',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            marginBottom: '0.75rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                          }}
+                        >
+                          <Sparkles size={14} /> Work in Progress — Testing &amp; Defect Resolution Active
+                        </div>
+                      )}
+
+                      {/* 6 Key Agile Metrics Grid */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                          gap: '0.65rem',
+                          marginBottom: '0.85rem',
+                        }}
+                      >
+                        <div style={{ background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Issues</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>{totalIssues}</div>
+                        </div>
+
+                        <div style={{ background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Completed Issues</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981' }}>{completedIssues}</div>
+                        </div>
+
+                        <div style={{ background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining Issues</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: remainingIssues > 0 ? '#f59e0b' : '#94a3b8' }}>{remainingIssues}</div>
+                        </div>
+
+                        <div style={{ background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Progress %</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: pct >= 100 ? '#10b981' : '#818cf8' }}>{pct}%</div>
+                        </div>
+
+                        <div style={{ background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Estimated Effort</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#a78bfa' }}>{estimatedEffort} pts</div>
+                        </div>
+
+                        <div style={{ background: 'var(--bg-surface)', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Capacity</div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#38bdf8' }}>{capacityHrs ? `${capacityHrs}h` : `${sprint.estimated_team_members || 3} members`}</div>
+                        </div>
+                      </div>
+
+                      {/* Dynamic Progress Bar */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                        <span>Sprint Defect Resolution: {completedIssues} of {totalIssues} issues resolved</span>
+                        <span style={{ fontWeight: 800, color: pct >= 100 ? '#10b981' : '#818cf8' }}>{pct}%</span>
+                      </div>
+                      <div style={{ height: '7px', borderRadius: '4px', backgroundColor: 'var(--border-subtle)', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            backgroundColor: pct >= 100 ? '#10b981' : pct >= 50 ? '#6366f1' : '#f59e0b',
+                            borderRadius: '4px',
+                            transition: 'width 0.6s ease',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* ── Admin Feedback Banner (Change Request) ── */}
                 {sprint.review_comment && sprint.status === 'IN_PROGRESS' && (
                   <div
                     style={{
                       marginBottom: '1rem',
-                      padding: '0.85rem 1.15rem',
-                      background: 'rgba(245,158,11,0.1)',
-                      border: '1px solid rgba(245,158,11,0.35)',
-                      borderRadius: '8px',
-                      borderLeft: '4px solid #f59e0b',
+                      padding: '1rem 1.25rem',
+                      background: 'rgba(245,158,11,0.12)',
+                      border: '1px solid rgba(245,158,11,0.4)',
+                      borderRadius: '10px',
+                      borderLeft: '5px solid #f59e0b',
                     }}
                   >
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.45rem',
-                        fontWeight: 700,
-                        fontSize: '0.88rem',
-                        color: '#fbbf24',
-                        marginBottom: '0.25rem',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '0.5rem',
+                        marginBottom: '0.4rem',
                       }}
                     >
-                      <AlertTriangle size={15} />
-                      Admin Requested Changes
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          fontWeight: 800,
+                          fontSize: '0.92rem',
+                          color: '#fbbf24',
+                        }}
+                      >
+                        <AlertTriangle size={16} />
+                        Admin Requested Changes (Rework Cycle Active)
+                      </div>
+                      <button
+                        className="btn btn-success btn-sm"
+                        disabled={isSubmittingThis}
+                        onClick={() => handleSubmitForApproval(sprint.id)}
+                        style={{ fontSize: '0.76rem', padding: '0.25rem 0.65rem' }}
+                      >
+                        <ThumbsUp size={13} /> Resubmit for Approval
+                      </button>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      {sprint.review_comment}
+                    <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.45 }}>
+                      "{sprint.review_comment}"
                     </p>
-                    <div style={{ marginTop: '0.45rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Address feedback above and re-click "Submit for Approval" when complete.
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      Please review the feedback above, verify remaining defects below, and click "Submit for Approval" when complete.
                     </div>
                   </div>
                 )}
@@ -1049,14 +1220,50 @@ export const TesterSprintsPage: React.FC = () => {
                                 <PriorityBadge priority={issue.priority} />
                                 <SeverityBadge severity={issue.severity} />
 
-                                {/* Quick testing actions */}
+                                {/* Quick testing actions based on valid defect lifecycle */}
+                                {issue.status === 'ASSIGNED' && (
+                                  <button
+                                    onClick={() => handleQuickIssueTransition(sprint.id, issue.id, 'IN_DEVELOPMENT')}
+                                    disabled={updatingIssueId === issue.id}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem' }}
+                                    title="Begin development on assigned defect"
+                                  >
+                                    Start Dev
+                                  </button>
+                                )}
+
+                                {issue.status === 'IN_DEVELOPMENT' && (
+                                  <button
+                                    onClick={() => handleQuickIssueTransition(sprint.id, issue.id, 'IN_REVIEW')}
+                                    disabled={updatingIssueId === issue.id}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem' }}
+                                    title="Submit fix for code review"
+                                  >
+                                    Submit Review
+                                  </button>
+                                )}
+
+                                {issue.status === 'REOPENED' && (
+                                  <button
+                                    onClick={() => handleQuickIssueTransition(sprint.id, issue.id, 'IN_DEVELOPMENT')}
+                                    disabled={updatingIssueId === issue.id}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem' }}
+                                    title="Resume development on reopened defect"
+                                  >
+                                    Resume Dev
+                                  </button>
+                                )}
+
                                 {issue.status === 'IN_REVIEW' && (
                                   <button
                                     onClick={() => handleQuickIssueTransition(sprint.id, issue.id, 'IN_TESTING')}
                                     disabled={updatingIssueId === issue.id}
                                     className="btn btn-primary btn-sm"
                                     style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem' }}
-                                    title="Move issue into testing"
+                                    title="Move issue into QA testing"
                                   >
                                     Start Testing
                                   </button>
@@ -1067,11 +1274,30 @@ export const TesterSprintsPage: React.FC = () => {
                                     onClick={() => handleQuickIssueTransition(sprint.id, issue.id, 'RESOLVED')}
                                     disabled={updatingIssueId === issue.id}
                                     className="btn btn-success btn-sm"
-                                    style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem' }}
+                                    style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
                                     title="Mark testing verified and resolved"
                                   >
                                     Verify &amp; Resolve
                                   </button>
+                                )}
+
+                                {issue.status === 'RESOLVED' && (
+                                  <span
+                                    style={{
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      color: '#34d399',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem',
+                                      padding: '0.15rem 0.45rem',
+                                      background: 'rgba(16,185,129,0.12)',
+                                      borderRadius: '4px',
+                                      border: '1px solid rgba(16,185,129,0.3)',
+                                    }}
+                                  >
+                                    <CheckCircle2 size={12} /> Resolved
+                                  </span>
                                 )}
                               </div>
                             </div>
