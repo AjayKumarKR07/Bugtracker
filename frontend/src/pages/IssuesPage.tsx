@@ -327,23 +327,23 @@ export const IssuesPage: React.FC = () => {
       {successMsg && (
         <div
           style={{
-            backgroundColor: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.4)',
-            color: '#34d399',
+            backgroundColor: 'var(--success-subtle)',
+            border: '1px solid var(--success)',
+            color: 'var(--success)',
             padding: '0.85rem 1.25rem',
             borderRadius: 'var(--radius-md)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             marginBottom: '1rem',
-            fontSize: '0.9rem',
+            fontSize: '0.875rem',
             fontWeight: '500',
           }}
         >
           <span>✅ {successMsg}</span>
           <button
             onClick={() => setSuccessMsg(null)}
-            style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}
+            style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}
           >
             ×
           </button>

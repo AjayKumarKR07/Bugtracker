@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
-  Bug,
   Eye,
   EyeOff,
   KeyRound,
@@ -16,6 +15,7 @@ import { getApiErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import type { User, UserRole } from '../../types/auth';
 import { storage } from '../../utils/storage';
+import { TracePilotLogo } from '../../components/common/TracePilotLogo';
 
 
 /**
@@ -81,7 +81,7 @@ export const LoginPage: React.FC = () => {
         {/* Header */}
         <div className="auth-header">
           <div className="brand-logo auth-logo-center">
-            <Bug size={24} />
+            <TracePilotLogo size={28} />
           </div>
           <h1 className="auth-title">TracePilot</h1>
           <p className="auth-subtitle">

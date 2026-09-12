@@ -670,9 +670,7 @@ export const AdminDashboardPage: React.FC = () => {
         className="card"
         style={{
           marginBottom: '2.5rem',
-          border: '1px solid rgba(99,102,241,0.25)',
-          background: 'linear-gradient(180deg, rgba(17,24,39,0.95) 0%, rgba(15,23,42,0.95) 100%)',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 0 20px rgba(99, 102, 241, 0.1)',
+          border: '1px solid var(--border-subtle)',
         }}
       >
         <div
@@ -990,14 +988,14 @@ export const AdminDashboardPage: React.FC = () => {
             style={{
               marginTop: '1.5rem',
               padding: '1.25rem',
-              borderRadius: '12px',
-              backgroundColor: 'rgba(30,41,59,0.5)',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-surface-elevated)',
               border: '1px solid var(--border-subtle)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-              <Shield size={18} style={{ color: '#818cf8' }} />
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              <Shield size={18} style={{ color: 'var(--primary)' }} />
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Step 10: Admin Review Gateway & Final Decision
               </h3>
             </div>
@@ -1007,20 +1005,20 @@ export const AdminDashboardPage: React.FC = () => {
               <div
                 style={{
                   padding: '1rem 1.25rem',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(16,185,129,0.08)',
-                  border: '1px solid rgba(16,185,129,0.3)',
-                  borderLeft: '4px solid #10b981',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--success-subtle)',
+                  border: '1px solid var(--success)',
+                  borderLeft: '4px solid var(--success)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                  <CheckCircle2 size={18} style={{ color: '#10b981' }} />
-                  <strong style={{ color: '#34d399', fontSize: '0.9rem' }}>Decision 1: APPROVE SPRINT</strong>
+                  <CheckCircle2 size={18} style={{ color: 'var(--success)' }} />
+                  <strong style={{ color: 'var(--success)', fontSize: '0.9rem' }}>Decision 1: APPROVE SPRINT</strong>
                 </div>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem 0' }}>
                   Admin verifies test completion and approves. Sprint transitions to <strong>COMPLETED</strong>.
                 </p>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--success)' }}>
                   Result: COMPLETED ({stats.sprints?.completed || 0} sprints completed to date)
                 </div>
               </div>
@@ -1029,15 +1027,15 @@ export const AdminDashboardPage: React.FC = () => {
               <div
                 style={{
                   padding: '1rem 1.25rem',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(245,158,11,0.08)',
-                  border: '1px solid rgba(245,158,11,0.3)',
-                  borderLeft: '4px solid #f59e0b',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--warning-subtle)',
+                  border: '1px solid var(--warning)',
+                  borderLeft: '4px solid var(--warning)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                  <RotateCcw size={18} style={{ color: '#f59e0b' }} />
-                  <strong style={{ color: '#fbbf24', fontSize: '0.9rem' }}>Decision 2: REQUEST CHANGES</strong>
+                  <RotateCcw size={18} style={{ color: 'var(--warning)' }} />
+                  <strong style={{ color: 'var(--warning)', fontSize: '0.9rem' }}>Decision 2: REQUEST CHANGES</strong>
                 </div>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem 0' }}>
                   Admin specifies feedback in comment modal. Sprint returns to <strong>IN_PROGRESS</strong> for tester rework.

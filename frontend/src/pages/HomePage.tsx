@@ -28,14 +28,18 @@ import {
   Wifi,
   BookOpen,
   Users,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../context/ThemeContext';
 import {
   LineChart,
   Line,
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';
+import { TracePilotLogo } from '../components/common/TracePilotLogo';
 import './HomePage.css';
 
 /* ─── Intersection Observer Hook ─────────────────────────────────── */
@@ -129,6 +133,7 @@ const demoNotifications = [
 ══════════════════════════════════════════════════════════════════ */
 export const HomePage: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [scrolled, setScrolled] = useState(false);
@@ -244,7 +249,7 @@ export const HomePage: React.FC = () => {
             aria-label="TracePilot home"
           >
             <div className="lp-brand-logo" aria-hidden="true">
-              <Bug size={18} />
+              <TracePilotLogo size={22} />
             </div>
             <span className="lp-brand-name">TracePilot</span>
           </button>
@@ -265,6 +270,18 @@ export const HomePage: React.FC = () => {
 
           {/* Desktop actions */}
           <div className="lp-nav-actions">
+            {/* Theme Toggle Button */}
+            <button
+              type="button"
+              className="lp-btn lp-btn--ghost lp-theme-btn"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              style={{ padding: '0.45rem', minWidth: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+
             {isAuthenticated && user ? (
               <button type="button" className="lp-btn lp-btn--primary" onClick={() => navigate(getDashboardPath())}>
                 <LayoutDashboard size={15} />
@@ -305,6 +322,9 @@ export const HomePage: React.FC = () => {
               </button>
             ))}
             <div className="lp-mobile-divider" />
+            <button type="button" className="lp-mobile-link" onClick={toggleTheme}>
+              {theme === 'dark' ? '☀️ Switch to Light Theme' : '🌙 Switch to Dark Theme'}
+            </button>
             <button type="button" className="lp-mobile-link" onClick={handleLogin}>Sign In</button>
             <button type="button" className="lp-mobile-link lp-mobile-link--primary" onClick={handleRegister}>
               Get Started
@@ -573,8 +593,8 @@ export const HomePage: React.FC = () => {
                 <LineChart data={resolutionData}>
                   <Line type="monotone" dataKey="v" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: '#6366f1' }} />
                   <Tooltip
-                    contentStyle={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: '#94a3b8' }}
+                    contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--text-primary)' }}
+                    labelStyle={{ color: 'var(--text-secondary)' }}
                     formatter={(v: number) => [`${v}%`, 'Rate']}
                   />
                 </LineChart>
@@ -701,7 +721,7 @@ export const HomePage: React.FC = () => {
             {/* Center */}
             <div className="lp-orbit-center">
               <div className="lp-orbit-logo">
-                <Bug size={30} />
+                <TracePilotLogo size={42} />
               </div>
               <span className="lp-orbit-center-label">TracePilot</span>
             </div>
@@ -816,7 +836,7 @@ export const HomePage: React.FC = () => {
         <div className="lp-footer-inner">
           <div className="lp-footer-brand-col">
             <div className="lp-brand lp-footer-brand">
-              <div className="lp-brand-logo" aria-hidden="true"><Bug size={16} /></div>
+              <div className="lp-brand-logo" aria-hidden="true"><TracePilotLogo size={20} /></div>
               <span className="lp-brand-name">TracePilot</span>
             </div>
             <p className="lp-footer-tagline">
@@ -996,7 +1016,7 @@ const SprintShowcase: React.FC<SprintShowcaseProps> = ({ onNavigate }) => {
               <Line type="monotone" dataKey="ideal" stroke="#334155" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
               <Line type="monotone" dataKey="actual" stroke="#6366f1" strokeWidth={2} dot={false} />
               <Tooltip
-                contentStyle={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', fontSize: 11, color: 'var(--text-primary)' }}
                 formatter={(v: number, name: string) => [`${v} pts`, name]}
               />
             </LineChart>
@@ -1226,7 +1246,7 @@ const DemoAnalyticsPanel: React.FC = () => (
         <LineChart data={resolutionData}>
           <Line type="monotone" dataKey="v" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: '#6366f1' }} />
           <Tooltip
-            contentStyle={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 8, fontSize: 11 }}
+            contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', fontSize: 11, color: 'var(--text-primary)' }}
             formatter={(v: number) => [`${v}%`, 'Rate']}
           />
         </LineChart>

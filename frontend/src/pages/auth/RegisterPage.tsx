@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
-  Bug,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getApiErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import { TracePilotLogo } from '../../components/common/TracePilotLogo';
 
 /**
  * RegisterPage — public user registration.
@@ -170,7 +170,7 @@ export const RegisterPage: React.FC = () => {
         {/* Header */}
         <div className="auth-header">
           <div className="brand-logo auth-logo-center">
-            <Bug size={24} />
+            <TracePilotLogo size={28} />
           </div>
           <h1 className="auth-title">Create Your Account</h1>
           <p className="auth-subtitle">

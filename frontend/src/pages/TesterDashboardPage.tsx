@@ -736,8 +736,8 @@ export const TesterDashboardPage: React.FC = () => {
                       : '1px solid var(--border-subtle)',
                     borderRadius: '8px',
                     background: isAwaiting
-                      ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%)'
-                      : 'var(--bg-secondary)',
+                      ? 'rgba(6, 182, 212, 0.08)'
+                      : 'var(--bg-surface-elevated)',
                     transition: 'all 0.15s ease',
                   }}
                 >

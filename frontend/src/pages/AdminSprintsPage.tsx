@@ -638,15 +638,15 @@ export const AdminSprintsPage: React.FC = () => {
                       </div>
 
                       {/* Assigned Tester Widget */}
-                      <div style={{ background: 'rgba(15,23,42,0.6)', padding: '0.65rem 0.95rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', minWidth: '220px' }}>
+                      <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.65rem 0.95rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', minWidth: '220px' }}>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           Assigned QA Tester
                         </div>
                         {sprint.assigned_tester_name ? (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.65rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <UserCheck size={16} style={{ color: '#10b981' }} />
-                              <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#34d399' }}>
+                              <UserCheck size={16} style={{ color: 'var(--success)' }} />
+                              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--success)' }}>
                                 {sprint.assigned_tester_name}
                               </span>
                             </div>

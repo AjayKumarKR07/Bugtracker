@@ -27,12 +27,12 @@ const HEALTH_CONFIG: Record<string, { color: string; bg: string; label: string }
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: "10px", padding: "0.75rem 1rem", fontSize: "0.82rem", color: "#f8fafc", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
-      {label && <div style={{ fontWeight: 700, marginBottom: "0.4rem", color: "#94a3b8" }}>{label}</div>}
+    <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0.75rem 1rem", fontSize: "0.82rem", color: "var(--text-primary)", boxShadow: "var(--shadow-md)" }}>
+      {label && <div style={{ fontWeight: 700, marginBottom: "0.4rem", color: "var(--text-secondary)" }}>{label}</div>}
       {payload.map((p: any, i: number) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color }} />
-          <span style={{ color: "#94a3b8" }}>{p.name}:</span>
+          <span style={{ color: "var(--text-secondary)" }}>{p.name}:</span>
           <span style={{ fontWeight: 600 }}>{p.value}</span>
         </div>
       ))}

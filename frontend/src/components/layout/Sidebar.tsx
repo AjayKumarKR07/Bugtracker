@@ -20,6 +20,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
 import { getRoleLabel, getRoleDescription } from '../../types/auth';
 import { SwitchRoleModal } from './SwitchRoleModal';
+import { TracePilotLogo } from '../common/TracePilotLogo';
 
 interface SidebarProps {
   mobileOpen: boolean;
@@ -67,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
         {/* Brand Header */}
         <div className="sidebar-header">
           <div className="brand-logo">
-            <Bug size={20} />
+            <TracePilotLogo size={22} />
           </div>
           <span className="brand-title">TracePilot</span>
         </div>

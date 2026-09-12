@@ -1,10 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, Radio } from 'lucide-react';
+import { Menu, Moon, Radio, Sun } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useTheme } from '../../context/ThemeContext';
 import { NotificationDropdown } from './NotificationDropdown';
 import { getRoleLabel } from '../../types/auth';
+import { TracePilotLogo } from '../common/TracePilotLogo';
 
 interface HeaderProps {
   onToggleMobile: () => void;
@@ -13,6 +15,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
   const { user } = useAuth();
   const { wsStatus } = useNotifications();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
   const getPageTitle = (pathname: string) => {
@@ -73,6 +76,11 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
         >
           <Menu size={22} />
         </button>
+        <Link to="/dashboard" className="header-mobile-brand" aria-label="TracePilot Dashboard">
+          <div className="brand-logo header-brand-logo">
+            <TracePilotLogo size={18} />
+          </div>
+        </Link>
         <span className="header-title-breadcrumb">
           {getPageTitle(location.pathname)}
         </span>
@@ -85,6 +93,16 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
           <Radio size={12} style={{ color: getWsIconColor() }} />
           <span>{getWsStatusText()}</span>
         </div>
+
+        {/* Theme Toggle Button */}
+        <button
+          onClick={toggleTheme}
+          className="header-icon-btn theme-toggle-btn"
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
 
         {/* Notifications Dropdown */}
         <NotificationDropdown />
