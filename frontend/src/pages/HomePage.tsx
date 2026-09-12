@@ -241,12 +241,12 @@ export const HomePage: React.FC = () => {
             type="button"
             className="lp-brand"
             onClick={() => scrollToSection('home')}
-            aria-label="BugTracker home"
+            aria-label="TracePilot home"
           >
             <div className="lp-brand-logo" aria-hidden="true">
               <Bug size={18} />
             </div>
-            <span className="lp-brand-name">BugTracker</span>
+            <span className="lp-brand-name">TracePilot</span>
           </button>
 
           {/* Desktop nav */}
@@ -331,7 +331,7 @@ export const HomePage: React.FC = () => {
           </h1>
 
           <p className="lp-hero-subtitle">
-            BugTracker brings issues, projects, Agile sprints, analytics, and
+            TracePilot brings issues, projects, Agile sprints, analytics, and
             real-time collaboration into one powerful workspace.
           </p>
 
@@ -497,7 +497,7 @@ export const HomePage: React.FC = () => {
         <div className="lp-section-inner">
           <div className="lp-section-head">
             <div className="lp-section-badge"><Zap size={12} aria-hidden="true" />Product Demo</div>
-            <h2 id="demo-title" className="lp-section-title">Experience BugTracker in Action</h2>
+            <h2 id="demo-title" className="lp-section-title">Experience TracePilot in Action</h2>
             <p className="lp-section-sub">
               Explore how teams track issues, plan sprints, and monitor project performance
               from one intelligent workspace.
@@ -596,7 +596,7 @@ export const HomePage: React.FC = () => {
               Built for Every Role in Your<br />Software Team
             </h2>
             <p className="lp-section-sub">
-              BugTracker provides focused workflows and permissions for every member of the development lifecycle.
+              TracePilot provides focused workflows and permissions for every member of the development lifecycle.
             </p>
           </div>
           <div className="lp-roles-grid">
@@ -664,7 +664,7 @@ export const HomePage: React.FC = () => {
               </h2>
               <p className="lp-realtime-body">
                 Important project events are delivered instantly so your team always knows what changed.
-                BugTracker's notification infrastructure keeps everyone in sync.
+                TracePilot's notification infrastructure keeps everyone in sync.
               </p>
               <ul className="lp-realtime-list">
                 {[
@@ -691,7 +691,7 @@ export const HomePage: React.FC = () => {
       {/* ═══════════════════════════════════════
           ORBIT SECTION
       ═══════════════════════════════════════ */}
-      <section className="lp-section lp-section--alt lp-orbit-section" aria-label="BugTracker capabilities orbit">
+      <section className="lp-section lp-section--alt lp-orbit-section" aria-label="TracePilot capabilities orbit">
         <div className="lp-section-inner lp-orbit-inner">
           <div className="lp-section-head">
             <div className="lp-section-badge"><Zap size={12} aria-hidden="true" />Platform</div>
@@ -703,7 +703,7 @@ export const HomePage: React.FC = () => {
               <div className="lp-orbit-logo">
                 <Bug size={30} />
               </div>
-              <span className="lp-orbit-center-label">BugTracker</span>
+              <span className="lp-orbit-center-label">TracePilot</span>
             </div>
 
             {/* Orbit ring */}
@@ -726,12 +726,12 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* ═══════════════════════════════════════
-          WHY BUGTRACKER
+          WHY TRACEPILOT
       ═══════════════════════════════════════ */}
       <section id="why" className="lp-section" aria-labelledby="why-title">
         <div className="lp-section-inner">
           <div className="lp-section-head">
-            <div className="lp-section-badge"><Shield size={12} aria-hidden="true" />Why BugTracker</div>
+            <div className="lp-section-badge"><Shield size={12} aria-hidden="true" />Why TracePilot</div>
             <h2 id="why-title" className="lp-section-title">Built for Modern Software Teams</h2>
           </div>
           <div className="lp-why-grid">
@@ -817,7 +817,7 @@ export const HomePage: React.FC = () => {
           <div className="lp-footer-brand-col">
             <div className="lp-brand lp-footer-brand">
               <div className="lp-brand-logo" aria-hidden="true"><Bug size={16} /></div>
-              <span className="lp-brand-name">BugTracker</span>
+              <span className="lp-brand-name">TracePilot</span>
             </div>
             <p className="lp-footer-tagline">
               Intelligent bug tracking and agile sprint management for modern engineering teams.
@@ -851,7 +851,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         <div className="lp-footer-bottom">
-          <span>© {new Date().getFullYear()} BugTracker. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} TracePilot. All rights reserved.</span>
           <div className="lp-footer-bottom-links">
             <button type="button" className="lp-footer-link" onClick={handleLogin}>Privacy</button>
             <button type="button" className="lp-footer-link" onClick={handleLogin}>Terms</button>
@@ -962,7 +962,7 @@ const SprintShowcase: React.FC<SprintShowcaseProps> = ({ onNavigate }) => {
             <span style={{ background: '#f97316' }} />
             <span style={{ background: '#22c55e' }} />
           </div>
-          <span className="lp-sp-url">BugTracker · Sprint Dashboard</span>
+          <span className="lp-sp-url">TracePilot · Sprint Dashboard</span>
         </div>
 
         <div className="lp-sp-body">
@@ -1018,7 +1018,7 @@ const SprintShowcase: React.FC<SprintShowcaseProps> = ({ onNavigate }) => {
           <span className="lp-gradient-text">Deliver Faster.</span>
         </h2>
         <p className="lp-sprint-copy-body">
-          BugTracker's sprint management gives your team complete visibility into every iteration — from planning to retrospective.
+          TracePilot's sprint management gives your team complete visibility into every iteration — from planning to retrospective.
         </p>
         <ul className="lp-sprint-features">
           {[
@@ -1095,7 +1095,7 @@ const ProductDemo: React.FC = () => {
             <span style={{ background: '#22c55e' }} />
           </div>
           <span className="lp-demo-url">
-            BugTracker · {activeTab === 'issues' ? 'Issues' : activeTab === 'sprint' ? 'Sprint Dashboard' : 'Analytics'}
+            TracePilot · {activeTab === 'issues' ? 'Issues' : activeTab === 'sprint' ? 'Sprint Dashboard' : 'Analytics'}
           </span>
           <span className="lp-chart-demo-tag">DEMO</span>
         </div>

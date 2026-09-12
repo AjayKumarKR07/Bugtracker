@@ -664,7 +664,7 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* ───────────────────────────────────────────────────────────────────── */}
-      {/* 4. MAIN "BUGTRACKER PROCESS" SECTION (Visual Centerpiece)             */}
+      {/* 4. MAIN "TRACEPILOT PROCESS" SECTION (Visual Centerpiece)            */}
       {/* ───────────────────────────────────────────────────────────────────── */}
       <section
         className="card"
@@ -704,7 +704,7 @@ export const AdminDashboardPage: React.FC = () => {
                 <TrendingUp size={16} />
               </div>
               <h2 className="card-title" style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
-                BugTracker Complete Process Lifecycle
+                TracePilot Complete Process Lifecycle
               </h2>
             </div>
             <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>

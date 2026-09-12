@@ -15,7 +15,7 @@ export interface NotificationNavTarget {
 /**
  * Centralized Notification-to-Route Resolver
  *
- * Implements strict role-based routing and deep linking across BugTracker:
+ * Implements strict role-based routing and deep linking across TracePilot:
  * 1. Tester sprint notifications → /tester-sprints (?sprintId=ID)
  * 2. Admin sprint approval / submission / review notifications → /admin/sprint-approvals (?sprintId=ID)
  * 3. Admin sprint management notifications → /admin/sprints (?sprintId=ID)

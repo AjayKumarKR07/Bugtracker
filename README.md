@@ -1,11 +1,11 @@
 
-# 🐞 BugTracker — Backend
+# 🐞 TracePilot — Backend
 
 > ### Intelligent Software Defect Tracking & Agile Project Management System
 
 A production-oriented **FastAPI backend** for managing software defects, projects, users, Agile sprints, backlogs, analytics, audit logs, real-time notifications, and reports.
 
-BugTracker provides a centralized platform for managing the complete software issue lifecycle—from issue creation and assignment to sprint planning, resolution tracking, analytics, and reporting.
+TracePilot provides a centralized platform for managing the complete software issue lifecycle—from issue creation and assignment to sprint planning, resolution tracking, analytics, and reporting.
 
 ---
 
@@ -23,7 +23,7 @@ BugTracker provides a centralized platform for managing the complete software is
 
 # 📌 Overview
 
-BugTracker is an intelligent software defect tracking and Agile project management system designed to support modern software development workflows.
+TracePilot is an intelligent software defect tracking and Agile project management system designed to support modern software development workflows.
 
 The backend provides secure APIs for:
 
@@ -70,7 +70,7 @@ The backend provides secure APIs for:
 
 # 🐞 Issue & Defect Management
 
-BugTracker supports the complete issue lifecycle.
+TracePilot supports the complete issue lifecycle.
 
 ### Features
 
@@ -135,7 +135,7 @@ Each project maintains its own:
 
 # 🏃 Advanced Sprint Management
 
-BugTracker provides a complete Agile Sprint Management workflow.
+TracePilot provides a complete Agile Sprint Management workflow.
 
 ## Sprint Lifecycle
 
@@ -173,7 +173,7 @@ ARCHIVED
 
 ## 🟢 Single Active Sprint Rule
 
-BugTracker enforces:
+TracePilot enforces:
 
 > Only one sprint can be `ACTIVE` for a project at a time.
 
@@ -256,7 +256,7 @@ The calculation considers:
 
 # 📉 Sprint Burndown
 
-BugTracker generates real burndown data using issue completion history.
+TracePilot generates real burndown data using issue completion history.
 
 The system compares:
 
@@ -387,7 +387,7 @@ This ensures:
 
 # 🔔 Real-Time Notifications
 
-BugTracker supports real-time notifications using WebSockets.
+TracePilot supports real-time notifications using WebSockets.
 
 Notifications can be triggered for important system events such as:
 
@@ -438,7 +438,7 @@ Audit logs improve:
 
 # 📄 Sprint PDF Reports
 
-BugTracker generates professional Sprint Reports using **ReportLab**.
+TracePilot generates professional Sprint Reports using **ReportLab**.
 
 Reports are generated dynamically in memory.
 
@@ -522,7 +522,7 @@ Access is restricted to administrators for system-wide metrics.
 
 # 🔒 RBAC Isolation Rules
 
-BugTracker applies role-based data isolation.
+TracePilot applies role-based data isolation.
 
 ### ADMIN
 
@@ -636,8 +636,8 @@ backend/
 ## 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/AjayKumarKR07/Bugtracker.git
-cd Bugtracker/backend
+git clone https://github.com/AjayKumarKR07/TracePilot.git
+cd TracePilot/backend
 ```
 
 ---
@@ -764,7 +764,7 @@ http://127.0.0.1:8000/redoc
 
 | Endpoint      | Expected Response             |
 | ------------- | ----------------------------- |
-| `GET /`       | BugTracker API status message |
+| `GET /`       | TracePilot API status message |
 | `GET /health` | Backend health status         |
 | `GET /docs`   | Swagger UI                    |
 
@@ -773,7 +773,7 @@ Example:
 ```json
 {
   "status": "healthy",
-  "service": "BugTracker API"
+  "service": "TracePilot API"
 }
 ```
 
@@ -841,7 +841,7 @@ mypy app
 
 # 🛡️ Data Integrity & Safety
 
-BugTracker applies several safeguards:
+TracePilot applies several safeguards:
 
 * Cross-project sprint assignment validation
 * Single active sprint per project
@@ -1038,7 +1038,7 @@ Add a production license before commercial deployment.
 
 # 👨‍💻 Author
 
-**BugTracker Development Team**
+**TracePilot Development Team**
 
 ---
 
@@ -1046,7 +1046,7 @@ Add a production license before commercial deployment.
 
 🟢 **Actively Developed**
 
-BugTracker `v1.0.0` currently provides a complete backend foundation for:
+TracePilot `v1.0.0` currently provides a complete backend foundation for:
 
 > **Defect Tracking + Project Management + Agile Sprint Planning + Backlog Management + Analytics + Real-Time Notifications + Reporting**
 

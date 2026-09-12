@@ -25,23 +25,23 @@ logger = logging.getLogger(__name__)
 def _build_otp_email(to_email: str, otp: str) -> MIMEMultipart:
     """Build the OTP verification email message object."""
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Verify your BugTracker account"
+    msg["Subject"] = "Verify your TracePilot account"
     msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
     msg["To"] = to_email
 
     plain_body = (
         f"Hello,\n\n"
-        f"Your BugTracker verification code is: {otp}\n\n"
+        f"Your TracePilot verification code is: {otp}\n\n"
         f"This code expires in {settings.OTP_EXPIRE_MINUTES} minutes.\n\n"
-        f"If you did not create a BugTracker account, you can safely ignore "
+        f"If you did not create a TracePilot account, you can safely ignore "
         f"this email.\n\n"
-        f"— The BugTracker Team"
+        f"— The TracePilot Team"
     )
 
     html_body = f"""
     <html>
       <body style="font-family: Arial, sans-serif; max-width: 480px; margin: auto;">
-        <h2 style="color: #1a56db;">BugTracker — Email Verification</h2>
+        <h2 style="color: #1a56db;">TracePilot — Email Verification</h2>
         <p>Use the code below to verify your account:</p>
         <div style="
           font-size: 36px;
@@ -56,11 +56,11 @@ def _build_otp_email(to_email: str, otp: str) -> MIMEMultipart:
         ">{otp}</div>
         <p>This code expires in <strong>{settings.OTP_EXPIRE_MINUTES} minutes</strong>.</p>
         <p style="color: #6b7280; font-size: 13px;">
-          If you did not create a BugTracker account, please ignore this email.
+          If you did not create a TracePilot account, please ignore this email.
           Do not share this code with anyone.
         </p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">BugTracker — Intelligent Defect Tracking System</p>
+        <p style="color: #9ca3af; font-size: 12px;">TracePilot — Automated Defect Tracking and Resolution Assistance System</p>
       </body>
     </html>
     """
@@ -131,22 +131,22 @@ async def send_notification_email(
         return
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[BugTracker] {title}"
+    msg["Subject"] = f"[TracePilot] {title}"
     msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
     msg["To"] = to_email
 
-    plain_body = f"{title}\n\n{message}\n\n— The BugTracker Team"
+    plain_body = f"{title}\n\n{message}\n\n— The TracePilot Team"
     html_body = f"""
     <html>
       <body style="font-family: Arial, sans-serif; max-width: 520px; margin: auto;">
-        <h2 style="color: #1a56db;">BugTracker Notification</h2>
+        <h2 style="color: #1a56db;">TracePilot Notification</h2>
         <h3 style="color: #111827;">{title}</h3>
         <p style="color: #374151;">{message}</p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
         <p style="color: #9ca3af; font-size: 12px;">
-          BugTracker — Intelligent Defect Tracking System.<br>
+          TracePilot — Automated Defect Tracking and Resolution Assistance System.<br>
           You are receiving this because you have notifications enabled.
-          Update your preferences in the BugTracker app.
+          Update your preferences in the TracePilot app.
         </p>
       </body>
     </html>

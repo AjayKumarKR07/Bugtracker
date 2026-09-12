@@ -117,7 +117,7 @@ export const analyticsApi = {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `bugtracker_issues_report_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `tracepilot_issues_report_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();

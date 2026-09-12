@@ -36,7 +36,7 @@ export interface SwitchRoleOption {
   color: string;
 }
 
-/** Strictly the 3 supported roles in BugTracker Switch Role. */
+/** Strictly the 3 supported roles in TracePilot Switch Role. */
 export const SWITCH_ROLES: SwitchRoleOption[] = [
   {
     role: 'ADMIN',
@@ -1135,7 +1135,7 @@ export const SwitchRoleModal: React.FC<SwitchRoleModalProps> = ({ isOpen, onClos
                 padding: '0.6rem 0.8rem',
               }}
             >
-              <strong>Security Notice:</strong> BugTracker will record an immutable audit entry (<code style={{ color: 'var(--primary)' }}>ADMIN_SWITCH_ROLE</code>) documenting your admin ID ({user?.id}), target user ID ({pendingUser.id}), and role ({pendingUser.role}).
+              <strong>Security Notice:</strong> TracePilot will record an immutable audit entry (<code style={{ color: 'var(--primary)' }}>ADMIN_SWITCH_ROLE</code>) documenting your admin ID ({user?.id}), target user ID ({pendingUser.id}), and role ({pendingUser.role}).
             </div>
 
             {/* Action Buttons */}

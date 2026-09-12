@@ -1,4 +1,4 @@
-# 🐞 BugTracker — Backend
+# 🐞 TracePilot — Backend
 
 > **Intelligent Software Defect Tracking & Agile Project Management System**
 
@@ -16,7 +16,7 @@ A production-oriented FastAPI backend for managing software defects, projects, u
 
 ## 📌 Overview
 
-BugTracker is an intelligent software defect tracking system designed to support the complete software issue management lifecycle.
+TracePilot is an intelligent software defect tracking system designed to support the complete software issue management lifecycle.
 
 The backend provides:
 

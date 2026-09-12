@@ -83,7 +83,7 @@ export const LoginPage: React.FC = () => {
           <div className="brand-logo auth-logo-center">
             <Bug size={24} />
           </div>
-          <h1 className="auth-title">BugTracker</h1>
+          <h1 className="auth-title">TracePilot</h1>
           <p className="auth-subtitle">
             Software Issue Tracking & Resolution Platform
           </p>
@@ -327,7 +327,7 @@ export const LoginPage: React.FC = () => {
           }}
         >
           <Shield size={12} />
-          <span>Secure authentication · BugTracker</span>
+          <span>Secure authentication · TracePilot</span>
         </div>
       </div>
     </div>

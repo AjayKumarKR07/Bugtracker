@@ -2,7 +2,7 @@
 import_kaggle_bugs.py
 
 Reusable, idempotent CLI script to import records from the Kaggle ISEC defect
-dataset (Mozilla Bugzilla bugs) into BugTracker's PostgreSQL database.
+dataset (Mozilla Bugzilla bugs) into TracePilot's PostgreSQL database.
 
 Features:
 - CLI argument parsing (--csv, --limit, --batch-size, --dry-run)
@@ -10,7 +10,7 @@ Features:
 - Duplicate prevention via Issue.external_id
 - 100% idempotent: running repeatedly never duplicates issues
 - Safe handling of missing descriptions (deterministic fallback satisfying NOT NULL)
-- Deterministic Component -> BugTracker Category mapping
+- Deterministic Component -> TracePilot Category mapping
 - Deterministic Severity derivation (crash/security keywords + Kaggle priority)
 - Strict adherence to mentor Smart Priority formula:
     Priority Score = severity_weight * category_urgency_weight
@@ -93,7 +93,7 @@ MINOR_KEYWORDS_REGEX = re.compile(
 
 def map_component_to_category(component: str | None) -> str:
     """
-    Map raw Kaggle/Mozilla Component string into BugTracker's canonical categories:
+    Map raw Kaggle/Mozilla Component string into TracePilot's canonical categories:
     Security, Database, API, Backend, UI.
     """
     if not component:
@@ -132,7 +132,7 @@ def determine_severity(
     description: str,
 ) -> Severity:
     """
-    Determine BugTracker technical Severity using defect impact cues and raw priority.
+    Determine TracePilot technical Severity using defect impact cues and raw priority.
     Does NOT blindly copy priority into severity.
     """
     text = f"{title} {description}"
@@ -161,7 +161,7 @@ def determine_severity(
 
 def calculate_smart_priority(severity: Severity, category: str) -> tuple[Priority, int]:
     """
-    Calculate BugTracker Priority strictly using the mentor-required formula:
+    Calculate TracePilot Priority strictly using the mentor-required formula:
       Priority Score = severity_weight * category_urgency_weight
 
     Thresholds:
@@ -188,7 +188,7 @@ def calculate_smart_priority(severity: Severity, category: str) -> tuple[Priorit
 
 def map_status_and_resolution(raw_status: str | None, raw_resolution: str | None) -> IssueStatus:
     """
-    Carefully map Kaggle Status & Resolution into BugTracker's workflow state:
+    Carefully map Kaggle Status & Resolution into TracePilot's workflow state:
     - RESOLVED + FIXED: Defect resolved by developer, awaiting QA verification -> RESOLVED
     - RESOLVED + non-FIXED (DUPLICATE, WORKSFORME, INVALID, WONTFIX): Non-code closure -> CLOSED
     - VERIFIED + any: QA verified the outcome -> CLOSED
@@ -228,7 +228,7 @@ def transform_row(
     reporter_id: int,
 ) -> tuple[dict, bool]:
     """
-    Transform a single raw Kaggle CSV row into a BugTracker Issue record dict.
+    Transform a single raw Kaggle CSV row into a TracePilot Issue record dict.
     Returns (record_dict, was_description_fallback_used).
     """
     issue_id = str(row["Issue_id"]).strip()
@@ -495,22 +495,22 @@ async def run_import(
     print(f"Total Records Skipped:     {skipped_duplicates:,}")
     print(f"Fallback Descriptions:     {missing_descriptions_count:,}")
     print(f"Execution Duration:        {elapsed:.2f}s")
-    print("\n--- BugTracker Category Distribution ---")
+    print("\n--- TracePilot Category Distribution ---")
     for cat, count in category_counts.most_common():
         pct = (count / len(records_to_insert) * 100) if records_to_insert else 0
         print(f"  {cat:15}: {count:6,} ({pct:5.1f}%) [Urgency Weight: {CATEGORY_URGENCY_WEIGHTS.get(cat, 2)}]")
 
-    print("\n--- BugTracker Severity Distribution ---")
+    print("\n--- TracePilot Severity Distribution ---")
     for sev, count in severity_counts.most_common():
         pct = (count / len(records_to_insert) * 100) if records_to_insert else 0
         print(f"  {sev:15}: {count:6,} ({pct:5.1f}%) [Severity Weight: {SEVERITY_WEIGHTS[Severity(sev)]}]")
 
-    print("\n--- BugTracker Smart Priority Distribution ---")
+    print("\n--- TracePilot Smart Priority Distribution ---")
     for prio, count in priority_counts.most_common():
         pct = (count / len(records_to_insert) * 100) if records_to_insert else 0
         print(f"  {prio:15}: {count:6,} ({pct:5.1f}%)")
 
-    print("\n--- BugTracker Workflow Status Distribution ---")
+    print("\n--- TracePilot Workflow Status Distribution ---")
     for st, count in status_counts.most_common():
         pct = (count / len(records_to_insert) * 100) if records_to_insert else 0
         print(f"  {st:15}: {count:6,} ({pct:5.1f}%)")
@@ -534,7 +534,7 @@ async def run_import(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Import Kaggle ISEC Bug Dataset into BugTracker.")
+    parser = argparse.ArgumentParser(description="Import Kaggle ISEC Bug Dataset into TracePilot.")
     parser.add_argument(
         "--csv",
         type=str,

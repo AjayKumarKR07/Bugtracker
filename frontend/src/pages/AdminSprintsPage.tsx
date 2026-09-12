@@ -239,11 +239,22 @@ export const AdminSprintsPage: React.FC = () => {
 
 
   const handleDeleteSprint = async (sprint: Sprint) => {
-    if (!window.confirm(`Are you sure you want to delete planned sprint '${sprint.name}'?`)) return;
+    const isCompleted = sprint.status === 'COMPLETED';
+    const confirmMessage = isCompleted
+      ? `Delete completed sprint '${sprint.name}'?\n\n• The sprint itself will be deleted.\n• All linked issues and defect records will remain intact in the system.\n• Issue status, resolution details, comments, and attachments will remain.\n• Issues will simply become unassigned from this sprint.\n\nAre you sure you want to proceed?`
+      : `Are you sure you want to delete planned sprint '${sprint.name}'?`;
+
+    if (!window.confirm(confirmMessage)) return;
+
     setActionLoadingId(sprint.id);
     try {
       await SprintService.deleteSprint(sprint.id);
-      setToastMessage({ type: 'success', text: 'Sprint deleted' });
+      setToastMessage({
+        type: 'success',
+        text: isCompleted
+          ? `Completed sprint '${sprint.name}' deleted. All defect data has been safely preserved.`
+          : `Sprint '${sprint.name}' deleted successfully`,
+      });
       fetchData(true);
     } catch (err: any) {
       setToastMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to delete sprint' });
@@ -852,16 +863,23 @@ export const AdminSprintsPage: React.FC = () => {
                           <Download size={13} /> PDF Report
                         </button>
 
-                        {/* Delete if PLANNED */}
-                        {sprint.status === 'PLANNED' && (
+                        {/* Delete if PLANNED or COMPLETED */}
+                        {(sprint.status === 'PLANNED' || sprint.status === 'COMPLETED') && (
                           <button
                             className="btn btn-secondary btn-sm"
                             disabled={actionLoadingId === sprint.id}
                             onClick={() => handleDeleteSprint(sprint)}
-                            title="Delete Sprint"
-                            style={{ fontSize: '0.78rem', padding: '0.25rem 0.55rem', color: '#ef4444' }}
+                            title={sprint.status === 'COMPLETED' ? "Delete Completed Sprint (Defect data preserved)" : "Delete Planned Sprint"}
+                            style={{
+                              fontSize: '0.78rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              color: '#ef4444',
+                              borderColor: 'rgba(239, 68, 68, 0.35)',
+                            }}
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={13} /> Delete Sprint
                           </button>
                         )}
                       </div>

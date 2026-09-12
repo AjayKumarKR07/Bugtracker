@@ -338,8 +338,20 @@ export const SprintsPage: React.FC = () => {
   const handleStartSprint = async (sprintId: number) => { try { await SprintService.startSprint(sprintId); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
   const handleRemoveIssue = async (sprintId: number, issueId: number) => { if (!window.confirm("Remove this issue from the sprint?")) return; try { await SprintService.removeIssueFromSprint(sprintId, issueId); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
   const handleArchiveSprint = async (sprintId: number) => { if (!window.confirm("Archive this sprint?")) return; try { await SprintService.archiveSprint(sprintId); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
-  const handleDeleteSprint = async (sprintId: number) => { if (!window.confirm("Permanently delete this sprint?")) return; try { await SprintService.deleteSprint(sprintId); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
   const handleExtendSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!extendSprintId || !formExtendEnd) return; try { await SprintService.extendSprint(extendSprintId, { new_end_date: new Date(formExtendEnd).toISOString() }); setIsExtendOpen(false); fetchData(); } catch (err) { alert(getApiErrorMessage(err)); } };
+  const handleDeleteSprint = async (sprint: Sprint) => {
+    const isCompleted = sprint.status === 'COMPLETED';
+    const confirmMessage = isCompleted
+      ? `Delete completed sprint '${sprint.name}'?\n\n• The sprint itself will be deleted.\n• All linked issues and defect records will remain intact in the system.\n• Issue status, resolution details, comments, and attachments will remain.\n• Issues will simply become unassigned from this sprint.\n\nAre you sure you want to proceed?`
+      : `Permanently delete planned sprint '${sprint.name}'?`;
+    if (!window.confirm(confirmMessage)) return;
+    try {
+      await SprintService.deleteSprint(sprint.id);
+      fetchData();
+    } catch (err) {
+      alert(getApiErrorMessage(err));
+    }
+  };
 
   const openAssignTesterModal = async (sprintId: number) => {
     setAssignTesterSprintId(sprintId);
@@ -522,7 +534,15 @@ export const SprintsPage: React.FC = () => {
                     {isAdmin && (sprint.status === "ACTIVE" || sprint.status === "PLANNED") && <button className="btn btn-secondary btn-sm" onClick={() => { setExtendSprintId(sprint.id); setIsExtendOpen(true); }}><Calendar size={14} /> Extend</button>}
                     {isAdmin && sprint.status === "READY_FOR_APPROVAL" && <Link to="/admin/sprint-approvals" className="btn btn-primary btn-sm"><CheckCircle2 size={14} /> Review in Approvals</Link>}
                     {isAdmin && sprint.status === "COMPLETED" && <button className="btn btn-secondary btn-sm" onClick={() => handleArchiveSprint(sprint.id)}><Archive size={14} /> Archive</button>}
-                    {isAdmin && sprint.status === "PLANNED" && <button className="btn btn-danger btn-sm" onClick={() => handleDeleteSprint(sprint.id)}><Trash2 size={14} /> Delete</button>}
+                    {isAdmin && (sprint.status === "PLANNED" || sprint.status === "COMPLETED") && (
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeleteSprint(sprint)}
+                        title={sprint.status === "COMPLETED" ? "Delete Completed Sprint (Defect data preserved)" : "Delete Planned Sprint"}
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    )}
                     {isAdmin && (sprint.status === "PLANNED" || sprint.status === "ACTIVE" || sprint.status === "IN_PROGRESS") && (
                       <button className="btn btn-secondary btn-sm" onClick={() => openAssignTesterModal(sprint.id)}>
                         <UserCheck size={14} /> {sprint.assigned_tester_name ? 'Reassign Tester' : 'Assign Tester'}

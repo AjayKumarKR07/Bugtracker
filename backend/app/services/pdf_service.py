@@ -48,7 +48,7 @@ class NumberedCanvas(canvas.Canvas):
         # Running Footer text
         self.setFont("Helvetica", 7.5)
         self.setFillColor(colors.HexColor("#64748B"))
-        self.drawString(36, 20, "BugTracker • Intelligent Defect Tracking System • Agile Sprint Performance Report")
+        self.drawString(36, 20, "TracePilot • Automated Defect Tracking and Resolution Assistance System • Agile Sprint Performance Report")
         page_str = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(page_width - 36, 20, page_str)
 
@@ -209,7 +209,7 @@ def generate_sprint_report(
     # -------------------------------------------------------------------------
     header_data = [
         [
-            Paragraph("<b>BUGTRACKER</b>", brand_title_style),
+            Paragraph("<b>TRACEPILOT</b>", brand_title_style),
             Paragraph("AGILE SPRINT REPORT", brand_right_style),
         ],
         [

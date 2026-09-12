@@ -1,11 +1,11 @@
 # INFOSYS SPRINGBOARD VIRTUAL INTERNSHIP
-# TECHNICAL PROJECT REPORT: BUGTRACKER
+# TECHNICAL PROJECT REPORT: TRACEPILOT
 ## Milestone 2 (Weeks 3–4): Workflow Automation & Collaboration
 
 ---
 
 ### Document Control & Metadata
-- **Project Title**: BugTracker – Automated Defect Tracking and Resolution Assistance System
+- **Project Title**: TracePilot – Automated Defect Tracking and Resolution Assistance System
 - **Milestone Designation**: Milestone 2 (Weeks 3–4) – Workflow Automation & Collaboration
 - **Internship Program**: Infosys Springboard Virtual Internship (Batch 3)
 - **Primary Technology Stack**:
@@ -19,13 +19,13 @@
 
 ## 1. Milestone 2 Overview & System Architecture
 
-**Milestone 2 (Weeks 3–4): Workflow Automation & Collaboration** advances the BugTracker platform from a foundational CRUD defect registry into a complete collaborative defect tracking and Agile project management platform.
+**Milestone 2 (Weeks 3–4): Workflow Automation & Collaboration** advances the TracePilot platform from a foundational CRUD defect registry into a complete collaborative defect tracking and Agile project management platform.
 
 While foundational entities (user accounts, projects, basic defect records) were registered in initial iterations, software engineering in team environments requires structured coordination: objective prioritization rather than subjective triage, granular auditability, segregated role permissions, agile sprint iteration grouping, and automated lifecycle state machines. Milestone 2 engineers these exact capabilities.
 
 ```
 +-----------------------------------------------------------------------------------------------------------------------+
-|                                              BUGTRACKER SYSTEM ARCHITECTURE                                           |
+|                                              TRACEPILOT SYSTEM ARCHITECTURE                                           |
 |                                                                                                                       |
 |   +--------------------------+       +------------------------------+       +-------------------------------------+   |
 |   |      USER WORKSPACE      |       |       TESTER WORKSPACE       |       |           ADMIN WORKSPACE           |   |
@@ -795,7 +795,7 @@ The technical deliverables completed in Milestone 2 satisfy all four mentor requ
 
 ## 12. Architectural Conclusions & Future Roadmap
 
-Milestone 2 establishes BugTracker as a complete collaborative defect tracking and Agile project management platform. By implementing role-governed workflows—enabling users to report and verify, testers to investigate and resolve, and administrators to orchestrate and approve—the application eliminates ambiguity across defect management cycles. The integration of algorithmic prioritization, immutable audit trails, secure file management, and real-time WebSocket messaging ensures transparency, accountability, and operational predictability across the software development lifecycle.
+Milestone 2 establishes TracePilot as a complete collaborative defect tracking and Agile project management platform. By implementing role-governed workflows—enabling users to report and verify, testers to investigate and resolve, and administrators to orchestrate and approve—the application eliminates ambiguity across defect management cycles. The integration of algorithmic prioritization, immutable audit trails, secure file management, and real-time WebSocket messaging ensures transparency, accountability, and operational predictability across the software development lifecycle.
 
 ---
 
@@ -820,7 +820,7 @@ Milestone 2 establishes BugTracker as a complete collaborative defect tracking a
 
 ```
 ====================================================================================================
-               INFOSYS SPRINGBOARD VIRTUAL INTERNSHIP | BUGTRACKER
+               INFOSYS SPRINGBOARD VIRTUAL INTERNSHIP | TRACEPILOT
                  Milestone 2 (Weeks 3–4) – Workflow Automation & Collaboration
 ====================================================================================================
 

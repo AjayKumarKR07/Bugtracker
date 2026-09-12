@@ -79,7 +79,7 @@ const ROLE_OPTIONS: UIRoleOption[] = [
     label: 'Admin',
     backendRole: 'ADMIN',
     icon: <Shield size={22} />,
-    description: 'Manage the complete BugTracker platform, users, projects, assignments, and global analytics.',
+    description: 'Manage the complete TracePilot platform, users, projects, assignments, and global analytics.',
     capabilities: [
       'Manage system users and access',
       'Create and configure projects',
@@ -174,7 +174,7 @@ export const RegisterPage: React.FC = () => {
           </div>
           <h1 className="auth-title">Create Your Account</h1>
           <p className="auth-subtitle">
-            Join BugTracker to report, track, and resolve defects
+            Join TracePilot to report, track, and resolve defects
           </p>
         </div>
 

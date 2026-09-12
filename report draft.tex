@@ -56,7 +56,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \renewcommand{\headrulewidth}{0pt}
-\fancyhead[R]{\small\color{gray999} BugTracker --- Module 1 Report}
+\fancyhead[R]{\small\color{gray999} TracePilot --- Module 1 Report}
 \fancyfoot[C]{\small\color{gray999} Page \thepage}
 
 % ---------- Code block environment (light theme) ----------
@@ -212,7 +212,7 @@ Testing & pytest + anyio & 9.1.1 / 4.14.2 \\
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{architecture.jpg}
-  \caption{Three-Tier Architecture of the BugTracker System}
+  \caption{Three-Tier Architecture of the TracePilot System}
   \label{fig:architecture}
 \end{figure}
 
@@ -227,7 +227,7 @@ The application follows a three-tier layered architecture:
 \subsection{3.2 Project Structure}
 
 \begin{lstlisting}
-BugTracker/
+TracePilot/
 |-- backend/
 |   |-- app/
 |   |   |-- core/            # Settings (Pydantic BaseSettings)

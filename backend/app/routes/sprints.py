@@ -120,7 +120,9 @@ async def delete_sprint(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a planned/empty sprint. ADMIN only."""
+    """Delete a PLANNED or COMPLETED sprint. ADMIN only.
+    All linked issues and defect data are safely preserved and unassigned back to backlog.
+    """
     await sprint_service.delete_sprint(db, sprint_id, actor=current_user)
 
 
@@ -147,7 +149,7 @@ async def download_sprint_report(
     pdf_buffer = generate_sprint_report(sprint, analytics, generated_by=current_user)
     
     date_str = (sprint.completed_at or sprint.start_date).strftime("%Y-%m-%d")
-    filename = f"BugTracker_Sprint_Report_{sprint.name.replace(' ', '_')}_{date_str}.pdf"
+    filename = f"TracePilot_Sprint_Report_{sprint.name.replace(' ', '_')}_{date_str}.pdf"
     
     return StreamingResponse(
         pdf_buffer, 

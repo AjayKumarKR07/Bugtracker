@@ -69,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
           <div className="brand-logo">
             <Bug size={20} />
           </div>
-          <span className="brand-title">BugTracker</span>
+          <span className="brand-title">TracePilot</span>
         </div>
 
         {/* User Card */}

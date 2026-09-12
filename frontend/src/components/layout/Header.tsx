@@ -24,7 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobile }) => {
     if (pathname.startsWith('/analytics')) return 'Analytics & Reporting';
     if (pathname.startsWith('/admin')) return 'Admin Center';
     if (pathname.startsWith('/profile')) return 'My Profile';
-    return 'BugTracker';
+    return 'TracePilot';
   };
 
   const getWsStatusText = () => {

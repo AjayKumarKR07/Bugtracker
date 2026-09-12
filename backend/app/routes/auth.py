@@ -77,7 +77,7 @@ async def request_otp(
     raw_otp = await create_otp_record(body.email, db)
 
     # Print to console for convenient development visibility
-    print(f"\n=======================================================\n[BugTracker OTP] Code for {body.email}: {raw_otp}\n=======================================================\n", flush=True)
+    print(f"\n=======================================================\n[TracePilot OTP] Code for {body.email}: {raw_otp}\n=======================================================\n", flush=True)
 
     try:
         await send_otp_email(body.email, raw_otp)
@@ -163,7 +163,7 @@ async def verify_otp(
         # ADMIN and TESTER accounts require explicit password registration.
         raw_name = body.email.split("@")[0].replace(".", " ").replace("_", " ").title()
         user = User(
-            full_name=raw_name or "BugTracker User",
+            full_name=raw_name or "TracePilot User",
             email=body.email,
             password_hash=hash_password(secrets.token_urlsafe(32)),
             role=UserRole.USER,

@@ -107,7 +107,7 @@ class Sprint(Base):
     issues: Mapped[list["Issue"]] = relationship(  # type: ignore[name-defined]
         "Issue",
         back_populates="sprint",
-        cascade="all, save-update",
+        cascade="save-update, merge",
         lazy="selectin",
     )
     assigned_tester: Mapped["User | None"] = relationship(  # type: ignore[name-defined]

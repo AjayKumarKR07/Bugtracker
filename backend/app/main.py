@@ -1,5 +1,5 @@
 """
-BugTracker FastAPI application entry point.
+TracePilot FastAPI application entry point.
 
 Phase 1: Structural foundation
 Phase 2: PostgreSQL + SQLAlchemy
@@ -43,7 +43,7 @@ class RootResponse(BaseModel):
 app = FastAPI(
     title=settings.APP_NAME,
     description=(
-        "Intelligent Software Defect Tracking System with Resolution Assistance. "
+        "TracePilot – Automated Defect Tracking and Resolution Assistance System. "
         "Built for the Infosys Batch 3 internship project."
     ),
     version="0.9.0",
@@ -99,4 +99,4 @@ app.include_router(export_router)
 @app.get("/", response_model=RootResponse, summary="Root", tags=["Root"])
 async def root() -> RootResponse:
     """Confirm the API is reachable."""
-    return RootResponse(message="BugTracker API is running")
+    return RootResponse(message="TracePilot API is running")

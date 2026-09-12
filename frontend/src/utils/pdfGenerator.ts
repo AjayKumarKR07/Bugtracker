@@ -55,7 +55,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text('BUGTRACKER — ANALYTICS & DEFECT REPORT', 14, 14);
+  doc.text('TRACEPILOT — ANALYTICS & DEFECT REPORT', 14, 14);
 
   // Subtitle
   doc.setFont('helvetica', 'normal');
@@ -336,7 +336,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      'BugTracker Enterprise • Confidential Quality Assurance Report • Generated from PostgreSQL Engine',
+      'TracePilot Enterprise • Confidential Quality Assurance Report • Generated from PostgreSQL Engine',
       14,
       pageHeight - 8
     );
@@ -344,7 +344,7 @@ export const generateAnalyticsPdfReport = (data: AnalyticsReportData) => {
   }
 
   let pLabel = data.periodLabel ? data.periodLabel.replace(/\s+/g, '') : 'Generated';
-  const filename = `BugTracker_${pLabel}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+  const filename = `TracePilot_${pLabel}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(filename);
 };
 
@@ -379,7 +379,7 @@ export const generateIssuesPdfReport = (
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('BUGTRACKER — DEFECT & ISSUE REGISTRY REPORT', 14, 11);
+  doc.text('TRACEPILOT — DEFECT & ISSUE REGISTRY REPORT', 14, 11);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -458,11 +458,11 @@ export const generateIssuesPdfReport = (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text('BugTracker Enterprise • Confidential Quality Assurance Registry Report', 14, pageHeight - 6);
+    doc.text('TracePilot Enterprise • Confidential Quality Assurance Registry Report', 14, pageHeight - 6);
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - 25, pageHeight - 6);
   }
 
-  const filename = `BugTracker_Issues_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+  const filename = `TracePilot_Issues_Report_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(filename);
 };
 
@@ -645,7 +645,7 @@ export const generateSingleIssuePdfReport = (issue: IssueDetail, comments?: Comm
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text('BugTracker Enterprise • Single Defect Audit Report • Generated from PostgreSQL Engine', 14, pageHeight - 8);
+    doc.text('TracePilot Enterprise • Single Defect Audit Report • Generated from PostgreSQL Engine', 14, pageHeight - 8);
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - 25, pageHeight - 8);
   }
 

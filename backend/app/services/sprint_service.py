@@ -420,16 +420,22 @@ async def complete_sprint(db: AsyncSession, sprint_id: int, move_remaining_to_sp
 
 async def delete_sprint(db: AsyncSession, sprint_id: int, actor: User) -> None:
     sprint = await get_sprint_by_id(db, sprint_id)
-    if sprint.status in [SprintStatus.ACTIVE, SprintStatus.COMPLETED]:
-        result = await db.execute(select(func.count(Issue.id)).where(Issue.sprint_id == sprint.id))
-        issue_count = result.scalar() or 0
-        if issue_count > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot delete a {sprint.status.value} sprint with {issue_count} assigned issues. Please complete the sprint or unassign issues first."
-            )
-            
-    # Safely unassign issues to Backlog
+    # Status Guard: Only PLANNED and COMPLETED sprints can be deleted.
+    # Non-terminal workflow states (ACTIVE, IN_PROGRESS, READY_FOR_APPROVAL, ARCHIVED) remain protected.
+    if sprint.status not in (SprintStatus.PLANNED, SprintStatus.COMPLETED):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete a sprint in '{sprint.status.value}' status. Only PLANNED or COMPLETED sprints can be deleted."
+        )
+
+    # Capture sprint and tester info before deleting sprint record
+    assigned_tester_id = sprint.assigned_tester_id
+    sprint_name = sprint.name
+    sprint_id_val = sprint.id
+    was_completed = (sprint.status == SprintStatus.COMPLETED)
+
+    # Safely detach linked issues (issue.sprint_id = None).
+    # All issue records, statuses, resolutions, comments, attachments, and histories are preserved!
     result = await db.execute(select(Issue).where(Issue.sprint_id == sprint.id))
     unassigned_issues = result.scalars().all()
     for issue in unassigned_issues:
@@ -437,16 +443,46 @@ async def delete_sprint(db: AsyncSession, sprint_id: int, actor: User) -> None:
         await create_audit_log(
             db=db, actor=actor, action=AuditAction.ISSUE_UPDATED,
             entity_type="ISSUE", entity_id=issue.id, entity_key=issue.issue_key,
-            description=f"Issue unassigned from deleted sprint '{sprint.name}' back to Backlog"
+            description=f"Issue unassigned from deleted sprint '{sprint_name}' (defect data preserved)"
         )
+    sprint.issues = []
+    await db.flush()
 
+    # If sprint had an assigned tester, verify tester exists and create notification
+    tester_notif = None
+    if assigned_tester_id:
+        tester_user = await db.scalar(select(User).where(User.id == assigned_tester_id, User.is_active == True))
+        if tester_user:
+            title = "Sprint Deleted" if was_completed else "Planned Sprint Deleted"
+            message = (
+                f"Completed sprint '{sprint_name}' was removed by Administrator {actor.full_name}. "
+                "All defect records, comments, attachments, and resolutions have been preserved."
+                if was_completed
+                else f"Planned sprint '{sprint_name}' was deleted by Administrator {actor.full_name}."
+            )
+            tester_notif = await notification_service.create_notification(
+                db=db,
+                user_id=assigned_tester_id,
+                notification_type=NotificationType.SPRINT_ENDED,
+                title=title,
+                message=message,
+                entity_type="SPRINT",
+                entity_id=sprint_id_val,
+                entity_key=sprint_name,
+            )
+
+    # Delete sprint record from DB & log audit
     await db.delete(sprint)
     await create_audit_log(
         db=db, actor=actor, action=AuditAction.SPRINT_DELETED,
-        entity_type="SPRINT", entity_id=sprint.id, entity_key=sprint.name,
-        description=f"Deleted sprint '{sprint.name}'"
+        entity_type="SPRINT", entity_id=sprint_id_val, entity_key=sprint_name,
+        description=f"Deleted sprint '{sprint_name}'"
     )
     await db.commit()
+
+    # Broadcast real-time notification to assigned tester
+    if assigned_tester_id and tester_notif:
+        await _broadcast_ws_notification(assigned_tester_id, tester_notif)
 
 async def archive_sprint(db: AsyncSession, sprint_id: int, actor: User) -> Sprint:
     sprint = await get_sprint_by_id(db, sprint_id)
@@ -868,7 +904,6 @@ async def remove_issue_from_sprint(db: AsyncSession, sprint_id: int, issue_id: i
             notification_type=NotificationType.ISSUE_ASSIGNED,
             title="Issue Removed from Sprint",
             message=f"Issue {issue.issue_key} was removed from your sprint '{sprint.name}'.",
-            actor_id=actor.id,
             entity_type="ISSUE",
             entity_id=issue.id,
             entity_key=issue.issue_key,

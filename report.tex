@@ -52,7 +52,7 @@
 % --- Header & Footer Formatting ---
 \makeatletter
 \def\ps@infosysheadings{%
-  \def\@oddhead{\vbox{\hbox to \textwidth{{\small BugTracker Milestone 3 Report}\hfill{\small Infosys Springboard 7.0}}\vskip2pt\hrule height 0.4pt}}%
+  \def\@oddhead{\vbox{\hbox to \textwidth{{\small TracePilot Milestone 3 Report}\hfill{\small Infosys Springboard 7.0}}\vskip2pt\hrule height 0.4pt}}%
   \def\@evenhead{\@oddhead}%
   \def\@oddfoot{\vbox{\hrule height 0.4pt\vskip4pt\hbox to \textwidth{\hfil{\small Page \thepage}\hfil}}}%
   \def\@evenfoot{\@oddfoot}%
@@ -135,9 +135,9 @@
 % 2. EXECUTIVE SUMMARY
 % =========================================================================
 \section{Executive Summary}
-The \textbf{BugTracker -- Automated Defect Tracking and Resolution Assistance System} is an enterprise-grade full-stack engineering platform designed to streamline software defect discovery, collaborative triage, automated lifecycle orchestration, and empirical software quality monitoring. While foundational iterations established core defect entities, role-based workspaces, agile sprint planning, and bi-directional approval governance, software engineering operations require deep visibility into defect trends, open integration standards, and automated event synchronization with continuous integration and version control pipelines.
+The \textbf{TracePilot -- Automated Defect Tracking and Resolution Assistance System} is an enterprise-grade full-stack engineering platform designed to streamline software defect discovery, collaborative triage, automated lifecycle orchestration, and empirical software quality monitoring. While foundational iterations established core defect entities, role-based workspaces, agile sprint planning, and bi-directional approval governance, software engineering operations require deep visibility into defect trends, open integration standards, and automated event synchronization with continuous integration and version control pipelines.
 
-Milestone 3 (Weeks 5--6) elevates the BugTracker platform into a data-driven, API-centric defect intelligence ecosystem. This milestone establishes comprehensive RESTful application programming interfaces (APIs) documented via OpenAPI/Swagger specifications, an automated software quality monitoring subsystem providing empirical defect metrics, external version control integration via GitHub webhooks and Smee payload delivery, and an interactive administrative analytics dashboard powered by Plotly.js.
+Milestone 3 (Weeks 5--6) elevates the TracePilot platform into a data-driven, API-centric defect intelligence ecosystem. This milestone establishes comprehensive RESTful application programming interfaces (APIs) documented via OpenAPI/Swagger specifications, an automated software quality monitoring subsystem providing empirical defect metrics, external version control integration via GitHub webhooks and Smee payload delivery, and an interactive administrative analytics dashboard powered by Plotly.js.
 
 The system is constructed upon a decoupled, asynchronous three-tier architecture:
 \begin{itemize}
@@ -152,7 +152,7 @@ All implemented modules were validated through an automated backend test suite s
 % 3. MILESTONE 3 OBJECTIVES AND SCOPE
 % =========================================================================
 \section{Milestone 3 Objectives and Scope}
-Milestone 3 focuses on transitioning the BugTracker system from an isolated transactional tracker into an interoperable defect intelligence hub. The functional scope directly addresses the four core mandate requirements established for the Infosys Springboard Virtual Internship Milestone 3:
+Milestone 3 focuses on transitioning the TracePilot system from an isolated transactional tracker into an interoperable defect intelligence hub. The functional scope directly addresses the four core mandate requirements established for the Infosys Springboard Virtual Internship Milestone 3:
 
 \begin{enumerate}
     \item \textbf{Deployment of Standardized REST APIs}: Expose uniform, secure, and self-documenting RESTful endpoints covering issue authoring, triage, developer assignment, sprint governance, file attachments, real-time notifications, analytical data retrieval, and audit trail exports.
@@ -184,7 +184,7 @@ To maintain enterprise governance, all endpoints and analytical views strictly e
 % 4. SYSTEM ARCHITECTURE FOR APIS AND INTEGRATIONS
 % =========================================================================
 \section{System Architecture for APIs and Integrations}
-The architecture of BugTracker is engineered around asynchronous I/O and event-driven data flow. The architectural topology diagram below delineates the end-to-end integration flow connecting developer Git repositories, webhook forwarders, the FastAPI application server, PostgreSQL persistence, and the React frontend presentation layer.
+The architecture of TracePilot is engineered around asynchronous I/O and event-driven data flow. The architectural topology diagram below delineates the end-to-end integration flow connecting developer Git repositories, webhook forwarders, the FastAPI application server, PostgreSQL persistence, and the React frontend presentation layer.
 
 \begin{center}
 \begin{tikzpicture}[
@@ -263,7 +263,7 @@ The architecture of BugTracker is engineered around asynchronous I/O and event-d
 % 5. REST API DEVELOPMENT
 % =========================================================================
 \section{REST API Development}
-BugTracker implements a fully compliant, asynchronous REST API layer following RESTful design principles, predictable URI resource hierarchies, and HTTP status code semantics. 
+TracePilot implements a fully compliant, asynchronous REST API layer following RESTful design principles, predictable URI resource hierarchies, and HTTP status code semantics.
 
 \subsection{Endpoint Categories and Architectural Layout}
 The API is divided into logical domain routers mounted in \texttt{backend/app/main.py}:
@@ -282,16 +282,16 @@ The API is divided into logical domain routers mounted in \texttt{backend/app/ma
 \end{itemize}
 
 \subsection{Verified Milestone 3 API Endpoints}
-Table~\ref{tab:api_endpoints} catalogues the primary API endpoints implemented in the BugTracker backend, verified directly against the router declarations in the codebase.
+Table~\ref{tab:api_endpoints} catalogues the primary API endpoints implemented in the TracePilot backend, verified directly against the router declarations in the codebase.
 
 \begin{longtable}{>{\raggedright\arraybackslash\small}p{1.2cm}>{\raggedright\arraybackslash\small\ttfamily}p{5.4cm}>{\raggedright\arraybackslash\small}p{6.4cm}>{\raggedright\arraybackslash\small}p{2.0cm}}
-\caption{Verified BugTracker REST API Endpoint Directory.\label{tab:api_endpoints}} \\
+\caption{Verified TracePilot REST API Endpoint Directory.\label{tab:api_endpoints}} \\
 \toprule
 \textbf{\textnormal{Method}} & \textbf{\textnormal{Endpoint Route}} & \textbf{\textnormal{Functional Description}} & \textbf{\textnormal{Scope}} \\
 \midrule
 \endfirsthead
 \multicolumn{4}{c}%
-{{\small\bfseries Table \thetable\ (Continued): Verified BugTracker REST API Endpoint Directory}} \\[0.5em]
+{{\small\bfseries Table \thetable\ (Continued): Verified TracePilot REST API Endpoint Directory}} \\[0.5em]
 \toprule
 \textbf{\textnormal{Method}} & \textbf{\textnormal{Endpoint Route}} & \textbf{\textnormal{Functional Description}} & \textbf{\textnormal{Scope}} \\
 \midrule
@@ -419,14 +419,14 @@ Standard HTTP status codes are strictly respected: \texttt{200 OK} (successful r
 \section{REST API Explorer}
 FastAPI automatically introspects route declarations, Pydantic type annotations, and docstrings to generate an interactive OpenAPI 3.0 specification. The documentation is served natively via Swagger UI at \texttt{/docs} and ReDoc at \texttt{/redoc}.
 
-The interactive explorer allows software engineers, quality analysts, and integration partners to inspect available endpoints, examine request payload schemas, inspect response data models, and execute live API calls directly from the browser using the \textit{Authorize} dialog to inject Bearer JWT credentials. Figure~\ref{fig:swagger_api} displays the active BugTracker REST API Explorer rendering the full suite of implemented endpoints across authentication, issue lifecycle, sprint governance, analytics, and Git webhook operations.
+The interactive explorer allows software engineers, quality analysts, and integration partners to inspect available endpoints, examine request payload schemas, inspect response data models, and execute live API calls directly from the browser using the \textit{Authorize} dialog to inject Bearer JWT credentials. Figure~\ref{fig:swagger_api} displays the active TracePilot REST API Explorer rendering the full suite of implemented endpoints across authentication, issue lifecycle, sprint governance, analytics, and Git webhook operations.
 
 \begin{figure}[htbp]
 \centering
 \setlength{\fboxsep}{0pt}%
 \setlength{\fboxrule}{0.8pt}%
 \fbox{\includegraphics[width=0.95\textwidth]{milestone3/imagesmilestone3/figure1_swagger_api_explorer.png}}
-\caption{BugTracker REST API Explorer showing the FastAPI OpenAPI/Swagger documentation and available API operations.}
+\caption{TracePilot REST API Explorer showing the FastAPI OpenAPI/Swagger documentation and available API operations.}
 \label{fig:swagger_api}
 \end{figure}
 
@@ -436,19 +436,19 @@ The OpenAPI explorer groups operations into clean tags (\texttt{Authentication},
 % 7. ANALYTICS AND SOFTWARE QUALITY MONITORING
 % =========================================================================
 \section{Analytics and Software Quality Monitoring}
-A critical requirement of modern defect tracking platforms is empirical quality monitoring. BugTracker features an analytics subsystem implemented in \texttt{backend/app/services/analytics\_service.py} that queries the live PostgreSQL database to generate actionable defect metrics. Figure~\ref{fig:analytics_metrics} showcases the BugTracker Analytics and Quality Metrics dashboard.
+A critical requirement of modern defect tracking platforms is empirical quality monitoring. TracePilot features an analytics subsystem implemented in \texttt{backend/app/services/analytics\_service.py} that queries the live PostgreSQL database to generate actionable defect metrics. Figure~\ref{fig:analytics_metrics} showcases the TracePilot Analytics and Quality Metrics dashboard.
 
 \begin{figure}[htbp]
 \centering
 \setlength{\fboxsep}{0pt}%
 \setlength{\fboxrule}{0.8pt}%
 \fbox{\includegraphics[width=0.95\textwidth]{milestone3/imagesmilestone3/figure2_analytics_quality_metrics.png}}
-\caption{BugTracker Analytics and Reporting dashboard showing software quality metrics and analytical insights.}
+\caption{TracePilot Analytics and Reporting dashboard showing software quality metrics and analytical insights.}
 \label{fig:analytics_metrics}
 \end{figure}
 
 \subsection{Implemented Software Quality Metrics and Formulas}
-Unlike systems that rely on fabricated estimates, all four quality metrics in BugTracker are calculated dynamically from physical issue records:
+Unlike systems that rely on fabricated estimates, all four quality metrics in TracePilot are calculated dynamically from physical issue records:
 
 \subsubsection{1. Fix Rate (\%)}
 Measures the proportion of all recorded defects in the system (or selected project) that have been successfully resolved or closed by the engineering team:
@@ -536,7 +536,7 @@ Exposed via \texttt{GET /api/v1/analytics/developers}, this module aggregates in
 % 8. GITHUB WEBHOOK INTEGRATION
 % =========================================================================
 \section{GitHub Webhook Integration}
-A core engineering highlight of Milestone 3 is the bidirectional synchronization between external Git version control repositories and the BugTracker defect state machine. BugTracker implements a dedicated ingestion endpoint at:
+A core engineering highlight of Milestone 3 is the bidirectional synchronization between external Git version control repositories and the TracePilot defect state machine. TracePilot implements a dedicated ingestion endpoint at:
 \begin{center}
 \texttt{POST /api/v1/webhooks/git}
 \end{center}
@@ -552,14 +552,14 @@ smee --url https://smee.io/c2YI70y8ooQ4v1r --path /api/v1/webhooks/git --port 80
 \end{lstlisting}
 \end{enumerate}
 
-Figure~\ref{fig:github_webhook} illustrates the GitHub Webhook management console showing the active webhook configured for the BugTracker repository with successful push deliveries.
+Figure~\ref{fig:github_webhook} illustrates the GitHub Webhook management console showing the active webhook configured for the TracePilot repository with successful push deliveries.
 
 \begin{figure}[htbp]
 \centering
 \setlength{\fboxsep}{0pt}%
 \setlength{\fboxrule}{0.8pt}%
 \fbox{\includegraphics[width=0.95\textwidth]{milestone3/imagesmilestone3/figure3_github_webhook_integration.png}}
-\caption{GitHub Webhook configuration for BugTracker showing successful push-event delivery.}
+\caption{GitHub Webhook configuration for TracePilot showing successful push-event delivery.}
 \label{fig:github_webhook}
 \end{figure}
 
@@ -614,7 +614,7 @@ Continuous integration and deployment pipelines ensure that defect fixes are syn
 Inspection of the repository confirms that automated synchronization is implemented via the \textbf{GitHub Webhook-based integration architecture} operating in tandem with the Smee.io payload proxy. When code is pushed to the repository:
 \begin{enumerate}
     \item GitHub initiates an HTTP POST push event delivering commit metadata.
-    \item Smee.io receives the event and relays it to the BugTracker FastAPI gateway.
+    \item Smee.io receives the event and relays it to the TracePilot FastAPI gateway.
     \item The webhook router processes the payload, detects resolution syntax (\texttt{fixes \#2}, \texttt{closes \#5}), transitions the corresponding issue record to \texttt{IN\_TESTING}, and commits an immutable audit record.
     \item QA testers receive immediate visibility into incoming code changes awaiting verification in their workspace.
 \end{enumerate}
@@ -664,7 +664,7 @@ All charts share a cohesive dark-mode design system with transparent backgrounds
 % 11. API TESTING AND VALIDATION
 % =========================================================================
 \section{API Testing and Validation}
-Quality assurance and regression testing were executed across both tiers of the BugTracker repository to guarantee zero regressions following the introduction of Milestone 3 features.
+Quality assurance and regression testing were executed across both tiers of the TracePilot repository to guarantee zero regressions following the introduction of Milestone 3 features.
 
 \subsection{Automated Backend Test Suite Execution}
 The backend test suite was executed using Pytest 9.1 and \texttt{pytest-asyncio} against the live asynchronous FastAPI application and PostgreSQL test database:
@@ -727,7 +727,7 @@ Tables~\ref{tab:tech_stack} and \ref{tab:analytics_modules} summarize the techni
 \begin{table}[htbp]
 \centering
 \small
-\caption{BugTracker Core Technology Stack Matrix.}
+\caption{TracePilot Core Technology Stack Matrix.}
 \label{tab:tech_stack}
 \begin{tabularx}{\textwidth}{llp{7.5cm}}
 \toprule
@@ -790,7 +790,7 @@ The implementation completed during Milestone 3 successfully fulfills all four c
 \label{tab:milestone3_outcomes}
 \begin{tabularx}{\textwidth}{p{3.5cm}Xp{3.2cm}c}
 \toprule
-\textbf{Milestone 3 Requirement} & \textbf{Technical Implementation in BugTracker} & \textbf{Verification} & \textbf{Status} \\
+\textbf{Milestone 3 Requirement} & \textbf{Technical Implementation in TracePilot} & \textbf{Verification} & \textbf{Status} \\
 \midrule
 1. Deploy REST APIs for issue management and reporting operations & Implemented 24+ asynchronous FastAPI endpoints with Pydantic v2 schemas, JWT authentication, RBAC guards, and self-documenting Swagger/OpenAPI UI & Tested via 422 Pytest tests and Swagger Explorer & \textbf{Completed} \\
 \addlinespace
@@ -836,9 +836,9 @@ During the development and integration of Milestone 3, several key technical hur
 % 16. CONCLUSION
 % =========================================================================
 \section{Conclusion}
-Milestone 3 successfully transforms BugTracker from a transactional issue tracking system into a mature, API-driven defect intelligence and analytics platform. By combining standardized RESTful APIs, OpenAPI/Swagger documentation, live empirical software quality metrics, bidirectional GitHub push event synchronization, and interactive Plotly defect trend visualizations, the system delivers an enterprise-grade engineering workspace.
+Milestone 3 successfully transforms TracePilot from a transactional issue tracking system into a mature, API-driven defect intelligence and analytics platform. By combining standardized RESTful APIs, OpenAPI/Swagger documentation, live empirical software quality metrics, bidirectional GitHub push event synchronization, and interactive Plotly defect trend visualizations, the system delivers an enterprise-grade engineering workspace.
 
-The platform provides engineering leaders with complete transparency into defect resolution velocity, guarantees audit compliance through immutable activity logs, and automates developer workflows by linking code commits directly to defect resolution states. The successful verification of 422 automated backend tests and clean frontend build execution demonstrates the technical robustness, architectural integrity, and production readiness of the BugTracker system.
+The platform provides engineering leaders with complete transparency into defect resolution velocity, guarantees audit compliance through immutable activity logs, and automates developer workflows by linking code commits directly to defect resolution states. The successful verification of 422 automated backend tests and clean frontend build execution demonstrates the technical robustness, architectural integrity, and production readiness of the TracePilot system.
 
 % =========================================================================
 % 17. REFERENCES / TECHNOLOGIES USED
